@@ -39,7 +39,7 @@ cmd({
         await conn.sendMessage(m.chat, { delete: key });
         
         // Optional: Send confirmation (can be removed if you don't want any response)
-        await reply('✅ Message deleted successfully!');
+        await reply('✅ Message deleted successfully!\n\n> Powered by KAMRAN MD');
         
     } catch (err) {
         console.error(err);
