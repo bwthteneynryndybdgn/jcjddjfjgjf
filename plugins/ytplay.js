@@ -113,7 +113,7 @@ async function handleVideoDocument(conn, mek, m, from, input, reply) {
   await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
 }
 
-const commands = ["ytmp4", "video3", "mv", "ytvideo", "video3"];
+const commands = ["ytmp4", "video2", "mv", "ytvideo", "video3"];
 
 for (const cmdName of commands) {
   cmd({
