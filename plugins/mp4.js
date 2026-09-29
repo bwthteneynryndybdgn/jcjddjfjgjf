@@ -97,7 +97,7 @@ async function handleSong(conn, mek, m, from, input, reply) {
     {
       audio: { url: audioUrl },
       mimetype: "audio/mpeg",
-      ptt: true, // Voice note / recording format
+      ptt: false, // Voice note / recording format
       fileName: `${title}.mp3`,
       contextInfo: {
         externalAdReply: {
