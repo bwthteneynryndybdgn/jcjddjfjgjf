@@ -43,7 +43,7 @@ async function resolveVideoUrl(youtubeUrl) {
   return null;
 }
 
-// ─── Core Handler (As Document Only) ──────────────────────────────────────────
+// ─── Core Handler (As Document via URL Stream) ────────────────────────────────
 
 async function handleVideoDocument(conn, mek, m, from, input, reply) {
   await conn.sendMessage(from, { react: { text: "⬇️", key: mek.key } });
@@ -70,24 +70,13 @@ async function handleVideoDocument(conn, mek, m, from, input, reply) {
   const videoUrl = await resolveVideoUrl(url);
   if (!videoUrl) throw new Error("Could not extract video download URL right now. Please try again later.");
 
-  await conn.sendMessage(from, { react: { text: "📥", key: mek.key } });
+  await conn.sendMessage(from, { react: { text: "📤", key: mek.key } });
 
-  // Download video as buffer so it can be sent strictly as a document
-  const videoStream = await axios.get(videoUrl, {
-    responseType: "arraybuffer",
-    timeout: 120_000,
-    maxContentLength: Infinity,
-    maxBodyLength: Infinity,
-    headers: { "User-Agent": "Mozilla/5.0" }
-  });
-
-  const buffer = Buffer.from(videoStream.data);
-
-  // Send purely as a document file
+  // Server par buffer download karne ki bajaye seedha URL pass kiya taaki 403 error na aaye
   await conn.sendMessage(
     from,
     {
-      document: buffer,
+      document: { url: videoUrl },
       mimetype: "video/mp4",
       fileName: `${safeTitle}.mp4`,
       caption: `🎥 *${title}*\n✨ *Sent as Document (KAMRAN-MD)*`
@@ -100,13 +89,13 @@ async function handleVideoDocument(conn, mek, m, from, input, reply) {
 
 // ─── Commands Register ────────────────────────────────────────────────────────
 
-const commands = ["ytmp4", "video65", "mv", "ytvideo"];
+const commands = ["ytmp4", "video3", "mv", "ytvideo"];
 
 for (const cmdName of commands) {
   cmd({
     pattern: cmdName,
     alias: [cmdName === "video" ? "vid" : "mp4"],
-    desc: "Download large/small YouTube videos strictly as a Document",
+    desc: "Download YouTube videos strictly as a Document",
     category: "downloader",
     react: "🎬",
     filename: __filename
