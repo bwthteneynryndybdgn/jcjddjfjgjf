@@ -1,201 +1,167 @@
+// plugins/ai.js - ESM Version
 import { fileURLToPath } from 'url';
-import fs from 'fs';
-import path from 'path';
-import crypto from 'crypto';
-import axios from 'axios';
 import { cmd } from '../command.js';
+import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
-const SESSION_FILE = path.join(__dirname, 'unliai_sessions.json');
+// ==================== GLOBAL AUTO CHAT STATE ====================
+let globalAutoChatEnabled = false;
 
-// Session memory storage handlers
-function loadSessions() {
-    if (!fs.existsSync(SESSION_FILE)) return {};
-    try {
-        return JSON.parse(fs.readFileSync(SESSION_FILE, 'utf-8'));
-    } catch {
-        return {};
-    }
-}
-
-function saveSessions(sessions) {
-    fs.writeFileSync(SESSION_FILE, JSON.stringify(sessions, null, 2), 'utf-8');
-}
-
-// Main AI Handler
-async function askUnlimitedAI(prompt, customChatId = null) {
-    const start = Date.now();
-    const sessions = loadSessions();
-
-    const isExistingSession = Boolean(customChatId && sessions[customChatId]);
-
-    const currentChatId = isExistingSession ? customChatId : (customChatId || crypto.randomUUID());
-    const nextChatId = isExistingSession ? crypto.randomUUID() : currentChatId;
-
-    let deviceId = (isExistingSession && sessions[currentChatId].deviceId)
-        ? sessions[currentChatId].deviceId
-        : crypto.randomUUID();
-
-    let history = isExistingSession ? sessions[currentChatId].messages : [];
-
-    const nowIso = new Date().toISOString();
-    const msgIdUser = crypto.randomUUID();
-    const msgIdAssistant = crypto.randomUUID();
-
-    const newUserMessage = {
-        id: msgIdUser,
-        content: prompt,
-        createdAt: nowIso,
-        parts: [{ type: "text", text: prompt }],
-        role: "user"
-    };
-
-    const newAssistantPlaceholder = {
-        id: msgIdAssistant,
-        content: "",
-        createdAt: nowIso,
-        parts: [{ type: "text", text: "" }],
-        role: "assistant"
-    };
-
-    const currentMessages = [...history, newUserMessage, newAssistantPlaceholder];
-
-    const payload = {
-        chatId: currentChatId,
-        deviceId: deviceId,
-        locale: "id",
-        messages: currentMessages,
-        selectedCharacter: null,
-        selectedChatModel: "chat-model-reasoning",
-        selectedStory: null
-    };
-
-    try {
-        const response = await axios.post('https://app.unlimitedai.chat/api/chat', payload, {
-            responseType: 'stream',
-            headers: {
-                'Content-Type': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Mobile Safari/537.36',
-                'Origin': 'https://app.unlimitedai.chat',
-                'Referer': 'https://app.unlimitedai.chat/id'
-            }
-        });
-
-        return new Promise((resolve, reject) => {
-            let fullText = '';
-
-            response.data.on('data', (chunk) => {
-                const lines = chunk.toString().split('\n');
-                for (const line of lines) {
-                    const trimmed = line.trim();
-                    if (!trimmed) continue;
-
-                    try {
-                        const parsed = JSON.parse(trimmed);
-                        if (parsed.type === 'delta' && parsed.delta) {
-                            fullText += parsed.delta;
-                        }
-                    } catch (e) {
-                        // Ignore parse errors from streamed lines
-                    }
-                }
-            });
-
-            response.data.on('end', () => {
-                const trimmedResult = fullText.trim();
-
-                newAssistantPlaceholder.content = trimmedResult;
-                newAssistantPlaceholder.parts = [{ type: "text", text: trimmedResult }];
-                newAssistantPlaceholder.createdAt = new Date().toISOString();
-
-                const updatedMessages = [...history, newUserMessage, newAssistantPlaceholder];
-
-                if (isExistingSession) {
-                    sessions[nextChatId] = {
-                        deviceId: deviceId,
-                        messages: updatedMessages
-                    };
-                    delete sessions[currentChatId];
-                } else {
-                    sessions[currentChatId] = {
-                        deviceId: deviceId,
-                        messages: updatedMessages
-                    };
-                }
-
-                saveSessions(sessions);
-
-                resolve({
-                    status: true,
-                    runtime: `${Date.now() - start} ms`,
-                    chatId: nextChatId,
-                    sessionReset: isExistingSession,
-                    result: {
-                        prompt: prompt,
-                        response: trimmedResult
-                    }
-                });
-            });
-
-            response.data.on('error', (err) => {
-                reject({ status: false, error: err.message });
-            });
-        });
-
-    } catch (e) {
-        return {
-            status: false,
-            error: e.response ? e.response.data : e.message
-        };
-    }
-}
-
-// User active session tracker
-const userSessions = new Map();
-
-// ==================== UNLIMITED AI COMMAND ====================
+// ==================== AUTO CHAT LISTENER (BODY HOOK) ====================
 cmd({
-    pattern: "unliai",
-    alias: ["unlimitedai", "ai2", "thinkai"],
-    react: "🧠",
-    desc: "Ask Unlimited AI with reasoning and session memory",
-    category: "ai",
-    use: ".unliai <your prompt>",
-    filename: fileURLToPath(import.meta.url)
-}, async (conn, mek, m, { from, sender, q, reply, react }) => {
+    on: "body"
+}, async (conn, mek, m, { from, body, isGroup }) => {
     try {
-        if (!q) {
-            await react('❌');
-            return reply(`❌ *Please provide a prompt!*
+        if (!body) return;
 
-*Example:* 
-.unliai Explain quantum computing step by step.`);
-        }
+        // 1. STRICTLY IB ONLY: Groups mein bilkul kaam nahi karega
+        if (isGroup) return;
 
-        await react('⏳');
+        // 2. INFINITE LOOP PROTECTION: Bot khud ke messages ka reply nahi dega
+        if (m.key && m.key.fromMe) return;
 
-        // Check if user already has an active session ID
-        const userChatId = userSessions.get(sender) || null;
+        // 3. Ignore command prefixes
+        const prefix = /^[./!#]/;
+        if (prefix.test(body.trim())) return;
 
-        const aiResponse = await askUnlimitedAI(q, userChatId);
+        // 4. Check if Global Auto Chat is enabled
+        if (!globalAutoChatEnabled) return;
 
-        if (!aiResponse.status || !aiResponse.result?.response) {
-            throw new Error(aiResponse.error || "Failed to fetch response from Unlimited AI.");
-        }
-
-        // Save new chatId mapped to the user
-        userSessions.set(sender, aiResponse.chatId);
-
-        const responseText = `${aiResponse.result.response}\n\n> *© Powered By DR KAMRAN*`;
-
-        await reply(responseText);
-        await react('✅');
+        // Process message through AI engine automatically
+        await fetchAndReplyAI(conn, mek, from, body);
 
     } catch (error) {
-        console.error("Unlimited AI Error:", error);
-        await react('❌');
-        await reply(`❌ *Error:* ${error.message}`);
+        console.error("Auto-Chat Error:", error);
     }
 });
+
+// ==================== AUTO CHAT ON/OFF COMMAND ====================
+cmd({
+    pattern: "autochat",
+    alias: ["aichat", "chatbot"],
+    desc: "Turn global auto AI chat on or off for all IB chats",
+    category: "ai",
+    react: "🤖",
+    filename: __filename
+}, async (conn, mek, m, { isGroup, args, reply }) => {
+    try {
+        if (isGroup) {
+            return await reply("❌ Auto-Chat can only be controlled in IB, not in groups!");
+        }
+
+        const status = args[0] ? args[0].toLowerCase() : '';
+
+        if (status === 'on' || status === 'enable') {
+            globalAutoChatEnabled = true;
+            return await reply("✅ Global Auto AI Chat has been turned ON for all IB chats! (Supports All Languages)");
+        } else if (status === 'off' || status === 'disable') {
+            globalAutoChatEnabled = false;
+            return await reply("❌ Global Auto AI Chat has been turned OFF.");
+        } else {
+            const currentState = globalAutoChatEnabled ? "ON 🟢" : "OFF 🔴";
+            return await reply(`🤖 Global Auto-Chat Status: ${currentState}\n\nUsage:\n• .autochat on to enable\n• .autochat off to disable`);
+        }
+    } catch (err) {
+        console.error(err);
+        await reply("❌ Failed to toggle auto chat.");
+    }
+});
+
+// ==================== MANUAL AI COMMAND (.ai) ====================
+cmd({
+    pattern: "ai2",
+    alias: ["gpt", "chatgpt", "deepai", "blackbox"],
+    desc: "Ask anything to AI chatbot via FAA APIs (IB Only).",
+    category: "ai",
+    react: "🤖",
+    filename: __filename
+}, async (conn, mek, m, { from, text, usedPrefix, command, isGroup, reply }) => {
+    try {
+        if (isGroup) {
+            return await reply("❌ AI commands can only be used in IB, not in groups!");
+        }
+
+        if (!text?.trim()) {
+            return reply(
+                `❌ Please provide a prompt or question!\n\n` +
+                `Example:\n` +
+                `• ${usedPrefix + command} Hello, who are you?\n` +
+                `• ${usedPrefix + command} coding ke baray mein batao`
+            );
+        }
+
+        await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
+        await fetchAndReplyAI(conn, mek, from, text.trim());
+
+    } catch (err) {
+        console.error("AI Command Error:", err);
+        reply(`❌ Error: ${err.message}`);
+        await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+    }
+});
+
+// ==================== CORE AI FETCH ENGINE ====================
+async function fetchAndReplyAI(conn, mek, from, queryText) {
+    try {
+        // Professional instruction jo AI ko force karegi ke user ki language mein direct jawab de
+        const smartPrompt = `User message: "${queryText}". Reply directly to this message in the exact same language or script used by the user. Do not explain the language, just provide the direct answer.`;
+        const encodedQuery = encodeURIComponent(smartPrompt);
+        
+        const deepAiUrl = `https://kiraxmd-api.vercel.app/api/gemini?q=${encodedQuery}`;
+        const blackboxUrl = `https://api-faa.my.id/faa/blackbox?query=${encodedQuery}`;
+
+        let aiResult = "";
+
+        const extractText = (data) => {
+            if (!data) return "";
+            if (typeof data === 'string') return data;
+            
+            if (typeof data === 'object') {
+                let candidate = data.result || data.response || data.message || data.text || data.data || data.content;
+                
+                if (typeof candidate === 'string') return candidate;
+                if (typeof candidate === 'object' && candidate !== null) {
+                    return candidate.result || candidate.response || candidate.message || candidate.text || JSON.stringify(candidate, null, 2);
+                }
+                
+                if (data.data) return extractText(data.data);
+                
+                return JSON.stringify(data, null, 2);
+            }
+            return String(data);
+        };
+
+        // Try DeepAI first
+        try {
+            const response = await axios.get(deepAiUrl, { timeout: 30000 });
+            aiResult = extractText(response.data);
+        } catch (e) {
+            console.log("DeepAI API failed, trying Blackbox fallback...");
+        }
+
+        // If DeepAI fails, try Blackbox fallback
+        if (!aiResult || !aiResult.trim() || aiResult.includes("[object Object]")) {
+            try {
+                const responseFallback = await axios.get(blackboxUrl, { timeout: 30000 });
+                aiResult = extractText(responseFallback.data);
+            } catch (err) {
+                console.error("Blackbox fallback also failed:", err.message);
+            }
+        }
+
+        if (!aiResult || aiResult.includes("[object Object]") || aiResult.trim() === "") {
+            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+            return await conn.sendMessage(from, { text: "❌ Could not get a valid response from AI." }, { quoted: mek });
+        }
+
+        await conn.sendMessage(from, { 
+            text: `🤖 *KAMRAN-MD AI*\n\n${aiResult}` 
+        }, { quoted: mek });
+
+        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
+
+    } catch (error) {
+        console.error("AI Fetch Engine Error:", error.message);
+    }
+}
