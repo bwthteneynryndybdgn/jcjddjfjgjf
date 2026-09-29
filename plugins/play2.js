@@ -14,8 +14,8 @@ const STRICT_OWNER_LOCK = false;
 
 cmd(
   {
-    pattern: "song",
-    alias: ["play", "ytmp", "audio"],
+    pattern: "song65",
+    alias: ["play65", "ytmp65", "audio64"],
     react: "🎵",
     desc: "Search and download audio from YouTube.",
     category: "download",
