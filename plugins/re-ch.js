@@ -36,7 +36,16 @@ cmd({
         const api = `https://apiii-xrina.vercel.app/tools/rch?url=${encodeURIComponent(url)}&reaction=${encodeURIComponent(reaction)}&apikey=Rin-rch`;
 
         const res = await fetch(api);
-        const json = await res.json();
+        const responseText = await res.text();
+
+        let json;
+        try {
+            json = JSON.parse(responseText);
+        } catch (err) {
+            console.error('[RCH JSON PARSE ERROR]', responseText);
+            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+            return reply(`❌ Server API sedang bermasalah atau mengirim response non-JSON (HTML Error).`);
+        }
 
         if (!json.status) {
             await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
