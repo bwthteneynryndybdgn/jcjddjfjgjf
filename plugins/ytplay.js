@@ -5,15 +5,11 @@ import yts from "yt-search";
 
 const __filename = fileURLToPath(import.meta.url);
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
 function extractVideoId(input) {
   const shortMatch = input.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
   if (shortMatch) return shortMatch[1];
-
   const watchMatch = input.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
   if (watchMatch) return watchMatch[1];
-
   return null;
 }
 
@@ -42,16 +38,7 @@ async function resolveVideoUrl(youtubeUrl) {
         (typeof data?.result === "string" ? data.result : null);
 
       if (candidate && typeof candidate === "string" && candidate.startsWith("http")) {
-        // Test if the link is accessible
-        try {
-          const test = await axios.head(candidate, { timeout: 10_000, validateStatus: () => true });
-          if (test.status === 200 || test.status === 206 || candidate.includes('siputzx') || candidate.includes('workers.dev')) {
-            return candidate;
-          }
-        } catch {
-            // Agar head request fail ho phir bhi candidate return kar sakte hain agar wo trusted proxy ho
-            return candidate;
-        }
+        return candidate;
       }
     } catch (err) {
       console.error("[VIDEO API ERROR]", api, err?.message);
@@ -59,8 +46,6 @@ async function resolveVideoUrl(youtubeUrl) {
   }
   return null;
 }
-
-// ─── Core Handler (As Document) ──────────────────────────────────────────────
 
 async function handleVideoDocument(conn, mek, m, from, input, reply) {
   await conn.sendMessage(from, { react: { text: "⬇️", key: mek.key } });
@@ -76,7 +61,7 @@ async function handleVideoDocument(conn, mek, m, from, input, reply) {
     } catch {}
   } else {
     const search = await yts(input);
-    if (!search?.videos?.length) throw new Error("No results found on YouTube.");
+    if (!search?.videos?.length) throw new Error("No results found on YouTube for your search.");
     videoInfo = search.videos[0];
     url = videoInfo.url;
   }
@@ -84,35 +69,57 @@ async function handleVideoDocument(conn, mek, m, from, input, reply) {
   const title = videoInfo?.title || "YouTube_Video";
   const safeTitle = title.replace(/[\\/:*?"<>|]/g, "").trim();
 
-  const videoUrl = await resolveVideoUrl(url);
-  if (!videoUrl) throw new Error("Could not extract a stable video download URL right now. Please try again later.");
+  const videoDownloadUrl = await resolveVideoUrl(url);
+  if (!videoDownloadUrl) throw new Error("Could not extract a download URL from available APIs. Try using a direct YouTube link.");
 
   await conn.sendMessage(from, { react: { text: "📤", key: mek.key } });
 
-  // Send as Document file using stable API URL
-  await conn.sendMessage(
-    from,
-    {
-      document: { url: videoUrl },
-      mimetype: "video/mp4",
-      fileName: `${safeTitle}.mp4`,
-      caption: `🎥 *${title}*\n✨ *Sent as Document (KAMRAN-MD)*`
-    },
-    { quoted: mek }
-  );
+  try {
+    // Buffer stream download to bypass CDN restrictions and send safely as document
+    const videoStream = await axios.get(videoDownloadUrl, {
+      responseType: "arraybuffer",
+      timeout: 180_000,
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
+      headers: { "User-Agent": "Mozilla/5.0" }
+    });
+
+    const buffer = Buffer.from(videoStream.data);
+
+    await conn.sendMessage(
+      from,
+      {
+        document: buffer,
+        mimetype: "video/mp4",
+        fileName: `${safeTitle}.mp4`,
+        caption: `🎥 *${title}*\n✨ *Sent as Document (KAMRAN-MD)*`
+      },
+      { quoted: mek }
+    );
+  } catch (downloadErr) {
+    // Fallback: If buffer download fails due to size/network, try sending via direct URL stream
+    await conn.sendMessage(
+      from,
+      {
+        document: { url: videoDownloadUrl },
+        mimetype: "video/mp4",
+        fileName: `${safeTitle}.mp4`,
+        caption: `🎥 *${title}*\n✨ *Sent as Document (KAMRAN-MD)*`
+      },
+      { quoted: mek }
+    );
+  }
 
   await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
 }
 
-// ─── Commands Register ────────────────────────────────────────────────────────
-
-const commands = ["ytmp4", "video3", "mv", "ytvideo"];
+const commands = ["ytmp4", "video3", "mv", "ytvideo", "video3"];
 
 for (const cmdName of commands) {
   cmd({
     pattern: cmdName,
     alias: [cmdName === "video" ? "vid" : "mp4"],
-    desc: "Download YouTube videos strictly as a Document with multi-API fallback",
+    desc: "Download YouTube videos strictly as a Document",
     category: "downloader",
     react: "🎬",
     filename: __filename
@@ -125,7 +132,7 @@ for (const cmdName of commands) {
     } catch (err) {
       console.error(`[${command.toUpperCase()}]`, err?.message || err);
       await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-      reply(`❌ _*Download Failed*_ : \n\n⚠️ ${err?.message || "An unexpected error occurred."}`);
+      reply(`❌ _*Download Failed*_ : \n\n⚠️️ ${err?.message || "An unexpected error occurred."}`);
     }
   });
 }
