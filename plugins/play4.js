@@ -5,8 +5,8 @@ import axios from 'axios';
 const __filename = fileURLToPath(import.meta.url);
 
 cmd({
-    pattern: "play53",
-    alias: ["ytplay", "song64", "plays5"],
+    pattern: "play",
+    alias: ["ytplay", "song", "plays5"],
     desc: "Search and download songs from YouTube via Kamran API",
     category: "downloader",
     react: "🎵",
