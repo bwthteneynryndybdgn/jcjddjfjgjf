@@ -118,12 +118,12 @@ async function handleSong(conn, mek, m, from, input, reply) {
 
 // ─── Commands Register ────────────────────────────────────────────────────────
 
-const commands = ["song5", "play5", "yta6", "ytmp3"];
+const commands = ["song", "play", "yta", "ytmp3"];
 
 for (const cmdName of commands) {
   cmd({
     pattern: cmdName,
-    alias: [cmdName === "play8" ? "audio90" : "yt98"],
+    alias: [cmdName === "play6" ? "audio" : "yt"],
     desc: "Search & download audio from YouTube as Voice Note",
     category: "downloader",
     react: "🎶",
