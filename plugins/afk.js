@@ -1,53 +1,49 @@
-import { cmd } from '../command.js';
 import { fileURLToPath } from 'url';
+import { cmd } from '../command.js';
+import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
 
-// Global Object to store AFK data temporarily
-global.afkData = global.afkData || {};
-
 cmd({
-    pattern: "afk",
-    alias: ["away"],
-    desc: "Set AFK status when you are away",
-    category: "misc",
-    react: "💤",
+    pattern: "gemini75",
+    alias: ["ai5", "ask6"],
+    desc: "Ask anything to Gemini AI via custom API",
+    category: "ai",
+    react: "🤖",
     filename: __filename
-}, async (conn, mek, m, { from, text, reply, sender }) => {
+}, async (conn, mek, m, { from, text, usedPrefix, command, reply }) => {
     try {
-        const args = text?.trim() || "";
+        const query = text ? text.trim() : "";
 
-        // Turn OFF AFK mode (.afk off)
-        if (args.toLowerCase() === "off") {
-            if (!global.afkData[sender]) {
-                return reply("❌ *You are not in AFK mode!*");
-            }
-            
-            delete global.afkData[sender];
-            return reply("✅ *Your AFK mode has been turned off.*");
+        if (!query) {
+            return reply(`⚠️ *Format salah!*\n\n*Contoh:* \n• \`${usedPrefix + command} Halo, apa kabar?\``);
         }
 
-        // Usage command if no reason is provided (.afk)
-        if (!args) {
-            return reply(
-                `💤 *AFK Usage Guide:*\n\n` +
-                `*Turn ON AFK:* \`.afk [reason]\` (Example: \`.afk Sleeping\`)\n` +
-                `*Turn OFF AFK:* \`.afk off\`\n\n` +
-                `━━━━━━━━━━━━━━━━━━\n` +
-                `~ *KAMRAN-MD*`
-            );
-        }
+        await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
-        // Set AFK Status Logic
-        const timeNow = Math.floor(Date.now() / 1000);
-        global.afkData[sender] = {
-            reason: args,
-            time: timeNow
-        };
+        const apiUrl = `https://kiraxmd-api.vercel.app/api/gemini?q=${encodeURIComponent(query)}`;
+        
+        // Yahan apni API key add ki gayi hai
+        const apiKey = "WAAViT94pq58a0X4yVxqUZAIYGMbNDZC82lmdHhp73WKSUYStnt4abH8bmN1gm7gMiBYofhG7zq7wh0hgLbmNhGhH8DDWermwoyRwD78vt0hkoXGjePrUZAXPCK7S7gXoajFdxE9VybFr7bkVc7dlmFa0KGwJ5BuYnv4cshIvpMQRk1Pn"; //[span_1](start_span)[span_1](end_span)
 
-        return reply(`💤 *You are now AFK!*\n\n📝 *Reason:* ${args}`);
+        const res = await axios.get(apiUrl, { 
+            headers: {
+                'Authorization': `Bearer ${apiKey}`
+            },
+            timeout: 30000 
+        });
+        
+        const data = res.data;
+
+        // API ke response structure ke mutabiq text extract karein
+        const resultText = data?.result || data?.response || data?.message || JSON.stringify(data);
+
+        await reply(resultText);
+        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
 
     } catch (error) {
-        reply(`❌ *Error:* ${error.message}`);
+        console.error('[GEMINI AI ERROR]', error);
+        await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+        reply(`❌ Gagal mendapatkan respons dari AI:\n${error.message || error}`);
     }
 });
