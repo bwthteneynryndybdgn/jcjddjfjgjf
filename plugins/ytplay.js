@@ -13,41 +13,13 @@ function extractVideoId(input) {
   return null;
 }
 
-const VIDEO_APIS = (url) => [
-  `https://api.siputzx.my.id/api/d/ytmp4?url=${encodeURIComponent(url)}`,
-  `https://jerrycoder.oggyapi.workers.dev/down/ytmp4-v1?url=${encodeURIComponent(url)}`,
-  `https://eliteprotech-apis.zone.id/ytdown?format=mp4&url=${encodeURIComponent(url)}`,
-  `https://xenoytdl-2.vercel.app/api/youtube?url=${encodeURIComponent(url)}`,
-];
-
-async function resolveVideoUrl(youtubeUrl) {
-  for (const api of VIDEO_APIS(youtubeUrl)) {
-    try {
-      const res = await axios.get(api, { timeout: 45_000, validateStatus: () => true });
-      const data = res.data;
-
-      const candidate =
-        data?.result?.mp4 ||
-        data?.data?.dl ||
-        data?.data?.download ||
-        data?.download ||
-        data?.url ||
-        data?.result?.download_url ||
-        data?.result?.video ||
-        data?.result?.url ||
-        (typeof data?.result === "string" ? data.result : null);
-
-      if (candidate && typeof candidate === "string" && candidate.startsWith("http")) {
-        return candidate;
-      }
-    } catch (err) {
-      console.error("[VIDEO API ERROR]", api, err?.message);
-    }
-  }
-  return null;
+async function fetchXenoApi(youtubeUrl, format) {
+  const apiUrl = `https://xenoytdl-2.vercel.app/api/youtube?url=${encodeURIComponent(youtubeUrl)}&format=${format}&upload=false`;
+  const res = await axios.get(apiUrl, { timeout: 45_000, validateStatus: () => true });
+  return res.data;
 }
 
-async function handleVideoDocument(conn, mek, m, from, input, reply) {
+async function handleDownload(conn, mek, m, from, input, format, reply) {
   await conn.sendMessage(from, { react: { text: "⬇️", key: mek.key } });
   let url = input;
   let videoInfo = null;
@@ -61,47 +33,59 @@ async function handleVideoDocument(conn, mek, m, from, input, reply) {
     } catch {}
   } else {
     const search = await yts(input);
-    if (!search?.videos?.length) throw new Error("No results found on YouTube for your search.");
+    if (!search?.videos?.length) throw new Error("No results found on YouTube.");
     videoInfo = search.videos[0];
     url = videoInfo.url;
   }
 
-  const title = videoInfo?.title || "YouTube_Video";
+  const title = videoInfo?.title || "Media_File";
   const safeTitle = title.replace(/[\\/:*?"<>|]/g, "").trim();
+  const thumbnail = videoInfo?.thumbnail || videoInfo?.image || "";
+  const author = videoInfo?.author?.name || "Unknown";
 
-  const videoDownloadUrl = await resolveVideoUrl(url);
-  if (!videoDownloadUrl) throw new Error("Could not extract a download URL from available APIs. Try using a direct YouTube link.");
+  const apiData = await fetchXenoApi(url, format);
+  
+  const downloadUrl = 
+    apiData?.result?.download_url || 
+    apiData?.result?.url || 
+    apiData?.download || 
+    apiData?.url || 
+    (typeof apiData?.result === "string" ? apiData.result : null);
+
+  if (!downloadUrl) {
+    throw new Error("Could not extract download URL from Xeno API.");
+  }
 
   await conn.sendMessage(from, { react: { text: "📤", key: mek.key } });
 
-  try {
-    // Buffer stream download to bypass CDN restrictions and send safely as document
-    const videoStream = await axios.get(videoDownloadUrl, {
-      responseType: "arraybuffer",
-      timeout: 180_000,
-      maxContentLength: Infinity,
-      maxBodyLength: Infinity,
-      headers: { "User-Agent": "Mozilla/5.0" }
-    });
-
-    const buffer = Buffer.from(videoStream.data);
-
+  if (format === 'mp3') {
     await conn.sendMessage(
       from,
       {
-        document: buffer,
-        mimetype: "video/mp4",
-        fileName: `${safeTitle}.mp4`,
-        caption: `🎥 *${title}*\n✨ *Sent as Document (KAMRAN-MD)*`
+        audio: { url: downloadUrl },
+        mimetype: "audio/mpeg",
+        ptt: true, // Voice note format
+        fileName: `${safeTitle}.mp3`,
+        contextInfo: {
+          externalAdReply: {
+            title,
+            body: author,
+            mediaType: 2,
+            thumbnailUrl: thumbnail,
+            sourceUrl: url,
+            renderLargerThumbnail: true,
+            showAdAttribution: false,
+          },
+        },
       },
       { quoted: mek }
     );
-  } catch (downloadErr) {
-    // Fallback: If buffer download fails due to size/network, try sending via direct URL stream
+  } else {
+    // Send video strictly as Document
     await conn.sendMessage(
       from,
       {
-        document: { url: videoDownloadUrl },
+        document: { url: downloadUrl },
         mimetype: "video/mp4",
         fileName: `${safeTitle}.mp4`,
         caption: `🎥 *${title}*\n✨ *Sent as Document (KAMRAN-MD)*`
@@ -113,26 +97,40 @@ async function handleVideoDocument(conn, mek, m, from, input, reply) {
   await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
 }
 
-const commands = ["ytmp4", "video2", "mv", "ytvideo", "video3"];
+// ─── Commands Register ────────────────────────────────____________________
 
-for (const cmdName of commands) {
-  cmd({
-    pattern: cmdName,
-    alias: [cmdName === "video" ? "vid" : "mp4"],
-    desc: "Download YouTube videos strictly as a Document",
-    category: "downloader",
-    react: "🎬",
-    filename: __filename
-  }, async (conn, mek, m, { from, text, usedPrefix, command, reply }) => {
-    try {
-      if (!text || !text.trim()) {
-        return reply(`_Usage: ${usedPrefix + command} <query or YouTube URL>_`);
-      }
-      await handleVideoDocument(conn, mek, m, from, text.trim(), reply);
-    } catch (err) {
-      console.error(`[${command.toUpperCase()}]`, err?.message || err);
-      await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-      reply(`❌ _*Download Failed*_ : \n\n⚠️️ ${err?.message || "An unexpected error occurred."}`);
-    }
-  });
-}
+cmd({
+  pattern: "song65",
+  alias: ["play5", "yta5", "ytmp3"],
+  desc: "Download YouTube audio as Voice Note using Xeno API",
+  category: "downloader",
+  react: "🎵",
+  filename: __filename
+}, async (conn, mek, m, { from, text, usedPrefix, command, reply }) => {
+  try {
+    if (!text || !text.trim()) return reply(`_Usage: ${usedPrefix + command} <song name or URL>_`);
+    await handleDownload(conn, mek, m, from, text.trim(), 'mp3', reply);
+  } catch (err) {
+    console.error(`[SONG ERROR]`, err);
+    await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+    reply(`❌ _*Download Failed*_ : \n\n⚠️ ${err?.message || err}`);
+  }
+});
+
+cmd({
+  pattern: "video75",
+  alias: ["ytmp454", "mv65", "video3"],
+  desc: "Download YouTube video as Document using Xeno API",
+  category: "downloader",
+  react: "🎬",
+  filename: __filename
+}, async (conn, mek, m, { from, text, usedPrefix, command, reply }) => {
+  try {
+    if (!text || !text.trim()) return reply(`_Usage: ${usedPrefix + command} <video name or URL>_`);
+    await handleDownload(conn, mek, m, from, text.trim(), 'mp4', reply);
+  } catch (err) {
+    console.error(`[VIDEO ERROR]`, err);
+    await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+    reply(`❌ _*Download Failed*_ : \n\n⚠️ ${err?.message || err}`);
+  }
+});
