@@ -1,100 +1,83 @@
-// DR KAMRAN 
+import { fileURLToPath } from 'url'
+import { cmd } from '../command.js'
+import axios from 'axios'
 
-import { fileURLToPath } from 'url';
-import axios from 'axios';
-import { cmd } from '../command.js';
-
-const __filename = fileURLToPath(import.meta.url);
+const __filename = fileURLToPath(import.meta.url)
 
 cmd({
     pattern: "apk",
-    desc: "Download any application or APK file",
-    category: "download",
-    react: "📥",
+    alias: ["modapk", "downloadapk"],
+    desc: "Search and download APK files from Aptoide",
+    category: "downloader",
+    react: "⌛",
     filename: __filename
-},
-async (conn, mek, m, { from, quoted, body, isCmd, command, args, q, reply }) => {
+}, async (conn, mek, m, { from, text, usedPrefix, command, reply }) => {
+    const reactKey = m.key
+
     try {
-        if (!q) {
+        if (!text || !text.trim()) {
+            await conn.sendMessage(from, { react: { text: '❌', key: reactKey } }).catch(() => {})
             return reply(
-                `╔════════════════════════╗\n` +
-                `║   📥 KAMRAN-MD APK DOWNLOADER   \n` +
-                `╚════════════════════════╝\n\n` +
-                `❌ *Kripya kisi app ka naam dein!*\n\n` +
-                `> 📌 *Example:* \`.apk WhatsApp\`\n` +
-                `> ⚡ *Version:* \`10.00\``
-            );
+                `╭─❏ 「 APK 」\n` +
+                `│ Provide an app name, you brainless creature!\n` +
+                `╰───────────────\n` +
+                `> ©𝐏𝐨𝐰𝐞𝐫𝐞𝐝 𝐁𝐲 KAMRAN-MD`
+            )
         }
 
-        await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
+        await conn.sendMessage(from, { react: { text: "⌛", key: reactKey } })
 
-        const url = `https://api.princetechn.com/api/download/apkdl?apikey=prince&appName=${encodeURIComponent(q)}`;
-        const response = await axios.get(url, { timeout: 60000 });
+        const query = text.trim()
+        const apiUrl = `https://ws75.aptoide.com/api/7/apps/search/query=${encodeURIComponent(query)}`
         
-        if (response.data) {
-            const resData = response.data.result || response.data;
-            
-            const appName = resData.appname || resData.name || resData.appName || q;
-            const appSize = resData.size || resData.fileSize || "Unknown";
-            const appPackage = resData.package || resData.bundleId || resData.packagename || "Unknown";
-            
-            // Image ke JSON ke mutabiq keys match kar di hain (`download_url` aur `appicon`)
-            const downloadUrl = resData.download_url || resData.dllink || resData.download || resData.link || resData.url;
-            const appIcon = resData.appicon || resData.icon || resData.image || "";
+        const response = await axios.get(apiUrl, { timeout: 30000, validateStatus: () => true })
+        const data = response.data
 
-            if (!downloadUrl) {
-                await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-                return reply(`❌ *App download link nahi mila!*`);
-            }
-
-            const appBox = `
-╔════════════════════════╗
-║   📥 KAMRAN-MD APK DOWNLOADER   
-╚════════════════════════╝
-
-📌 *App Name:* ${appName}
-📦 *Package:* \`${appPackage}\`
-💾 *Size:* ${appSize}
-
-> ⚡ *Version:* \`10.00\`
-> 👑 *Powered by KAMRAN MD*`.trim();
-
-            if (appIcon) {
-                await conn.sendMessage(from, { 
-                    image: { url: appIcon }, 
-                    caption: appBox 
-                }, { quoted: mek });
-            } else {
-                await reply(appBox, {
-                    contextInfo: { 
-                        forwardingScore: 999, 
-                        isForwarded: true, 
-                        forwardedNewsletterMessageInfo: { 
-                            newsletterJid: '120363418144382782@newsletter', 
-                            newsletterName: 'DR KAMRAN', 
-                            serverMessageId: 143 
-                        } 
-                    }
-                });
-            }
-
-            // Send APK Document File
-            await conn.sendMessage(from, { 
-                document: { url: downloadUrl }, 
-                mimetype: 'application/vnd.android.package-archive', 
-                fileName: `${appName}.apk`,
-                caption: `> *📥 Here is your APK file:* ${appName}`
-            }, { quoted: mek });
-
-            await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
-        } else {
-            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return reply("❌ *API se koi data nahi mila, app ka naam theek se likhein!*");
+        if (!data?.datalist?.list?.length) {
+            await conn.sendMessage(from, { react: { text: "❌", key: reactKey } }).catch(() => {})
+            return reply(
+                `╭─❏ 「 APK 」\n` +
+                `│ App not found!\n` +
+                `╰───────────────\n` +
+                `> ©𝐏𝐨𝐰𝐞𝐫𝐞𝐝 𝐁𝐲 KAMRAN-MD`
+            )
         }
 
-    } catch (e) {
-        console.error("APK Command Error:", e);
-        await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-        return reply(`❌ *Error occurred:* \`\`\`${e.message}\`\`\``);
+        const app = data.datalist.list[0]
+        const apkUrl = app.file?.path
+
+        if (!apkUrl) {
+            await conn.sendMessage(from, { react: { text: "❌", key: reactKey } }).catch(() => {})
+            return reply(
+                `╭─❏ 「 APK 」\n` +
+                `│ APK download link not available!\n` +
+                `╰───────────────\n` +
+                `> ©𝐏𝐨𝐰𝐞𝐫𝐞𝐝 𝐁𝐲 KAMRAN-MD`
+            )
+        }
+
+        await conn.sendMessage(
+            from,
+            {
+                document: { url: apkUrl },
+                fileName: `${app.name || 'app'}.apk`,
+                mimetype: "application/vnd.android.package-archive",
+                caption: `╭─❏ 「 APK DOWNLOADER 」\n│ 📱 *Name:* ${app.name}\n│ 📦 *Package:* ${app.package || 'N/A'}\n╰───────────────\n> ©𝐏𝐨𝐰𝐞𝐫𝐞𝐝 𝐁𝐲 KAMRAN-MD`
+            },
+            { quoted: mek }
+        )
+
+        await conn.sendMessage(from, { react: { text: "✅", key: reactKey } })
+
+    } catch (error) {
+        console.error('APK error:', error)
+        await conn.sendMessage(from, { react: { text: "❌", key: reactKey } }).catch(() => {})
+        reply(
+            `╭─❏ 「 APK ERROR 」\n` +
+            `│ APK download failed, not my problem.\n` +
+            `│ ${error.message || error}\n` +
+            `╰───────────────\n` +
+            `> ©𝐏𝐨𝐰𝐞𝐫𝐞𝐝 𝐁𝐲 KAMRAN-MD`
+        )
     }
-});
+})
