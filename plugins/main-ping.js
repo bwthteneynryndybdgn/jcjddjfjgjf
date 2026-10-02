@@ -71,7 +71,7 @@ async function executePing(conn, mek, from) {
             forwardingScore: 999,
             isForwarded: true,
             forwardedNewsletterMessageInfo: {
-                newsletterJid: '120363418144382782@newsletter',
+                newsletterJid: '120363413585581317@newsletter',
                 newsletterName: "DR KAMRAN",
                 serverMessageId: 143
             }
