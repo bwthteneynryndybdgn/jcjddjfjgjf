@@ -21,19 +21,27 @@ cmd({
     const messageText = (body || "").toLowerCase().trim();
     const containsKeyword = commandKeywords.some(word => messageText === word || messageText.includes(word));
 
-    const quoted = message.quoted || message.msg?.contextInfo?.quotedMessage;
+    // Universal quoted message retriever for both IB and Groups
+    const quoted = message.quoted || message.msg?.contextInfo?.quotedMessage || message.message?.extendedTextMessage?.contextInfo?.quotedMessage;
 
     if (containsKeyword && quoted) {
       const remoteJid = message.quoted?.chat || message.msg?.contextInfo?.remoteJid || '';
       
-      if (remoteJid === 'status@broadcast' || message.quoted?.isStatus || message.msg?.contextInfo?.participant) {
-        
+      const isStatusMessage = remoteJid === 'status@broadcast' || 
+                              message.quoted?.isStatus || 
+                              message.msg?.contextInfo?.isStatus ||
+                              quoted.imageMessage || 
+                              quoted.videoMessage || 
+                              quoted.audioMessage ||
+                              quoted.protocolMessage?.editedMessage?.imageMessage;
+
+      if (isStatusMessage || quoted) {
         await client.sendMessage(from, { react: { text: '⏳', key: message.key } }).catch(() => {});
 
-        const quotedMsg = message.quoted || message.msg.contextInfo.quotedMessage;
+        const quotedMsg = message.quoted || quoted;
         const typeKey = Object.keys(quotedMsg.message || quotedMsg)[0] || '';
         const content = quotedMsg.message ? quotedMsg.message[typeKey] : quotedMsg[typeKey];
-        const originalCaption = content?.caption || content?.text || '';
+        const originalCaption = content?.caption || content?.text || quotedMsg.text || '';
         const DESCRIPTION = userConfig?.DESCRIPTION || config.DESCRIPTION || "";
 
         let buffer = null;
@@ -42,7 +50,10 @@ cmd({
             buffer = await message.quoted.download();
           } else if (content) {
             let mediaType = typeKey.replace('Message', '').toLowerCase();
-            if (mediaType === 'ptt') mediaType = 'audio';
+            if (mediaType === 'ptt' || mediaType.includes('audio')) mediaType = 'audio';
+            else if (mediaType.includes('image')) mediaType = 'image';
+            else if (mediaType.includes('video')) mediaType = 'video';
+
             const stream = await downloadContentFromMessage(content, mediaType);
             let chunks = [];
             for await (const chunk of stream) {
@@ -61,23 +72,23 @@ cmd({
 
         let messageContent = {};
 
-        if (typeKey.includes("image") || content?.mimetype?.includes('image')) {
+        if (typeKey.includes("image") || content?.mimetype?.includes('image') || quoted.imageMessage) {
           messageContent = {
             image: buffer,
             caption: originalCaption ? `${originalCaption}\n\n> ${DESCRIPTION}` : (DESCRIPTION ? `> ${DESCRIPTION}` : ""),
-            mimetype: content?.mimetype || "image/jpeg"
+            mimetype: content?.mimetype || quoted.imageMessage?.mimetype || "image/jpeg"
           };
-        } else if (typeKey.includes("video") || content?.mimetype?.includes('video')) {
+        } else if (typeKey.includes("video") || content?.mimetype?.includes('video') || quoted.videoMessage) {
           messageContent = {
             video: buffer,
             caption: originalCaption ? `${originalCaption}\n\n> ${DESCRIPTION}` : (DESCRIPTION ? `> ${DESCRIPTION}` : ""),
-            mimetype: content?.mimetype || "video/mp4"
+            mimetype: content?.mimetype || quoted.videoMessage?.mimetype || "video/mp4"
           };
-        } else if (typeKey.includes("audio") || content?.mimetype?.includes('audio')) {
+        } else if (typeKey.includes("audio") || content?.mimetype?.includes('audio') || quoted.audioMessage) {
           messageContent = {
             audio: buffer,
             mimetype: "audio/mp4",
-            ptt: content?.ptt || false
+            ptt: content?.ptt || quoted.audioMessage?.ptt || false
           };
         } else {
           const textContent = originalCaption || content?.text || "";
