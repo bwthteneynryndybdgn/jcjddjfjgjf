@@ -11,7 +11,7 @@ cmd({
     pattern: "song",
     alias: ["play", "ytmp3", "audio", "song2"],
     react: '🎵',
-    desc: "Download audio from YouTube with details and thumbnail",
+    desc: "Download audio from YouTube with full details",
     category: "downloader",
     filename: __filename
 }, async (client, message, m, { 
@@ -32,15 +32,15 @@ cmd({
 
         const DESCRIPTION = userConfig?.DESCRIPTION || config.DESCRIPTION || "Powered by Bot";
 
-        // Initial reaction
+        // Initial reaction (Loading)
         await client.sendMessage(from, { react: { text: '⏳', key: message.key } });
 
         let targetUrl = q.trim();
-        let videoDetails = null;
+        let videoInfo = null;
 
-        // yt-search se details aur URL nikalna
+        // Agar user ne name diya hai ya link, dono sorat mein yt-search se details nikal lenge
         try {
-            let search = await yts(targetUrl.startsWith("http") ? { videoId: targetUrl } : targetUrl);
+            let search = await yts(targetUrl.startsWith("http") ? targetUrl : targetUrl);
             let videos = search?.videos || search?.all;
             
             if (!videos || videos.length === 0) {
@@ -49,15 +49,10 @@ cmd({
                 }, { quoted: message });
             }
             
-            videoDetails = videos[0];
-            targetUrl = videoDetails.url;
+            videoInfo = videos[0];
+            targetUrl = videoInfo.url;
         } catch (searchErr) {
             console.error("YTS Search Error:", searchErr);
-            if (!targetUrl.startsWith("http")) {
-                return await client.sendMessage(from, {
-                    text: "❌ *YouTube search karne me error aayi!*"
-                }, { quoted: message });
-            }
         }
 
         // API Endpoint with YouTube URL
@@ -66,46 +61,43 @@ cmd({
         const response = await axios.get(apiUrl);
         const data = response.data;
 
-        // API response validation
         if (!data || !data.status || !data.download || !data.download.downloadUrl) {
             return await client.sendMessage(from, {
                 text: "❌ *Audio download link nahi mil saki!* Kripya dubara koshish karein."
             }, { quoted: message });
         }
 
-        const songTitle = videoDetails?.title || data.download.title || "YouTube Audio";
-        const songDuration = videoDetails?.timestamp || "Unknown";
-        const songViews = videoDetails?.views ? videoDetails.views.toLocaleString() : "Unknown";
-        const channelName = videoDetails?.author?.name || "Unknown";
-        const thumbnail = videoDetails?.thumbnail || "";
+        const songTitle = data.download.title || videoInfo?.title || "YouTube Audio";
         const audioDownloadUrl = data.download.downloadUrl;
+        const duration = videoInfo?.timestamp || data.download.duration || "N/A";
+        const views = videoInfo?.views ? videoInfo.views.toLocaleString() : "N/A";
+        const author = videoInfo?.author?.name || "N/A";
+        const thumbUrl = videoInfo?.thumbnail || "";
 
-        // Message caption with full details
-        let caption = `*🎵 YOUTUBE AUDIO DOWNLOADER* 🎵\n\n`;
-        caption += `*▪ Title:* ${songTitle}\n`;
-        caption += `*▪ Channel:* ${channelName}\n`;
-        caption += `*▪ Duration:* ${songDuration}\n`;
-        caption += `*▪ Views:* ${songViews}\n\n`;
-        caption += `> ${DESCRIPTION}`;
+        // Detailed caption format
+        const captionText = `╭━━━〔 *🎵 YOUTUBE DOWNLOADER* 〕━━━┈⊷
+┃ 📌 *Title:* ${songTitle}
+┃ ⏱️ *Duration:* ${duration}
+┃ 👀 *Views:* ${views}
+┃ 👤 *Channel:* ${author}
+┃ 🔗 *Link:* ${targetUrl}
+╰━━━━━━━━━━━━━━━━━━━━━━━┈⊷
+> ${DESCRIPTION}`;
 
-        // Send audio with Thumbnail/DP and Details
+        // (Optional) Agar aap chahte hain ke audio se pehle song ki DP (Thumbnail) bheji jaye:
+        if (thumbUrl) {
+            await client.sendMessage(from, {
+                image: { url: thumbUrl },
+                caption: `📥 *Downloading Audio... Please wait.*`
+            }, { quoted: message });
+        }
+
+        // Send Audio File with Details Caption
         const options = {
             audio: { url: audioDownloadUrl },
             mimetype: 'audio/mp4',
             ptt: false,
-            fileName: `${songTitle}.mp3`,
-            caption: caption,
-            headerType: 4,
-            contextInfo: {
-                externalAdReply: {
-                    title: songTitle,
-                    body: `Channel: ${channelName} (${songDuration})`,
-                    mediaType: 2,
-                    thumbnailUrl: thumbnail,
-                    sourceUrl: targetUrl,
-                    renderLargerThumbnail: true
-                }
-            }
+            caption: captionText
         };
 
         await client.sendMessage(from, options, { quoted: message });
