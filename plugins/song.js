@@ -1,10 +1,10 @@
 import { cmd } from '../command.js';
 import { fileURLToPath } from 'url';
 import fetch from 'node-fetch';
+import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
 
-// Aapke diye gaye multi APIs list
 const APIS = (url) => [
   `https://kiraxmd-api.vercel.app/api/play?query=${encodeURIComponent(url)}`,
   `https://xenoytdl-2.vercel.app/api/youtube?url=${encodeURIComponent(url)}`,
@@ -17,7 +17,7 @@ const APIS = (url) => [
 cmd({
     pattern: "play2",
     alias: ["song2", "audio2", "ytmp32"],
-    desc: "Search or download songs from YouTube with image and details.",
+    desc: "Search or download songs from YouTube with image and buffer upload.",
     category: "downloader",
     react: "🎵",
     filename: __filename
@@ -34,7 +34,6 @@ cmd({
         let songTitle = "Audio Track";
         let downloadUrl = null;
 
-        // Agar user ne link nahi diya, toh search API se link aur thumbnail nikal lenge
         if (!query.includes("youtu.be") && !query.includes("youtube.com")) {
             const searchApi = `https://api.siputzx.my.id/api/s/youtube?query=${encodeURIComponent(query)}`;
             const searchRes = await fetch(searchApi);
@@ -50,7 +49,6 @@ cmd({
             songTitle = searchJson.data[0].title || query;
         }
 
-        // Multi-API Fallback Loop
         const apiList = APIS(ytUrl);
         
         for (const apiUrl of apiList) {
@@ -78,7 +76,6 @@ cmd({
             return reply("❌ Failed to fetch audio from all APIs. Please try again later.");
         }
 
-        // Fallback thumbnail
         if (!thumbnail) {
             const videoIdMatch = ytUrl.match(/(?:v=|youtu\.be\/)([\w-]{11})/);
             const videoId = videoIdMatch ? videoIdMatch[1] : "qF-JLqKtr2Q";
@@ -90,7 +87,6 @@ cmd({
             `━━━━━━━━━━━━━━━━━━\n` +
             `~ *KAMRAN-MD*`;
 
-        // Pehle Image + Caption bhejein ge
         if (thumbnail) {
             await conn.sendMessage(from, {
                 image: { url: thumbnail },
@@ -100,9 +96,20 @@ cmd({
             await reply(infoMessage);
         }
 
-        // Phir direct audio url pass karenge taake WhatsApp khud handle kare
+        // Downloading audio buffer securely using axios with browser headers
+        await conn.sendMessage(from, { react: { text: "⬇️", key: mek.key } });
+        
+        const audioRes = await axios.get(downloadUrl, { 
+            responseType: 'arraybuffer',
+            headers: { 
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Referer': 'https://www.youtube.com/'
+            }
+        });
+        const audioBuffer = Buffer.from(audioRes.data);
+
         await conn.sendMessage(from, {
-            audio: { url: downloadUrl },
+            audio: audioBuffer,
             mimetype: 'audio/mp4',
             fileName: `${songTitle.replace(/[\\/:*?"<>|]/g, '')}.mp3`,
             ptt: false
