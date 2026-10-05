@@ -7,8 +7,8 @@ import axios from 'axios';
 const __filename = fileURLToPath(import.meta.url);
 
 cmd({
-    pattern: "song2",
-    alias: ["play2", "ytmp32", "audio2"],
+    pattern: "song3",
+    alias: ["play2", "ytmp32", "audio2", "song2"],
     react: '🎵',
     desc: "Download audio from YouTube using API",
     category: "downloader",
@@ -25,41 +25,45 @@ cmd({
     try {
         if (!q) {
             return await client.sendMessage(from, {
-                text: `*🍁 Please provide a YouTube link or song name!*\n\n*Example:* ${prefix + command} https://youtu.be/yCUQSto0Bwc`
+                text: `*🍁 Please provide a YouTube link!*\n\n*Example:* ${prefix + command} https://youtu.be/6_E7eJySKYs`
             }, { quoted: message });
         }
 
         const DESCRIPTION = userConfig?.DESCRIPTION || config.DESCRIPTION || "Powered by Bot";
 
-        // Initial reaction or message
+        // Initial reaction
         await client.sendMessage(from, { react: { text: '⏳', key: message.key } });
 
-        // API Endpoint
         let targetUrl = q.trim();
-        // Agar query direct YouTube link nahi hai toh aap chahe toh search handle kar sakte hain ya direct API mein bhej sakte hain
-        const apiUrl = `https://jerrycoder.oggyapi.workers.dev/down/ytmp3?url=${encodeURIComponent(targetUrl)}`;
+        // Agar user ne direct link nahi diya toh aapki API ke mutabiq link hona zaroori hai
+        if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
+            return await client.sendMessage(from, {
+                text: "❌ *Kripya valid YouTube link provide karein!* (Text search is API ke liye supported nahi hai)"
+            }, { quoted: message });
+        }
+
+        // Aapka naya API endpoint ya purana wala jo URL accept kare
+        const apiUrl = `https://eliteprotech-apis.zone.id/download/ytmp3?url=${encodeURIComponent(targetUrl)}`;
 
         const response = await axios.get(apiUrl);
         const data = response.data;
 
-        // API response ke structure ke mutabiq download URL ya buffer nikalna hoga
-        // Aam tor par aisi APIs JSON mein download link ya direct buffer deti hain. 
-        // Agar API direct audio URL return karti hai toh usko fetch karenge:
-        
-        const audioDownloadUrl = data.downloadUrl || data.url || data.result || targetUrl; // API ke format ke mutabiq adjust karein
-
-        if (!audioDownloadUrl) {
+        // API response validation & correct property path extraction
+        if (!data || !data.status || !data.download || !data.download.downloadUrl) {
             return await client.sendMessage(from, {
                 text: "❌ *Audio download link nahi mil saki!* Kripya dubara koshish karein."
             }, { quoted: message });
         }
 
-        // Send audio buffer or URL
+        const songTitle = data.download.title || "YouTube Audio";
+        const audioDownloadUrl = data.download.downloadUrl;
+
+        // Send audio buffer or URL with title
         const options = {
             audio: { url: audioDownloadUrl },
             mimetype: 'audio/mp4',
             ptt: false,
-            caption: `> ${DESCRIPTION}`
+            caption: `*🎵 Title:* ${songTitle}\n\n> ${DESCRIPTION}`
         };
 
         await client.sendMessage(from, options, { quoted: message });
