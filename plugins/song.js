@@ -1,7 +1,6 @@
 import { cmd } from '../command.js';
 import { fileURLToPath } from 'url';
 import fetch from 'node-fetch';
-import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -16,9 +15,9 @@ const APIS = (url) => [
 ];
 
 cmd({
-    pattern: "play2",
-    alias: ["song2", "audio2", "ytmp32"],
-    desc: "Search or download songs from YouTube with image and buffer upload.",
+    pattern: "play",
+    alias: ["song", "audio", "ytmp3"],
+    desc: "Search or download songs from YouTube with image and details.",
     category: "downloader",
     react: "🎵",
     filename: __filename
@@ -101,18 +100,9 @@ cmd({
             await reply(infoMessage);
         }
 
-        // ── Audio ko buffer mein download karke WhatsApp par bhejna ──
-        await conn.sendMessage(from, { react: { text: "⬇️", key: mek.key } });
-        
-        const audioRes = await axios.get(downloadUrl, { 
-            responseType: 'arraybuffer',
-            headers: { 'User-Agent': 'Mozilla/5.0' }
-        });
-        const audioBuffer = Buffer.from(audioRes.data);
-
-        // Phir Audio file buffer ke zariye send karenge
+        // Phir direct audio url pass karenge taake WhatsApp khud handle kare
         await conn.sendMessage(from, {
-            audio: audioBuffer,
+            audio: { url: downloadUrl },
             mimetype: 'audio/mp4',
             fileName: `${songTitle.replace(/[\\/:*?"<>|]/g, '')}.mp3`,
             ptt: false
