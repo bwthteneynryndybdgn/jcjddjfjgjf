@@ -10,7 +10,7 @@ const __filename = fileURLToPath(import.meta.url);
 
 cmd({
     pattern: "tourl",
-    alias: ["url55", "upload"],
+    alias: ["url", "upload"],
     desc: "Upload replied media to Catbox and ImgBB",
     category: "downloader",
     react: "📤",
@@ -19,64 +19,58 @@ cmd({
     const reactKey = m.key
 
     try {
-        // Quoted message check karne ka robust tareeqa
-        const quotedMsg = m.msg?.contextInfo?.quotedMessage || m.quoted;
-
-        if (!quotedMsg) {
+        // Check if quoted message exists
+        const quoted = m.quoted || m.msg?.contextInfo?.quotedMessage;
+        
+        if (!quoted) {
             await conn.sendMessage(from, { react: { text: '❌', key: reactKey } }).catch(() => {});
             return reply("❌ *Please reply to an image, video, audio, or document.*");
         }
 
+        await conn.sendMessage(from, { react: { text: "⌛", key: reactKey } });
+
+        // Direct media download using bot's built-in quoted download method if available
+        let buffer;
+        try {
+            if (typeof m.quoted?.download === 'function') {
+                buffer = await m.quoted.download();
+            } else if (typeof conn.downloadAndSaveMediaMessage === 'function') {
+                const mediaMsg = m.msg.contextInfo.quotedMessage;
+                const streamPath = await conn.downloadAndSaveMediaMessage(mediaMsg, 'temp_media');
+                buffer = fs.readFileSync(streamPath);
+                try { fs.unlinkSync(streamPath); } catch {}
+            } else {
+                // Fallback stream method
+                const quotedMsg = m.msg.contextInfo.quotedMessage;
+                const type = Object.keys(quotedMsg)[0];
+                const stream = await conn.downloadContentFromMessage(quotedMsg[type], type.replace('Message', '').toLowerCase());
+                let chunks = [];
+                for await (const chunk of stream) {
+                    chunks.push(chunk);
+                }
+                buffer = Buffer.concat(chunks);
+            }
+        } catch (downloadErr) {
+            console.error('Buffer download error:', downloadErr);
+            return reply("❌ *Media download karne me asamarth!*");
+        }
+
+        if (!buffer || buffer.length === 0) {
+            return reply("❌ *Media download karne me asamarth! (Empty buffer)*");
+        }
+
+        const quotedMsg = m.msg?.contextInfo?.quotedMessage || {};
         const mime = quotedMsg.imageMessage?.mimetype ||
                      quotedMsg.videoMessage?.mimetype ||
                      quotedMsg.audioMessage?.mimetype ||
                      quotedMsg.documentMessage?.mimetype ||
-                     quotedMsg.stickerMessage?.mimetype;
-
-        if (!mime) {
-            await conn.sendMessage(from, { react: { text: '❌', key: reactKey } }).catch(() => {});
-            return reply("❌ *Please reply to a valid media file.*");
-        }
-
-        await conn.sendMessage(from, { react: { text: "⌛", key: reactKey } });
+                     quotedMsg.stickerMessage?.mimetype || 'image/jpeg';
 
         let mediaType = 'image';
-        let msgKey = quotedMsg.imageMessage;
-
-        if (quotedMsg.videoMessage) {
-            mediaType = 'video';
-            msgKey = quotedMsg.videoMessage;
-        } else if (quotedMsg.audioMessage) {
-            mediaType = 'audio';
-            msgKey = quotedMsg.audioMessage;
-        } else if (quotedMsg.documentMessage) {
-            mediaType = 'document';
-            msgKey = quotedMsg.documentMessage;
-        } else if (quotedMsg.stickerMessage) {
-            mediaType = 'sticker';
-            msgKey = quotedMsg.stickerMessage;
-        }
-
-        // Download media buffer using bot's built-in download function
-        let buffer;
-        try {
-            if (typeof conn.downloadAndSaveMediaMessage === 'function') {
-                const streamPath = await conn.downloadAndSaveMediaMessage(quotedMsg, 'temp_media');
-                buffer = fs.readFileSync(streamPath);
-                try { fs.unlinkSync(streamPath); } catch {}
-            } else if (typeof conn.downloadMediaMessage === 'function') {
-                buffer = await conn.downloadMediaMessage(quotedMsg);
-            } else {
-                throw new Error("No download method available");
-            }
-        } catch (err) {
-            console.error('Buffer download fallback error:', err);
-            return reply("❌ *Media download karne me asamarth! (Buffer error)*");
-        }
-
-        if (!buffer || buffer.length === 0) {
-            return reply("❌ *Media download karne me asamarth!*");
-        }
+        if (quotedMsg.videoMessage) mediaType = 'video';
+        else if (quotedMsg.audioMessage) mediaType = 'audio';
+        else if (quotedMsg.documentMessage) mediaType = 'document';
+        else if (quotedMsg.stickerMessage) mediaType = 'sticker';
 
         const ext = mime.split('/')[1] || 'tmp';
         const tempFilePath = path.join(os.tmpdir(), `upload_${Date.now()}.${ext}`);
