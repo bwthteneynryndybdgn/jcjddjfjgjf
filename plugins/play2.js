@@ -1,20 +1,19 @@
 import { cmd } from '../command.js';
 import { fileURLToPath } from 'url';
 import fetch from 'node-fetch';
-import yts from 'yt-search';
 
 const __filename = fileURLToPath(import.meta.url);
 
 cmd({
     pattern: "play",
     alias: ["song", "audio", "ytmp3"],
-    desc: "Search and download songs from YouTube.",
+    desc: "Download songs from YouTube using VajiraOfc API.",
     category: "downloader",
     react: "🎵",
     filename: __filename
 }, async (conn, mek, m, { from, text, reply }) => {
 
-    if (!text) return reply("❌ Please provide a song name or YouTube URL!\n\n*Example:* `.play Faded`");
+    if (!text) return reply("❌ Please provide a song name or YouTube URL!\n\n*Example:* `.play Faded` or `.play https://youtu.be/qF-JLqKtr2Q`");
 
     try {
         await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
@@ -22,20 +21,17 @@ cmd({
         let query = text.trim();
         let ytUrl = query;
 
-        // If not a direct YouTube link, use ytsearch
+        // Agar user ne direct link nahi diya, toh aap chahein toh direct text bhi API ko bhej sakte hain 
+        // kyunki kuch APIs text query ko bhi direct handle kar leti hain, ya phir aap yahan user ko link dene ka keh sakte hain.
+        // Lekin agar aapki API sirf YouTube URL maangti hai, toh hum check lagate hain:
+        
         if (!query.includes("youtu.be") && !query.includes("youtube.com")) {
-            try {
-                const search = await yts(query);
-                if (search && search.videos && search.videos.length > 0) {
-                    ytUrl = search.videos[0].url;
-                } else {
-                    await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-                    return reply("❌ No results found for your query. Please try a different song name.");
-                }
-            } catch (searchErr) {
-                console.error("YTSearch Error:", searchErr);
-                return reply("❌ Error occurred while searching YouTube.");
-            }
+            // Agar aapke paas yt-search nahi chal raha, toh aap user ko guide kar sakte hain ke direct link dein
+            // Ya hum ek alternative public search API use kar sakte hain. 
+            // Lekin sabse asan tareeqa yeh hai ke user ko link provide karne ka bole agar link na ho:
+            
+            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+            return reply("❌ Please provide a *valid YouTube link* for this command!\n\n*Example:* `.play https://youtu.be/xxxxxx`");
         }
 
         // Call VajiraOfc API
@@ -48,21 +44,15 @@ cmd({
 
         const json = await response.json();
 
-        // Safe checks to avoid 'undefined' crashes
-        if (!json || !json.success || !json.data) {
+        if (!json || !json.success || !json.data || !json.data.download || !json.data.download.url) {
             await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return reply("❌ Invalid response received from the API.");
+            return reply("❌ Failed to fetch audio from the API response.");
         }
 
         const songData = json.data;
-        const downloadUrl = songData.download?.url || songData.url;
+        const downloadUrl = songData.download.url;
         const songTitle = songData.title || "Audio Track";
-        const quality = songData.download?.quality || "92kbps";
-
-        if (!downloadUrl) {
-            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return reply("❌ Download link could not be found in the API response.");
-        }
+        const quality = songData.download.quality || "92kbps";
 
         const infoMessage = `🎵 *KAMRAN-MD PLAYER*\n\n` +
             `*Title:* ${songTitle}\n` +
