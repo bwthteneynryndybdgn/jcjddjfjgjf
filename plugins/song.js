@@ -1,188 +1,117 @@
-import { fileURLToPath } from 'url';
 import { cmd } from '../command.js';
+import { fileURLToPath } from 'url';
+import fetch from 'node-fetch';
+import yts from 'yt-search'; // yt-search package zaroori hai
 
-/**
- * Extract YouTube Video ID from URL or Short Link
- */
-function extractVideoId(url) {
-  if (!url) return null;
-  let match = null;
-  if (url.includes("youtube.com/shorts/") || url.includes("youtu.be/")) {
-    match = /\/([a-zA-Z0-9\-_]{11})/.exec(url);
-  } else if (url.includes("youtube.com")) {
-    match = /v=([a-zA-Z0-9\-_]{11})/.exec(url);
-  } else {
-    match = /[a-zA-Z0-9\-_]{11}/.exec(url);
-  }
-  return match ? match[1] : null;
-}
+const __filename = fileURLToPath(import.meta.url);
 
-/**
- * Main Scraping Function for YTMP3 Mobi API
- */
-async function scrapeYtmp3(youtubeUrl, format = 'mp3') {
-  const videoId = extractVideoId(youtubeUrl);
-  if (!videoId) {
-    throw new Error('غلط یوٹیوب لنک! ویڈیو ID ایکسٹریکٹ نہیں ہو سکی۔');
-  }
+// Aapke diye gaye APIs ki list
+const APIS = (queryOrUrl) => [
+  `https://kiraxmd-api.vercel.app/api/play?query=${encodeURIComponent(queryOrUrl)}`,
+  `https://xenoytdl-2.vercel.app/api/youtube?url=${encodeURIComponent(queryOrUrl)}`,
+  `https://jerrycoder.oggyapi.workers.dev/down/ytmp3-v1?url=${encodeURIComponent(queryOrUrl)}`,
+  `https://api.siputzx.my.id/api/d/ytmp3?url=${encodeURIComponent(queryOrUrl)}`,
+  `https://eliteprotech-apis.zone.id/ytdown?format=mp3&url=${encodeURIComponent(queryOrUrl)}`,
+];
 
-  const lowerFormat = format.toLowerCase();
-  if (lowerFormat !== 'mp3' && lowerFormat !== 'mp4') {
-    throw new Error('غلط فارمیٹ! صرف "mp3" یا "mp4" کی اجازت ہے۔');
-  }
-
-  const headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Accept': '*/*',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Origin': 'https://id.ytmp3.mobi',
-    'Referer': 'https://id.ytmp3.mobi/',
-    'Sec-Fetch-Dest': 'empty',
-    'Sec-Fetch-Mode': 'cors',
-    'Sec-Fetch-Site': 'cross-site'
-  };
-
-  // 1. Initialize session
-  const initUrl = `https://a.ymcdn.org/api/v1/init?p=y&23=1llum1n471&_=${Math.random()}`;
-  const initRes = await fetch(initUrl, { headers });
-  if (!initRes.ok) throw new Error(`Init request failed: ${initRes.status}`);
-  const initJson = await initRes.json();
-  if (initJson.error > 0) throw new Error(`Init API Error: ${initJson.error}`);
-
-  // 2. Request conversion
-  let convertUrl = initJson.convertURL;
-  let convertRequestUrl = `${convertUrl}&v=${videoId}&f=${lowerFormat}&_=${Math.random()}`;
-  let convertJson;
-
-  while (true) {
-    const convertRes = await fetch(convertRequestUrl, { headers });
-    if (!convertRes.ok) throw new Error(`Convert request failed: ${convertRes.status}`);
-    convertJson = await convertRes.json();
-    if (convertJson.error > 0) throw new Error(`Convert API Error: ${convertJson.error}`);
-
-    if (convertJson.redirect > 0 && convertJson.redirectURL) {
-      convertRequestUrl = `${convertJson.redirectURL}&v=${videoId}&f=${lowerFormat}&_=${Math.random()}`;
-      continue;
-    }
-    break;
-  }
-
-  const progressUrl = convertJson.progressURL;
-  const downloadUrl = convertJson.downloadURL;
-  let title = convertJson.title || 'YouTube Content';
-
-  if (!progressUrl) throw new Error('Progress URL نہیں ملا۔');
-
-  // 3. Poll progress
-  let progress = 0;
-  let pollCount = 0;
-  const maxPolls = 60;
-
-  while (progress < 3 && pollCount < maxPolls) {
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    pollCount++;
-
-    const progressRes = await fetch(progressUrl, { headers });
-    if (!progressRes.ok) throw new Error(`Progress request failed: ${progressRes.status}`);
-    const progressJson = await progressRes.json();
-    if (progressJson.error > 0) throw new Error(`Progress API Error: ${progressJson.error}`);
-
-    progress = progressJson.progress;
-    if (progressJson.title) title = progressJson.title;
-  }
-
-  if (progress < 3) throw new Error('ڈاؤن لوڈ ٹائم آؤٹ ہو گیا (60 سیکنڈ سے زیادہ ہو گئے)۔');
-
-  return {
-    status: 'success',
-    videoId,
-    title,
-    format: lowerFormat,
-    downloadUrl
-  };
-}
-
-// ==================== 1. MP3 / SONG COMMAND ====================
 cmd({
-    pattern: "song2",
-    alias: ["ytmp32", "play2", "audio2"],
+    pattern: "play",
+    alias: ["song", "audio", "ytmp3"],
+    desc: "Search and download songs from YouTube with image and multi-APIs.",
+    category: "downloader",
     react: "🎵",
-    desc: "Download MP3 audio from YouTube URL",
-    category: "download",
-    use: ".song <YouTube URL>",
-    filename: fileURLToPath(import.meta.url)
-}, async (conn, mek, m, { q, reply, react }) => {
+    filename: __filename
+}, async (conn, mek, m, { from, text, reply }) => {
+
+    if (!text) return reply("❌ Please provide a song name or YouTube URL!\n\n*Example:* `.play pal pal` or `.play https://youtu.be/...`");
+
     try {
-        if (!q) {
-            await react('❌');
-            return reply("❌ *برائے مہربانی یوٹیوب کا لنک فراہم کریں!*\n\n*مثال:* `.song https://youtu.be/xxx`");
+        await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
+
+        let query = text.trim();
+        let targetParam = query;
+        let thumbnail = null;
+        let songTitle = "Audio Track";
+        let downloadUrl = null;
+
+        // Agar user ne direct link nahi diya, toh yt-search se video ki detail aur link nikalenge
+        if (!query.includes("youtu.be") && !query.includes("youtube.com")) {
+            try {
+                const search = await yts(query);
+                if (search && search.videos && search.videos.length > 0) {
+                    const video = search.videos[0];
+                    targetParam = video.url; // Kuch APIs ke liye URL
+                    thumbnail = video.thumbnail;
+                    songTitle = video.title;
+                }
+            } catch (err) {
+                console.error("YTSearch Error:", err);
+            }
         }
 
-        await reply("⏳ *آڈیو پروسیس کی جا رہی ہے، برائے مہربانی انتظار کریں...*");
-
-        const data = await scrapeYtmp3(q, 'mp3');
-
-        if (data.status !== 'success' || !data.downloadUrl) {
-            throw new Error(data.message || 'ڈاؤن لوڈ لنک حاصل کرنے میں ناکامی۔');
+        // Agar yt-search se thumbnail na mile toh fallback set kar dein
+        if (!thumbnail && targetParam.includes("youtube")) {
+            const videoIdMatch = targetParam.match(/(?:v=|youtu\.be\/)([\w-]{11})/);
+            if (videoIdMatch) {
+                thumbnail = `https://i.ytimg.com/vi/${videoIdMatch[1]}/hqdefault.jpg`;
+            }
         }
 
-        await react('📥');
+        // Multi-API fallback loop
+        const apiList = APIS(targetParam);
+        
+        for (const apiUrl of apiList) {
+            try {
+                const response = await fetch(apiUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+                if (!response.ok) continue;
+                const json = await response.json();
+                
+                // Alag-alag APIs ke response structures ko handle karne ke checks
+                const dUrl = json.data?.download?.url || json.data?.url || json.url || json.download || json.audio || json.mp3;
+                if (dUrl) {
+                    downloadUrl = dUrl;
+                    if (json.data?.title) songTitle = json.data.title;
+                    if (json.data?.thumbnail) thumbnail = json.data.thumbnail;
+                    break;
+                }
+            } catch (err) {
+                console.log(`API Failed, trying next...`);
+            }
+        }
 
-        // Send Audio File
-        await conn.sendMessage(m.chat, {
-            audio: { url: data.downloadUrl },
+        if (!downloadUrl) {
+            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+            return reply("❌ Sabhi APIs down hain ya audio fetch nahi ho saka. Barah-e-karam baad mein koshish karein.");
+        }
+
+        const infoMessage = `🎵 *KAMRAN-MD PLAYER*\n\n` +
+            `*Title:* ${songTitle}\n\n` +
+            `━━━━━━━━━━━━━━━━━━\n` +
+            `~ *KAMRAN-MD*`;
+
+        // Pehle Image aur Title/Details bhejein ge
+        if (thumbnail) {
+            await conn.sendMessage(from, {
+                image: { url: thumbnail },
+                caption: infoMessage
+            }, { quoted: mek });
+        } else {
+            await reply(infoMessage);
+        }
+
+        // Phir Audio file send karenge
+        await conn.sendMessage(from, {
+            audio: { url: downloadUrl },
             mimetype: 'audio/mp4',
-            fileName: `${data.title}.mp3`,
-            caption: `🎵 *Title:* ${data.title}\n\n> *Powered By Bot*`
+            fileName: `${songTitle.replace(/[\\/:*?"<>|]/g, '')}.mp3`,
+            ptt: false
         }, { quoted: mek });
 
-        await react('✅');
+        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
 
     } catch (error) {
-        console.error("Song Download Error:", error);
-        await react('❌');
-        return reply(`❌ *خرابی:* ${error.message}`);
-    }
-});
-
-// ==================== 2. MP4 / VIDEO COMMAND ====================
-cmd({
-    pattern: "video2",
-    alias: ["ytmp42", "v2"],
-    react: "🎬",
-    desc: "Download MP4 video from YouTube URL",
-    category: "download",
-    use: ".video <YouTube URL>",
-    filename: fileURLToPath(import.meta.url)
-}, async (conn, mek, m, { q, reply, react }) => {
-    try {
-        if (!q) {
-            await react('❌');
-            return reply("❌ *برائے مہربانی یوٹیوب کا لنک فراہم کریں!*\n\n*مثال:* `.video https://youtu.be/xxx`");
-        }
-
-        await reply("⏳ *ویڈیو ڈاؤن لوڈ اور پروسیس کی جا رہی ہے...*");
-
-        const data = await scrapeYtmp3(q, 'mp4');
-
-        if (data.status !== 'success' || !data.downloadUrl) {
-            throw new Error(data.message || 'ڈاؤن لوڈ لنک حاصل کرنے میں ناکامی۔');
-        }
-
-        await react('📥');
-
-        // Send Video File
-        await conn.sendMessage(m.chat, {
-            video: { url: data.downloadUrl },
-            caption: `🎬 *Title:* ${data.title}\n\n> *Powered By Bot*`,
-            mimetype: 'video/mp4'
-        }, { quoted: mek });
-
-        await react('✅');
-
-    } catch (error) {
-        console.error("Video Download Error:", error);
-        await react('❌');
-        return reply(`❌ *خرابی:* ${error.message}`);
+        console.error("Play Command Error:", error);
+        await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+        reply(`❌ *Error:* ${error.message}`);
     }
 });
