@@ -10,7 +10,7 @@ const __filename = fileURLToPath(import.meta.url);
 
 cmd({
     pattern: "tourl",
-    alias: ["url", "upload"],
+    alias: ["url55", "upload"],
     desc: "Upload replied media to Catbox and ImgBB",
     category: "downloader",
     react: "📤",
