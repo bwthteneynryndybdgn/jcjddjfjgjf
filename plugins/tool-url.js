@@ -9,8 +9,8 @@ import { cmd } from '../command.js';
 const __filename = fileURLToPath(import.meta.url);
 
 cmd({
-    pattern: "tourl",
-    alias: ["url", "upload"],
+    pattern: "tourl2",
+    alias: ["url2", "upload2"],
     desc: "Upload replied media to Catbox and ImgBB",
     category: "downloader",
     react: "📤",
