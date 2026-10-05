@@ -5,10 +5,8 @@ import config from '../config.js';
 
 const __filename = fileURLToPath(import.meta.url);
 
-// Define the exact keywords to check for (only these three)
 const positiveKeywords = ["nice", "good", "cute", "🌝", "🥵", "💋", "👍", "🌚", "wow", "😩", "super"];
 
-// No prefix keyword handler for view once messages (owner only)
 cmd({
     'on': "body"
 }, async (client, message, m, {
@@ -17,25 +15,16 @@ cmd({
     isCreator,
     reply,
     sender,
-    userConfig  // Added userConfig parameter
+    userConfig
 }) => {
     try {
-        // Only allow the bot owner/creator
-        if (!isCreator) {
-            return; // Simply return without any response if not owner
-        }
+        if (!isCreator) return;
 
-        // Get DESCRIPTION from userConfig if available, otherwise use config.DESCRIPTION
         const DESCRIPTION = userConfig?.DESCRIPTION || config.DESCRIPTION || "";
-
         const messageText = body.trim().toLowerCase();
-        
-        // Check if the message contains EXACTLY one of the keywords ONLY
-        // No other words, just the keyword alone
         const hasExactKeywordOnly = positiveKeywords.includes(messageText);
         
-        // Only process if contains exact keyword ONLY AND replying to a view once message
-        if (hasExactKeywordOnly && message.quoted?.viewOnce) {
+        if (hasExactKeywordOnly && message.quoted) {
             const buffer = await message.quoted.download();
             const mtype = message.quoted.mtype;
             const originalCaption = message.quoted.text || '';
@@ -60,15 +49,14 @@ cmd({
                 case "audioMessage":
                     messageContent = {
                         audio: buffer,
-                        mimetype: "audio/mp4",
+                        mimetype: message.quoted.mimetype || "audio/mp4",
                         ptt: message.quoted.ptt || false
                     };
                     break;
                 default:
-                    return; // Silently ignore unsupported types
+                    return;
             }
 
-            // Send the view once content to the user's DM
             await client.sendMessage(message.sender, messageContent, options);
         }
     } catch (error) {
@@ -76,7 +64,6 @@ cmd({
     }
 });
 
-// Command handler for manual retrieval of view once messages (owner only)
 cmd({
     pattern: "vv3",
     react: '🐳',
@@ -86,27 +73,16 @@ cmd({
 }, async (client, message, m, {
     from,
     isCreator,
-    userConfig  // Added userConfig parameter
+    userConfig
 }) => {
     try {
-        // Only allow the bot owner/creator
-        if (!isCreator) {
-            return; // Simply return without any response if not owner
-        }
+        if (!isCreator) return;
 
-        // Get DESCRIPTION from userConfig if available, otherwise use config.DESCRIPTION
         const DESCRIPTION = userConfig?.DESCRIPTION || config.DESCRIPTION || "";
 
         if (!m.quoted) {
             return await client.sendMessage(from, {
-                text: "*🍁 Please reply to a view once message!*"
-            }, { quoted: message });
-        }
-
-        // Check if it's a view once message
-        if (!m.quoted.viewOnce) {
-            return await client.sendMessage(from, {
-                text: "*❌ Please reply to a view once message!*"
+                text: "*🍁 Please reply to a view once or media message!*"
             }, { quoted: message });
         }
 
@@ -134,13 +110,13 @@ cmd({
             case "audioMessage":
                 messageContent = {
                     audio: buffer,
-                    mimetype: "audio/mp4",
+                    mimetype: m.quoted.mimetype || "audio/mp4",
                     ptt: m.quoted.ptt || false
                 };
                 break;
             default:
                 return await client.sendMessage(from, {
-                    text: "❌ Only image, video, and audio view once messages are supported"
+                    text: "❌ Only image, video, and audio messages are supported"
                 }, { quoted: message });
         }
 
@@ -148,12 +124,11 @@ cmd({
     } catch (error) {
         console.error("vv Error:", error);
         await client.sendMessage(from, {
-            text: "❌ Error retrieving view once message:\n" + error.message
+            text: "❌ Error retrieving message:\n" + error.message
         }, { quoted: message });
     }
 });
 
-// ==================== VV COMMAND ====================
 cmd({
     pattern: "vv",
     alias: ["viewonce", 'retrive'],
@@ -164,7 +139,7 @@ cmd({
 }, async (client, message, m, { 
     from, 
     isCreator,
-    userConfig  // Added userConfig parameter
+    userConfig
 }) => {
     try {
         if (!isCreator) {
@@ -173,12 +148,11 @@ cmd({
             }, { quoted: message });
         }
 
-        // Get DESCRIPTION from userConfig if available, otherwise use config.DESCRIPTION
         const DESCRIPTION = userConfig?.DESCRIPTION || config.DESCRIPTION || "";
 
         if (!m.quoted) {
             return await client.sendMessage(from, {
-                text: "*🍁 Please reply to a view once message!*"
+                text: "*🍁 Please reply to a view once or media message!*"
             }, { quoted: message });
         }
 
@@ -206,7 +180,7 @@ cmd({
             case "audioMessage":
                 messageContent = {
                     audio: buffer,
-                    mimetype: "audio/mp4",
+                    mimetype: m.quoted.mimetype || "audio/mp4",
                     ptt: m.quoted.ptt || false
                 };
                 break;
@@ -220,12 +194,11 @@ cmd({
     } catch (error) {
         console.error("vv Error:", error);
         await client.sendMessage(from, {
-            text: "❌ Error fetching vv message:\n" + error.message
+            text: "❌ Error fetching message:\n" + error.message
         }, { quoted: message });
     }
 });
 
-// ==================== VV2 COMMAND ====================
 cmd({
     pattern: "vv2",
     alias: ["wah", "ohh", "oho", "🙂", "😂", "❤️", "💋", "🥵", "🌚", "😒", "nice", "ok"],
@@ -235,19 +208,16 @@ cmd({
 }, async (client, message, m, { 
     from, 
     isCreator,
-    userConfig  // Added userConfig parameter
+    userConfig
 }) => {
     try {
-        if (!isCreator) {
-            return; // Simply return without any response if not owner
-        }
+        if (!isCreator) return;
 
-        // Get DESCRIPTION from userConfig if available, otherwise use config.DESCRIPTION
         const DESCRIPTION = userConfig?.DESCRIPTION || config.DESCRIPTION || "";
 
         if (!m.quoted) {
             return await client.sendMessage(from, {
-                text: "*🍁 Please reply to a view once message!*"
+                text: "*🍁 Please reply to a view once or media message!*"
             }, { quoted: message });
         }
 
@@ -275,7 +245,7 @@ cmd({
             case "audioMessage":
                 messageContent = {
                     audio: buffer,
-                    mimetype: "audio/mp4",
+                    mimetype: m.quoted.mimetype || "audio/mp4",
                     ptt: m.quoted.ptt || false
                 };
                 break;
@@ -285,12 +255,11 @@ cmd({
                 }, { quoted: message });
         }
 
-        // Forward to user's DM
         await client.sendMessage(message.sender, messageContent, options);
     } catch (error) {
         console.error("vv Error:", error);
         await client.sendMessage(from, {
-            text: "❌ Error fetching vv message:\n" + error.message
+            text: "❌ Error fetching message:\n" + error.message
         }, { quoted: message });
     }
 });
