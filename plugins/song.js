@@ -16,8 +16,8 @@ const APIS = (url) => [
 ];
 
 cmd({
-    pattern: "play",
-    alias: ["song", "audio", "ytmp3"],
+    pattern: "play2",
+    alias: ["song2", "audio2", "ytmp32"],
     desc: "Search or download songs from YouTube with image and buffer upload.",
     category: "downloader",
     react: "🎵",
