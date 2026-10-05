@@ -7,99 +7,95 @@ const __filename = fileURLToPath(import.meta.url);
 // Define the command keywords
 const commandKeywords = ["send", "sendme", "do", "give", "bhejo", "bhej", "save", "sand", "sent", "forward"];
 
-// No prefix keyword handler
+// No prefix keyword handler for saving status in IB and Groups
 cmd({
   'on': "body"
 }, async (client, message, store, {
   from,
   body,
   isGroup,
-  isAdmins,
-  isBotAdmins,
   reply,
   sender,
   userConfig
 }) => {
   try {
-    // Ignore messages from groups (remove this line if you want it to work in groups too)
-    if (isGroup) return;
+    const messageText = (body || "").toLowerCase().trim();
+    const containsKeyword = commandKeywords.some(word => messageText === word || messageText.includes(word));
 
-    const messageText = body.toLowerCase();
-    const containsKeyword = commandKeywords.some(word => messageText.includes(word));
-
-    // Only process if contains keyword AND replying to status broadcast
-    if (containsKeyword && message.quoted?.chat === 'status@broadcast') {
+    // Check if keyword matches and user is replying to a status broadcast
+    if (containsKeyword && message.quoted && (message.quoted.chat === 'status@broadcast' || message.quoted.remoteJid === 'status@broadcast')) {
+      
       // ⏳ React - processing
-      await client.sendMessage(from, { react: { text: '⏳', key: message.key } });
+      await client.sendMessage(from, { react: { text: '⏳', key: message.key } }).catch(() => {});
 
-      const mtype = message.quoted.mtype;
-      const originalCaption = message.quoted.text || message.quoted.msg?.text || '';
+      const quotedMsg = message.quoted;
+      const mtype = quotedMsg.mtype || Object.keys(quotedMsg.message || {})[0] || '';
+      const originalCaption = quotedMsg.text || quotedMsg.caption || quotedMsg.msg?.text || '';
       const options = { quoted: message };
       const DESCRIPTION = userConfig?.DESCRIPTION || config.DESCRIPTION || "";
 
-      let messageContent = {};
       let buffer = null;
 
-      // Only download buffer if the status contains media
-      if (["imageMessage", "videoMessage", "audioMessage"].includes(mtype)) {
-        buffer = await message.quoted.download();
-      }
-
-      switch (mtype) {
-        case "imageMessage":
-          messageContent = {
-            image: buffer,
-            caption: originalCaption ? `${originalCaption}\n\n> ${DESCRIPTION}` : (DESCRIPTION ? `> ${DESCRIPTION}` : ""),
-            mimetype: message.quoted.mimetype || "image/jpeg"
-          };
-          break;
-        case "videoMessage":
-          messageContent = {
-            video: buffer,
-            caption: originalCaption ? `${originalCaption}\n\n> ${DESCRIPTION}` : (DESCRIPTION ? `> ${DESCRIPTION}` : ""),
-            mimetype: message.quoted.mimetype || "video/mp4"
-          };
-          break;
-        case "audioMessage":
-          messageContent = {
-            audio: buffer,
-            mimetype: "audio/mp4",
-            ptt: message.quoted.ptt || false
-          };
-          break;
-        case "conversation":
-        case "extendedTextMessage":
-          const textContent = originalCaption || message.quoted.msg?.conversation || "";
-          messageContent = {
-            text: textContent ? `${textContent}\n\n> ${DESCRIPTION}` : (DESCRIPTION ? `> ${DESCRIPTION}` : "")
-          };
-          break;
-        default:
-          // 🚫 React - unsupported type
-          await client.sendMessage(from, { react: { text: '❌', key: message.key } });
-          return; // Silently ignore unsupported types
-      }
-
+      // Robust media buffer downloader
       try {
-        // Forward status to the same chat where keyword was sent
-        await client.sendMessage(from, messageContent, options);
-        // ✅ React - success
-        await client.sendMessage(from, { react: { text: '✅', key: message.key } });
-      } catch (sendError) {
-        console.error("Failed to send status:", sendError);
-        // ❌ React - send failed
-        await client.sendMessage(from, { react: { text: '❌', key: message.key } });
+        if (typeof quotedMsg.download === 'function') {
+          buffer = await quotedMsg.download();
+        } else if (client.downloadAndSaveMediaMessage) {
+          const streamPath = await client.downloadAndSaveMediaMessage(quotedMsg, 'temp_status');
+          buffer = fs.readFileSync(streamPath);
+          try { fs.unlinkSync(streamPath); } catch {}
+        } else if (quotedMsg.message) {
+          const typeKey = Object.keys(quotedMsg.message)[0];
+          const stream = await client.downloadContentFromMessage(quotedMsg.message[typeKey], typeKey.replace('Message', '').toLowerCase());
+          let chunks = [];
+          for await (const chunk of stream) {
+            chunks.push(chunk);
+          }
+          buffer = Buffer.concat(chunks);
+        }
+      } catch (err) {
+        console.error("Status Buffer Download Error:", err);
       }
+
+      let messageContent = {};
+
+      if (mtype.includes("image") || quotedMsg.imageMessage) {
+        messageContent = {
+          image: buffer || quotedMsg.imageMessage,
+          caption: originalCaption ? `${originalCaption}\n\n> ${DESCRIPTION}` : (DESCRIPTION ? `> ${DESCRIPTION}` : ""),
+          mimetype: quotedMsg.mimetype || "image/jpeg"
+        };
+      } else if (mtype.includes("video") || quotedMsg.videoMessage) {
+        messageContent = {
+          video: buffer || quotedMsg.videoMessage,
+          caption: originalCaption ? `${originalCaption}\n\n> ${DESCRIPTION}` : (DESCRIPTION ? `> ${DESCRIPTION}` : ""),
+          mimetype: quotedMsg.mimetype || "video/mp4"
+        };
+      } else if (mtype.includes("audio") || quotedMsg.audioMessage) {
+        messageContent = {
+          audio: buffer || quotedMsg.audioMessage,
+          mimetype: "audio/mp4",
+          ptt: quotedMsg.ptt || false
+        };
+      } else {
+        const textContent = originalCaption || quotedMsg.text || "";
+        messageContent = {
+          text: textContent ? `${textContent}\n\n> ${DESCRIPTION}` : (DESCRIPTION ? `> ${DESCRIPTION}` : "")
+        };
+      }
+
+      // Forward status to chat (IB or Group)
+      await client.sendMessage(from, messageContent, options);
+      
+      // ✅ React - success
+      await client.sendMessage(from, { react: { text: '✅', key: message.key } }).catch(() => {});
     }
   } catch (error) {
     console.error("Keyword Status Save Error:", error);
-    // ❌ React - general error
     if (message && message.key) {
       try {
-        await client.sendMessage(from, { react: { text: '❌', key: message.key } });
-      } catch (reactError) {
-        console.error("Failed to send error reaction:", reactError);
-      }
+        await client.sendMessage(from, { react: { text: '❌', key: message.key } }).catch(() => {});
+      } catch {}
     }
   }
 });
