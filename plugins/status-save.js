@@ -1,7 +1,7 @@
 import { cmd } from "../command.js";
 import config from '../config.js';
 import { fileURLToPath } from 'url';
-import fs from 'fs';
+import { downloadContentFromMessage } from '@whiskeysockets/baileys';
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -26,7 +26,6 @@ cmd({
     if (containsKeyword && quoted) {
       const remoteJid = message.quoted?.chat || message.msg?.contextInfo?.remoteJid || '';
       
-      // Check if quoted message belongs to status broadcast
       if (remoteJid === 'status@broadcast' || message.quoted?.isStatus || message.msg?.contextInfo?.participant) {
         
         await client.sendMessage(from, { react: { text: '⏳', key: message.key } }).catch(() => {});
@@ -41,8 +40,10 @@ cmd({
         try {
           if (message.quoted && typeof message.quoted.download === 'function') {
             buffer = await message.quoted.download();
-          } else if (client.downloadContentFromMessage && content) {
-            const stream = await client.downloadContentFromMessage(content, typeKey.replace('Message', '').toLowerCase());
+          } else if (content) {
+            let mediaType = typeKey.replace('Message', '').toLowerCase();
+            if (mediaType === 'ptt') mediaType = 'audio';
+            const stream = await downloadContentFromMessage(content, mediaType);
             let chunks = [];
             for await (const chunk of stream) {
               chunks.push(chunk);
@@ -53,23 +54,28 @@ cmd({
           console.error("Status download error:", err);
         }
 
+        if (!buffer || buffer.length === 0) {
+          await client.sendMessage(from, { react: { text: '❌', key: message.key } }).catch(() => {});
+          return;
+        }
+
         let messageContent = {};
 
         if (typeKey.includes("image") || content?.mimetype?.includes('image')) {
           messageContent = {
-            image: buffer || content,
+            image: buffer,
             caption: originalCaption ? `${originalCaption}\n\n> ${DESCRIPTION}` : (DESCRIPTION ? `> ${DESCRIPTION}` : ""),
             mimetype: content?.mimetype || "image/jpeg"
           };
         } else if (typeKey.includes("video") || content?.mimetype?.includes('video')) {
           messageContent = {
-            video: buffer || content,
+            video: buffer,
             caption: originalCaption ? `${originalCaption}\n\n> ${DESCRIPTION}` : (DESCRIPTION ? `> ${DESCRIPTION}` : ""),
             mimetype: content?.mimetype || "video/mp4"
           };
         } else if (typeKey.includes("audio") || content?.mimetype?.includes('audio')) {
           messageContent = {
-            audio: buffer || content,
+            audio: buffer,
             mimetype: "audio/mp4",
             ptt: content?.ptt || false
           };
