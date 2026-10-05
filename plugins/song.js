@@ -37,16 +37,24 @@ cmd({
 
         let targetUrl = q.trim();
 
-        // Agar user ne direct link nahi diya, toh yt-search se pehle link nikalenge
+        // Agar user ne direct link nahi diya, toh yt-search se link nikalenge
         if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
-            const searchResults = await yts(targetUrl);
-            if (!searchResults || !searchResults.videos || searchResults.videos.length === 0) {
+            try {
+                let search = await yts(targetUrl);
+                let videos = search?.videos || search?.all;
+                
+                if (!videos || videos.length === 0) {
+                    return await client.sendMessage(from, {
+                        text: "❌ *Koi song nahi mila!* Kripya sahi naam ya link dein."
+                    }, { quoted: message });
+                }
+                targetUrl = videos[0].url;
+            } catch (searchErr) {
+                console.error("YTS Search Error:", searchErr);
                 return await client.sendMessage(from, {
-                    text: "❌ *Koi song nahi mila!* Kripya sahi naam ya link dein."
+                    text: "❌ *YouTube search karne me error aayi!*"
                 }, { quoted: message });
             }
-            // Pehli video ka URL utha lenge
-            targetUrl = searchResults.videos[0].url;
         }
 
         // API Endpoint with YouTube URL
@@ -78,8 +86,9 @@ cmd({
 
     } catch (error) {
         console.error("YouTube MP3 Error:", error);
+        let errorMsg = error?.message || error;
         await client.sendMessage(from, {
-            text: "❌ Error downloading song:\n" + error.message
+            text: "❌ Error downloading song:\n" + errorMsg
         }, { quoted: message });
     }
 });
