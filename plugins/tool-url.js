@@ -7,12 +7,13 @@ import os from 'os';
 import path from "path";
 import { cmd } from "../command.js";
 import { fileURLToPath } from 'url';
+import { downloadContentFromMessage } from '@whiskeysockets/baileys';
 
 const __filename = fileURLToPath(import.meta.url);
 
 cmd({
-  pattern: "tourl",
-  alias: ["imgtourl", "imgurl", "url", "geturl", "upload"],
+  pattern: "tourl2",
+  alias: ["imgtourl", "imgurl", "url2", "geturl", "upload"],
   react: '🖇',
   desc: "Convert media to Catbox URL with FATIMA-MD style",
   category: "utility",
@@ -21,9 +22,9 @@ cmd({
 }, async (conn, mek, m, { from, reply }) => {
   let tempFilePath = null;
   try {
-    const quotedMsg = m.quoted || m.msg?.contextInfo?.quotedMessage;
+    const quoted = m.msg?.contextInfo?.quotedMessage;
     
-    if (!quotedMsg) {
+    if (!quoted) {
       return reply(
         `╔════════════════════════╗\n` +
         `║   🖇 FATIMA-MD TOURL   🖇   \n` +
@@ -35,42 +36,31 @@ cmd({
 
     await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
-    let mediaBuffer;
+    let type = Object.keys(quoted)[0];
+    let content = quoted[type];
+    
+    let stream;
     try {
-      if (m.quoted && typeof m.quoted.download === 'function') {
-        mediaBuffer = await m.quoted.download();
-      } else if (conn.downloadAndSaveMediaMessage) {
-        const streamPath = await conn.downloadAndSaveMediaMessage(quotedMsg, 'temp_media');
-        mediaBuffer = fs.readFileSync(streamPath);
-        try { fs.unlinkSync(streamPath); } catch {}
-      } else if (conn.downloadMediaMessage) {
-        mediaBuffer = await conn.downloadMediaMessage(quotedMsg);
-      } else {
-        const type = Object.keys(quotedMsg)[0];
-        const stream = await conn.downloadContentFromMessage(quotedMsg[type], type.replace('Message', '').toLowerCase());
-        let chunks = [];
-        for await (const chunk of stream) {
-          chunks.push(chunk);
-        }
-        mediaBuffer = Buffer.concat(chunks);
-      }
-    } catch (downloadErr) {
-      console.error('Download Buffer Error:', downloadErr);
+      stream = await downloadContentFromMessage(content, type.replace('Message', '').toLowerCase());
+    } catch (e) {
+      // Fallback method for alternative bailey versions
+      stream = await downloadContentFromMessage(content, mediaTypeDetector(type));
     }
 
-    if (!mediaBuffer || mediaBuffer.length === 0) {
+    let buffer = Buffer.from([]);
+    for await (const chunk of stream) {
+      buffer = Buffer.concat([buffer, chunk]);
+    }
+
+    if (!buffer || buffer.length === 0) {
       await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-      return reply("❌ *Media download karne me asamarth! Quoted message valid nahi hai.*");
+      return reply("❌ *Media download karne me asamarth! Buffer khali hai.*");
     }
 
-    const mimeType = quotedMsg.imageMessage?.mimetype ||
-                     quotedMsg.videoMessage?.mimetype ||
-                     quotedMsg.audioMessage?.mimetype ||
-                     quotedMsg.documentMessage?.mimetype ||
-                     quotedMsg.stickerMessage?.mimetype || 'image/jpeg';
+    const mimeType = content.mimetype || 'image/jpeg';
 
     tempFilePath = path.join(os.tmpdir(), `catbox_upload_${Date.now()}`);
-    fs.writeFileSync(tempFilePath, mediaBuffer);
+    fs.writeFileSync(tempFilePath, buffer);
 
     let extension = '.jpg';
     if (mimeType.includes('png')) extension = '.png';
@@ -78,7 +68,7 @@ cmd({
     else if (mimeType.includes('video')) extension = '.mp4';
     else if (mimeType.includes('audio')) extension = '.mp3';
     else if (mimeType.includes('zip')) extension = '.zip';
-    else if (mimeType.includes('javascript')) extension = '.js';
+    else if (mimeType.includes('pdf')) extension = '.pdf';
     
     const fileName = `file${extension}`;
 
@@ -104,13 +94,14 @@ cmd({
     if (mimeType.includes('image')) mediaType = 'Image';
     else if (mimeType.includes('video')) mediaType = 'Video';
     else if (mimeType.includes('audio')) mediaType = 'Audio';
+    else if (mimeType.includes('document')) mediaType = 'Document';
 
     const uploadBox = `
 ╔════════════════════════╗
 ║   🖇 FATIMA-MD TOURL   🖇   
 ╚════════════════════════╝
  📦 *Type:* \`${mediaType}\`
- 📊 *Size:* \`${formatBytes(mediaBuffer.length)}\`
+ 📊 *Size:* \`${formatBytes(buffer.length)}\`
  🔗 *URL:* ${mediaUrl}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 > ⚡ *Version:* \`12.00\`
@@ -139,6 +130,13 @@ cmd({
     await reply(`❌ *Error uploading media:* \`\`\`${error.message || error}\`\`\``);
   }
 });
+
+function mediaTypeDetector(type) {
+  if (type.includes('image')) return 'image';
+  if (type.includes('video')) return 'video';
+  if (type.includes('audio')) return 'audio';
+  return 'document';
+}
 
 function formatBytes(bytes) {
   if (bytes === 0) return '0 Bytes';
