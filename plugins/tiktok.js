@@ -5,6 +5,9 @@ import { cmd } from '../command.js';
 
 const __filename = fileURLToPath(import.meta.url);
 
+/**
+ * Scraper function for SaveTik
+ */
 async function tiktokScraper(url) {
     try {
         const r = await axios.post(
@@ -12,25 +15,18 @@ async function tiktokScraper(url) {
             new URLSearchParams({ q: url, lang: 'id' }).toString(),
             {
                 headers: {
-                    'User-Agent': 'Mozilla/5.0 (Linux; Android 10; Mobile)',
+                    'User-Agent': 'Mozilla/5.0 (Linux; Android 10)',
                     'Content-Type': 'application/x-www-form-urlencoded',
                     'X-Requested-With': 'XMLHttpRequest',
                     origin: 'https://savetik.co',
                     referer: 'https://savetik.co/id1'
-                },
-                timeout: 30000,
-                validateStatus: () => true
+                }
             }
         );
-        
-        if (!r.data || !r.data.data) {
-            return { status: 'error', msg: 'Invalid response from Savetik' };
-        }
-
         const $ = cheerio.load(r.data.data);
         return {
             title: $('h3').first().text().trim() || 'TikTok Media',
-            thumbnail: $('.image-tik img').attr('src') \vert{}\vert{}$('.thumbnail img').attr('src') || null,
+            thumbnail: $('.image-tik img').attr('src') || $('.thumbnail img').attr('src') || null,
             mp4: $('.dl-action a:contains("MP4")').not(':contains("HD")').attr('href') || null,
             mp4_hd: $('.dl-action a:contains("HD")').attr('href') || null,
             mp3: $('.dl-action a:contains("MP3")').attr('href') || null,
@@ -41,69 +37,56 @@ async function tiktokScraper(url) {
     }
 }
 
+// --- MAIN COMMAND ---
+
 cmd({
     pattern: "tiktok",
     alias: ["tt", "ttdl"],
+    react: "📥",
     desc: "Download TikTok videos or photos directly.",
     category: "downloader",
-    react: "📥",
     filename: __filename
-}, async (conn, mek, m, { from, text, usedPrefix, command, reply }) => {
-    const reactKey = m.key
-
+},           
+async (conn, mek, m, { from, q, reply, prefix }) => {
     try {
-        if (!text || !text.trim()) {
-            await conn.sendMessage(from, { react: { text: '❌', key: reactKey } }).catch(() => {})
-            return reply(
-                `╭─❏ 「 TIKTOK 」\n` +
-                `│ Please provide a TikTok link!\n` +
-                `│ Example: ${usedPrefix + command} https://vt.tiktok.com/ZSfEbDw89/\n` +
-                `╰───────────────\n` +
-                `> ©𝐏𝐨𝐰𝐞𝐫𝐞𝐝 𝐁𝐲 KAMRAN-MD`
-            )
+        if (!q) return reply(`*Usage:* ${prefix}tiktok <link>\n*Example:* ${prefix}tiktok https://vt.tiktok.com/ZSfEbDw89/`);
+
+        const targetChat = conn.decodeJid(from);
+        
+        // Search Reaction
+        await conn.sendMessage(targetChat, { react: { text: "🔍", key: m.key } });
+
+        const data = await tiktokScraper(q.trim());
+
+        if (data.status === 'error' || (!data.mp4 && !data.mp4_hd && data.foto.length === 0)) {
+            return reply("❌ Failed to fetch TikTok media. Link invalid or private.");
         }
 
-        await conn.sendMessage(from, { react: { text: "🔍", key: reactKey } });
+        // Caption template
+        const caption = `🎬 *TIKTOK DOWNLOADER* 🎬\n\n📌 *Title:* ${data.title}\n\n> © ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴋᴀᴍʀᴀɴ ᴍᴅ`;
 
-        const data = await tiktokScraper(text.trim());
-
-        if (data.status === 'error' || (!data.mp4 && !data.mp4_hd && (!data.foto || data.foto.length === 0))) {
-            await conn.sendMessage(from, { react: { text: "❌", key: reactKey } }).catch(() => {});
-            return reply(
-                `╭─❏ 「 TIKTOK 」\n` +
-                `│ Failed to fetch TikTok media. Link invalid or private.\n` +
-                `╰───────────────\n` +
-                `> ©𝐏𝐨𝐰𝐞𝐫𝐞𝐝 𝐁𝐲 KAMRAN-MD`
-            );
-        }
-
-        const caption = `╭─❏ 「 TIKTOK DOWNLOADER 」\n│ 📌 *Title:* ${data.title}\n╰───────────────\n> ©𝐏𝐨wwered 𝐁𝐲 KAMRAN-MD`;
-
+        // Check if it's a Video or Photo Slideshow
         if (data.mp4 || data.mp4_hd) {
-            await conn.sendMessage(from, { react: { text: "📤", key: reactKey } });
-            await conn.sendMessage(from, {
+            // Sending Video Directly
+            await conn.sendMessage(targetChat, {
                 video: { url: data.mp4_hd || data.mp4 },
                 caption: caption,
                 mimetype: "video/mp4"
             }, { quoted: mek });
+
         } else if (data.foto && data.foto.length > 0) {
-            await reply(`📸 *Slideshow Detected!* Sending ${data.foto.length} photos...`);
+            // Sending Slideshow Photos Directly
+            reply(`📸 *Slideshow Detected!* Sending ${data.foto.length} photos...`);
             for (let img of data.foto) {
-                await conn.sendMessage(from, { image: { url: img } }, { quoted: mek });
+                await conn.sendMessage(targetChat, { image: { url: img } }, { quoted: mek });
             }
         }
 
-        await conn.sendMessage(from, { react: { text: "✅", key: reactKey } });
+        // Success Reaction
+        await conn.sendMessage(targetChat, { react: { text: "✅", key: m.key } });
 
     } catch (e) {
-        console.error("TikTok Plugin Error:", e);
-        await conn.sendMessage(from, { react: { text: "❌", key: reactKey } }).catch(() => {});
-        reply(
-            `╭─❏ 「 ERROR 」\n` +
-            `│ An unexpected error occurred.\n` +
-            `│ ${e.message || e}\n` +
-            `╰───────────────\n` +
-            `> ©𝐏𝐨𝐰𝐞𝐫𝐞𝐝 𝐁𝐲 KAMRAN-MD`
-        );
+        console.error("TikTok Error:", e);
+        reply("❌ An unexpected error occurred.");
     }
 });
