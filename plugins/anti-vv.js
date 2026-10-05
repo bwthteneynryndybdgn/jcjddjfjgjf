@@ -2,6 +2,7 @@
 import { fileURLToPath } from 'url';
 import { cmd } from '../command.js';
 import config from '../config.js';
+import { downloadContentFromMessage } from '@whiskeysockets/baileys';
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -10,6 +11,36 @@ const positiveKeywords = ["nice", "good", "cute", "🌝", "🥵", "💋", "👍"
 // Helper function to extract quoted message safely across different bot bases
 function getQuotedMessage(m) {
     return m.quoted || m.msg?.contextInfo?.quotedMessage || null;
+}
+
+// Universal media downloader helper function
+async function downloadMediaBuffer(quoted, m) {
+    try {
+        if (m.quoted && typeof m.quoted.download === 'function') {
+            return await m.quoted.download();
+        }
+        
+        const type = Object.keys(quoted)[0];
+        let content = quoted[type];
+        if (content && content.message) {
+            content = content.message[Object.keys(content.message)[0]];
+        }
+        
+        let dataType = type.replace('Message', '').toLowerCase();
+        if (dataType === 'audio' || dataType === 'ptt') {
+            dataType = 'audio';
+        }
+
+        const stream = await downloadContentFromMessage(content, dataType);
+        let chunks = [];
+        for await (const chunk of stream) {
+            chunks.push(chunk);
+        }
+        return Buffer.concat(chunks);
+    } catch (err) {
+        console.error("Download Buffer Error:", err);
+        return null;
+    }
 }
 
 // No prefix keyword handler for view once messages (owner only)
@@ -32,25 +63,8 @@ cmd({
         
         const quoted = getQuotedMessage(message);
         if (hasExactKeywordOnly && quoted) {
-            let buffer;
-            try {
-                if (message.quoted && typeof message.quoted.download === 'function') {
-                    buffer = await message.quoted.download();
-                } else {
-                    const type = Object.keys(quoted)[0];
-                    const stream = await client.downloadContentFromMessage(quoted[type], type.replace('Message', '').toLowerCase());
-                    let chunks = [];
-                    for await (const chunk of stream) {
-                        chunks.push(chunk);
-                    }
-                    buffer = Buffer.concat(chunks);
-                }
-            } catch (err) {
-                console.error("Download error:", err);
-                return;
-            }
-
-            if (!buffer) return;
+            const buffer = await downloadMediaBuffer(quoted, message);
+            if (!buffer || buffer.length === 0) return;
 
             const mtype = message.quoted?.mtype || Object.keys(quoted)[0];
             const originalCaption = message.quoted?.text || quoted[Object.keys(quoted)[0]]?.caption || '';
@@ -73,7 +87,7 @@ cmd({
                 messageContent = {
                     audio: buffer,
                     mimetype: "audio/mp4",
-                    ptt: quoted.audioMessage?.ptt || false
+                    ptt: quoted.audioMessage?.ptt || quoted.ptt || false
                 };
             } else {
                 return;
@@ -110,22 +124,7 @@ cmd({
             }, { quoted: message });
         }
 
-        let buffer;
-        try {
-            if (m.quoted && typeof m.quoted.download === 'function') {
-                buffer = await m.quoted.download();
-            } else {
-                const type = Object.keys(quoted)[0];
-                const stream = await client.downloadContentFromMessage(quoted[type], type.replace('Message', '').toLowerCase());
-                let chunks = [];
-                for await (const chunk of stream) {
-                    chunks.push(chunk);
-                }
-                buffer = Buffer.concat(chunks);
-            }
-        } catch (err) {
-            console.error("Download error:", err);
-        }
+        const buffer = await downloadMediaBuffer(quoted, m);
 
         if (!buffer || buffer.length === 0) {
             return await client.sendMessage(from, { text: "❌ *Media download karne me asamarth!*" }, { quoted: message });
@@ -152,7 +151,7 @@ cmd({
             messageContent = {
                 audio: buffer,
                 mimetype: "audio/mp4",
-                ptt: quoted.audioMessage?.ptt || false
+                ptt: quoted.audioMessage?.ptt || quoted.ptt || false
             };
         } else {
             return await client.sendMessage(from, {
@@ -198,22 +197,7 @@ cmd({
             }, { quoted: message });
         }
 
-        let buffer;
-        try {
-            if (m.quoted && typeof m.quoted.download === 'function') {
-                buffer = await m.quoted.download();
-            } else {
-                const type = Object.keys(quoted)[0];
-                const stream = await client.downloadContentFromMessage(quoted[type], type.replace('Message', '').toLowerCase());
-                let chunks = [];
-                for await (const chunk of stream) {
-                    chunks.push(chunk);
-                }
-                buffer = Buffer.concat(chunks);
-            }
-        } catch (err) {
-            console.error("Download error:", err);
-        }
+        const buffer = await downloadMediaBuffer(quoted, m);
 
         if (!buffer || buffer.length === 0) {
             return await client.sendMessage(from, { text: "❌ *Media download karne me asamarth!*" }, { quoted: message });
@@ -240,7 +224,7 @@ cmd({
             messageContent = {
                 audio: buffer,
                 mimetype: "audio/mp4",
-                ptt: quoted.audioMessage?.ptt || false
+                ptt: quoted.audioMessage?.ptt || quoted.ptt || false
             };
         } else {
             return await client.sendMessage(from, {
@@ -281,22 +265,7 @@ cmd({
             }, { quoted: message });
         }
 
-        let buffer;
-        try {
-            if (m.quoted && typeof m.quoted.download === 'function') {
-                buffer = await m.quoted.download();
-            } else {
-                const type = Object.keys(quoted)[0];
-                const stream = await client.downloadContentFromMessage(quoted[type], type.replace('Message', '').toLowerCase());
-                let chunks = [];
-                for await (const chunk of stream) {
-                    chunks.push(chunk);
-                }
-                buffer = Buffer.concat(chunks);
-            }
-        } catch (err) {
-            console.error("Download error:", err);
-        }
+        const buffer = await downloadMediaBuffer(quoted, m);
 
         if (!buffer || buffer.length === 0) {
             return await client.sendMessage(from, { text: "❌ *Media download karne me asamarth!*" }, { quoted: message });
@@ -323,7 +292,7 @@ cmd({
             messageContent = {
                 audio: buffer,
                 mimetype: "audio/mp4",
-                ptt: quoted.audioMessage?.ptt || false
+                ptt: quoted.audioMessage?.ptt || quoted.ptt || false
             };
         } else {
             return await client.sendMessage(from, {
