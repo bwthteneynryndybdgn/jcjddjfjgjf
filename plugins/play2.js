@@ -7,13 +7,13 @@ const __filename = fileURLToPath(import.meta.url);
 cmd({
     pattern: "play",
     alias: ["song", "audio", "ytmp3"],
-    desc: "Download songs from YouTube using VajiraOfc API.",
+    desc: "Search or download songs from YouTube using name or link.",
     category: "downloader",
     react: "🎵",
     filename: __filename
 }, async (conn, mek, m, { from, text, reply }) => {
 
-    if (!text) return reply("❌ Please provide a song name or YouTube URL!\n\n*Example:* `.play Faded` or `.play https://youtu.be/qF-JLqKtr2Q`");
+    if (!text) return reply("❌ Please provide a song name or YouTube URL!\n\n*Example:* `.play pal pal` or `.play https://youtu.be/...`");
 
     try {
         await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
@@ -21,32 +21,29 @@ cmd({
         let query = text.trim();
         let ytUrl = query;
 
-        // Agar user ne direct link nahi diya, toh aap chahein toh direct text bhi API ko bhej sakte hain 
-        // kyunki kuch APIs text query ko bhi direct handle kar leti hain, ya phir aap yahan user ko link dene ka keh sakte hain.
-        // Lekin agar aapki API sirf YouTube URL maangti hai, toh hum check lagate hain:
-        
+        // Agar user ne link nahi diya, toh hum public search API ya free search method se link nikal lenge
         if (!query.includes("youtu.be") && !query.includes("youtube.com")) {
-            // Agar aapke paas yt-search nahi chal raha, toh aap user ko guide kar sakte hain ke direct link dein
-            // Ya hum ek alternative public search API use kar sakte hain. 
-            // Lekin sabse asan tareeqa yeh hai ke user ko link provide karne ka bole agar link na ho:
-            
-            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return reply("❌ Please provide a *valid YouTube link* for this command!\n\n*Example:* `.play https://youtu.be/xxxxxx`");
+            const searchApi = `https://api.siputzx.my.id/api/s/youtube?query=${encodeURIComponent(query)}`;
+            const searchRes = await fetch(searchApi);
+            const searchJson = await searchRes.json();
+
+            if (!searchJson || !searchJson.status || !searchJson.data || searchJson.data.length === 0) {
+                await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+                return reply("❌ No results found for your query. Please try another song name.");
+            }
+
+            ytUrl = searchJson.data[0].url; // Pehli video ka link utha lega
         }
 
-        // Call VajiraOfc API
+        // Ab VajiraOfc API ko link bhej kar audio download link fetch karenge
         let apiUrl = `https://vajiraofc-apis.vercel.app/api/ytmp3?apikey=VajiraOfc&url=${encodeURIComponent(ytUrl)}&quality=92`;
 
         const response = await fetch(apiUrl);
-        if (!response.ok) {
-            throw new Error(`API responded with status code ${response.status}`);
-        }
-
         const json = await response.json();
 
         if (!json || !json.success || !json.data || !json.data.download || !json.data.download.url) {
             await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return reply("❌ Failed to fetch audio from the API response.");
+            return reply("❌ Failed to fetch audio from the API.");
         }
 
         const songData = json.data;
@@ -74,6 +71,6 @@ cmd({
     } catch (error) {
         console.error("Play Command Error:", error);
         await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-        reply(`❌ *Error:* ${error.message || "An unexpected error occurred."}`);
+        reply(`❌ *Error:* ${error.message}`);
     }
 });
