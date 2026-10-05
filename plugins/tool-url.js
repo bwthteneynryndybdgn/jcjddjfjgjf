@@ -15,7 +15,7 @@ cmd({
   pattern: "tourl",
   alias: ["imgtourl", "imgurl", "url", "geturl", "upload"],
   react: '🖇',
-  desc: "Convert media to Catbox URL with FATIMA-MD style",
+  desc: "Convert media to URL with FATIMA-MD style",
   category: "utility",
   use: ".tourl [reply to media]",
   filename: __filename
@@ -60,26 +60,56 @@ cmd({
     else if (mimeType.includes('zip')) extension = '.zip';
     else if (mimeType.includes('pdf')) extension = '.pdf';
     
-    tempFilePath = path.join(os.tmpdir(), `catbox_${Date.now()}${extension}`);
+    tempFilePath = path.join(os.tmpdir(), `upload_${Date.now()}${extension}`);
     fs.writeFileSync(tempFilePath, buffer);
 
-    const form = new FormData();
-    form.append('reqtype', 'fileupload');
-    form.append('fileToUpload', fs.createReadStream(tempFilePath));
+    let mediaUrl = '';
 
-    const response = await axios.post("https://catbox.moe/user/api.php", form, {
-      headers: {
-        ...form.getHeaders(),
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
-      },
-      timeout: 60000
-    });
+    // Upload using Telegra.ph API (Fast & Never gives 412 error)
+    try {
+      const form = new FormData();
+      form.append('file', fs.createReadStream(tempFilePath));
 
-    if (!response.data) {
-      throw new Error("Catbox server se response nahi mila.");
+      const response = await axios.post("https://telegra.ph/upload", form, {
+        headers: {
+          ...form.getHeaders(),
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+        },
+        timeout: 60000
+      });
+
+      if (response.data && response.data[0] && response.data[0].src) {
+        mediaUrl = "https://telegra.ph" + response.data[0].src;
+      }
+    } catch (err) {
+      console.error("Telegraph upload error, trying ImgBB...", err);
     }
 
-    const mediaUrl = response.data.trim();
+    // Fallback to ImgBB if telegraph fails
+    if (!mediaUrl) {
+      try {
+        const base64Data = buffer.toString('base64');
+        const imgbbForm = new FormData();
+        imgbbForm.append('key', 'e4b536bbf102cfccc5d8758489052547');
+        imgbbForm.append('image', base64Data);
+
+        const imgbbRes = await axios.post('https://api.imgbb.com/1/upload', imgbbForm, {
+          headers: imgbbForm.getHeaders(),
+          timeout: 30000
+        });
+
+        if (imgbbRes.data && imgbbRes.data.success) {
+          mediaUrl = imgbbRes.data.data.url;
+        }
+      } catch (imgbbErr) {
+        console.error("ImgBB upload error:", imgbbErr);
+      }
+    }
+
+    if (!mediaUrl) {
+      throw new Error("Dono upload servers par request fail ho gayi.");
+    }
+
     if (tempFilePath && fs.existsSync(tempFilePath)) {
       fs.unlinkSync(tempFilePath);
     }
