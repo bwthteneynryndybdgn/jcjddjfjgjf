@@ -1,125 +1,74 @@
-import { cmd } from '../command.js';
+// plugins/song.js - ESM Version
 import { fileURLToPath } from 'url';
-import fetch from 'node-fetch';
+import { cmd } from '../command.js';
+import config from '../config.js';
 import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
 
-const APIS = (url) => [
-  `https://kiraxmd-api.vercel.app/api/play?query=${encodeURIComponent(url)}`,
-  `https://xenoytdl-2.vercel.app/api/youtube?url=${encodeURIComponent(url)}`,
-  `https://jerrycoder.oggyapi.workers.dev/down/ytmp3-v1?url=${encodeURIComponent(url)}`,
-  `https://api.siputzx.my.id/api/d/ytmp3?url=${encodeURIComponent(url)}`,
-  `https://eliteprotech-apis.zone.id/ytdown?format=mp3&url=${encodeURIComponent(url)}`,
-  `https://vajiraofc-apis.vercel.app/api/ytmp3?apikey=VajiraOfc&url=${encodeURIComponent(url)}&quality=92`
-];
-
 cmd({
-    pattern: "play2",
-    alias: ["song2", "audio2", "ytmp32"],
-    desc: "Search or download songs from YouTube with image and buffer upload.",
+    pattern: "song",
+    alias: ["play", "ytmp3", "audio"],
+    react: '🎵',
+    desc: "Download audio from YouTube using API",
     category: "downloader",
-    react: "🎵",
     filename: __filename
-}, async (conn, mek, m, { from, text, reply }) => {
-
-    if (!text) return reply("❌ Please provide a song name or YouTube URL!\n\n*Example:* `.play pal pal` or `.play https://youtu.be/...`");
-
+}, async (client, message, m, { 
+    from, 
+    prefix, 
+    command, 
+    args, 
+    q, 
+    isCreator,
+    userConfig
+}) => {
     try {
-        await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
-
-        let query = text.trim();
-        let ytUrl = query;
-        let thumbnail = null;
-        let songTitle = "Audio Track";
-        let downloadUrl = null;
-
-        if (!query.includes("youtu.be") && !query.includes("youtube.com")) {
-            const searchApi = `https://api.siputzx.my.id/api/s/youtube?query=${encodeURIComponent(query)}`;
-            const searchRes = await fetch(searchApi);
-            const searchJson = await searchRes.json();
-
-            if (!searchJson || !searchJson.status || !searchJson.data || searchJson.data.length === 0) {
-                await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-                return reply("❌ No results found for your query. Please try another song name.");
-            }
-
-            ytUrl = searchJson.data[0].url;
-            thumbnail = searchJson.data[0].thumbnail || searchJson.data[0].image;
-            songTitle = searchJson.data[0].title || query;
+        if (!q) {
+            return await client.sendMessage(from, {
+                text: `*🍁 Please provide a YouTube link or song name!*\n\n*Example:* ${prefix + command} https://youtu.be/yCUQSto0Bwc`
+            }, { quoted: message });
         }
 
-        const apiList = APIS(ytUrl);
+        const DESCRIPTION = userConfig?.DESCRIPTION || config.DESCRIPTION || "Powered by Bot";
+
+        // Initial reaction or message
+        await client.sendMessage(from, { react: { text: '⏳', key: message.key } });
+
+        // API Endpoint
+        let targetUrl = q.trim();
+        // Agar query direct YouTube link nahi hai toh aap chahe toh search handle kar sakte hain ya direct API mein bhej sakte hain
+        const apiUrl = `https://jerrycoder.oggyapi.workers.dev/down/ytmp3?url=${encodeURIComponent(targetUrl)}`;
+
+        const response = await axios.get(apiUrl);
+        const data = response.data;
+
+        // API response ke structure ke mutabiq download URL ya buffer nikalna hoga
+        // Aam tor par aisi APIs JSON mein download link ya direct buffer deti hain. 
+        // Agar API direct audio URL return karti hai toh usko fetch karenge:
         
-        for (const apiUrl of apiList) {
-            try {
-                const response = await fetch(apiUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-                if (!response.ok) continue;
-                const json = await response.json();
+        const audioDownloadUrl = data.downloadUrl || data.url || data.result || targetUrl; // API ke format ke mutabiq adjust karein
 
-                const dUrl = json.data?.download?.url || json.data?.url || json.url || json.download || json.audio || json.mp3 || json.result?.mp3 || json.result?.url;
-                
-                if (dUrl && typeof dUrl === "string" && dUrl.startsWith("http")) {
-                    downloadUrl = dUrl;
-                    if (json.data?.title) songTitle = json.data.title;
-                    if (json.result?.title) songTitle = json.result.title;
-                    if (json.data?.thumbnail) thumbnail = json.data.thumbnail;
-                    break;
-                }
-            } catch (err) {
-                console.log("API trying next...");
-            }
+        if (!audioDownloadUrl) {
+            return await client.sendMessage(from, {
+                text: "❌ *Audio download link nahi mil saki!* Kripya dubara koshish karein."
+            }, { quoted: message });
         }
 
-        if (!downloadUrl) {
-            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return reply("❌ Failed to fetch audio from all APIs. Please try again later.");
-        }
-
-        if (!thumbnail) {
-            const videoIdMatch = ytUrl.match(/(?:v=|youtu\.be\/)([\w-]{11})/);
-            const videoId = videoIdMatch ? videoIdMatch[1] : "qF-JLqKtr2Q";
-            thumbnail = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
-        }
-
-        const infoMessage = `🎵 *KAMRAN-MD PLAYER*\n\n` +
-            `*Title:* ${songTitle}\n\n` +
-            `━━━━━━━━━━━━━━━━━━\n` +
-            `~ *KAMRAN-MD*`;
-
-        if (thumbnail) {
-            await conn.sendMessage(from, {
-                image: { url: thumbnail },
-                caption: infoMessage
-            }, { quoted: mek });
-        } else {
-            await reply(infoMessage);
-        }
-
-        // Downloading audio buffer securely using axios with browser headers
-        await conn.sendMessage(from, { react: { text: "⬇️", key: mek.key } });
-        
-        const audioRes = await axios.get(downloadUrl, { 
-            responseType: 'arraybuffer',
-            headers: { 
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Referer': 'https://www.youtube.com/'
-            }
-        });
-        const audioBuffer = Buffer.from(audioRes.data);
-
-        await conn.sendMessage(from, {
-            audio: audioBuffer,
+        // Send audio buffer or URL
+        const options = {
+            audio: { url: audioDownloadUrl },
             mimetype: 'audio/mp4',
-            fileName: `${songTitle.replace(/[\\/:*?"<>|]/g, '')}.mp3`,
-            ptt: false
-        }, { quoted: mek });
+            ptt: false,
+            caption: `> ${DESCRIPTION}`
+        };
 
-        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
+        await client.sendMessage(from, options, { quoted: message });
+        await client.sendMessage(from, { react: { text: '🎵', key: message.key } });
 
     } catch (error) {
-        console.error("Play Command Error:", error);
-        await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-        reply(`❌ *Error:* ${error.message || "An unexpected error occurred."}`);
+        console.error("YouTube MP3 Error:", error);
+        await client.sendMessage(from, {
+            text: "❌ Error downloading song:\n" + error.message
+        }, { quoted: message });
     }
 });
