@@ -10,7 +10,7 @@ const __filename = fileURLToPath(import.meta.url);
 
 cmd({
     pattern: "tourl",
-    alias: ["catbox2", "upload"],
+    alias: ["url", "upload", "catbox2"],
     desc: "Upload replied media to Catbox and ImgBB",
     category: "downloader",
     react: "📤",
@@ -29,38 +29,46 @@ cmd({
         await conn.sendMessage(from, { react: { text: "⌛", key: reactKey } });
 
         let buffer;
+        let mime = '';
+        let mediaType = 'image';
+
         try {
-            if (typeof m.quoted?.download === 'function') {
-                buffer = await m.quoted.download();
-            } else if (typeof conn.downloadAndSaveMediaMessage === 'function') {
-                const mediaMsg = m.msg.contextInfo.quotedMessage;
-                const streamPath = await conn.downloadAndSaveMediaMessage(mediaMsg, 'temp_media');
-                buffer = fs.readFileSync(streamPath);
-                try { fs.unlinkSync(streamPath); } catch {}
-            } else if (typeof conn.downloadMediaMessage === 'function') {
-                buffer = await conn.downloadMediaMessage(m);
+            const quotedMsg = m.msg?.contextInfo?.quotedMessage;
+            if (quotedMsg) {
+                if (quotedMsg.imageMessage) {
+                    mime = quotedMsg.imageMessage.mimetype || 'image/jpeg';
+                    mediaType = 'image';
+                } else if (quotedMsg.videoMessage) {
+                    mime = quotedMsg.videoMessage.mimetype || 'video/mp4';
+                    mediaType = 'video';
+                } else if (quotedMsg.audioMessage) {
+                    mime = quotedMsg.audioMessage.mimetype || 'audio/mp3';
+                    mediaType = 'audio';
+                } else if (quotedMsg.documentMessage) {
+                    mime = quotedMsg.documentMessage.mimetype || 'application/octet-stream';
+                    mediaType = 'document';
+                } else if (quotedMsg.stickerMessage) {
+                    mime = quotedMsg.stickerMessage.mimetype || 'image/webp';
+                    mediaType = 'sticker';
+                }
+
+                // Bot ke built-in download helper ka use
+                if (typeof conn.downloadAndSaveMediaMessage === 'function') {
+                    const streamPath = await conn.downloadAndSaveMediaMessage(quotedMsg, 'temp_media');
+                    buffer = fs.readFileSync(streamPath);
+                    try { fs.unlinkSync(streamPath); } catch {}
+                } else if (typeof m.quoted?.download === 'function') {
+                    buffer = await m.quoted.download();
+                }
             }
         } catch (err) {
-            console.error('Buffer download error:', err);
+            console.error('Media download error:', err);
         }
 
         if (!buffer || buffer.length === 0) {
             await conn.sendMessage(from, { react: { text: '❌', key: reactKey } }).catch(() => {});
             return reply("❌ *Media download karne me asamarth! Kripya kisi valid image ya video par reply karein.*");
         }
-
-        const quotedMsg = m.msg?.contextInfo?.quotedMessage || {};
-        const mime = quotedMsg.imageMessage?.mimetype ||
-                     quotedMsg.videoMessage?.mimetype ||
-                     quotedMsg.audioMessage?.mimetype ||
-                     quotedMsg.documentMessage?.mimetype ||
-                     quotedMsg.stickerMessage?.mimetype || 'image/jpeg';
-
-        let mediaType = 'image';
-        if (quotedMsg.videoMessage) mediaType = 'video';
-        else if (quotedMsg.audioMessage) mediaType = 'audio';
-        else if (quotedMsg.documentMessage) mediaType = 'document';
-        else if (quotedMsg.stickerMessage) mediaType = 'sticker';
 
         const ext = mime.split('/')[1] || 'tmp';
         const tempFilePath = path.join(os.tmpdir(), `upload_${Date.now()}.${ext}`);
