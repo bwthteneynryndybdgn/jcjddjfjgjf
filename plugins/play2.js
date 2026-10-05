@@ -1,7 +1,7 @@
 import { cmd } from '../command.js';
 import { fileURLToPath } from 'url';
 import fetch from 'node-fetch';
-import yts from 'yt-search'; // Make sure yt-search is installed in your package.json
+import yts from 'yt-search';
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -22,31 +22,47 @@ cmd({
         let query = text.trim();
         let ytUrl = query;
 
-        // Check if the input is NOT a direct YouTube URL, then use ytsearch
+        // If not a direct YouTube link, use ytsearch
         if (!query.includes("youtu.be") && !query.includes("youtube.com")) {
-            const search = await yts(query);
-            if (!search || !search.videos || search.videos.length === 0) {
-                await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-                return reply("❌ No results found for your query. Please try a different song name.");
+            try {
+                const search = await yts(query);
+                if (search && search.videos && search.videos.length > 0) {
+                    ytUrl = search.videos[0].url;
+                } else {
+                    await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+                    return reply("❌ No results found for your query. Please try a different song name.");
+                }
+            } catch (searchErr) {
+                console.error("YTSearch Error:", searchErr);
+                return reply("❌ Error occurred while searching YouTube.");
             }
-            ytUrl = search.videos[0].url; // Get the first video URL from search
         }
 
-        // Call your VajiraOfc API with the URL
+        // Call VajiraOfc API
         let apiUrl = `https://vajiraofc-apis.vercel.app/api/ytmp3?apikey=VajiraOfc&url=${encodeURIComponent(ytUrl)}&quality=92`;
 
         const response = await fetch(apiUrl);
+        if (!response.ok) {
+            throw new Error(`API responded with status code ${response.status}`);
+        }
+
         const json = await response.json();
 
-        if (!json || !json.success || !json.data || !json.data.download || !json.data.download.url) {
+        // Safe checks to avoid 'undefined' crashes
+        if (!json || !json.success || !json.data) {
             await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return reply("❌ Failed to fetch audio from API.");
+            return reply("❌ Invalid response received from the API.");
         }
 
         const songData = json.data;
-        const downloadUrl = songData.download.url;
+        const downloadUrl = songData.download?.url || songData.url;
         const songTitle = songData.title || "Audio Track";
-        const quality = songData.download.quality || "92kbps";
+        const quality = songData.download?.quality || "92kbps";
+
+        if (!downloadUrl) {
+            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+            return reply("❌ Download link could not be found in the API response.");
+        }
 
         const infoMessage = `🎵 *KAMRAN-MD PLAYER*\n\n` +
             `*Title:* ${songTitle}\n` +
@@ -68,6 +84,6 @@ cmd({
     } catch (error) {
         console.error("Play Command Error:", error);
         await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-        reply(`❌ *Error:* ${error.message}`);
+        reply(`❌ *Error:* ${error.message || "An unexpected error occurred."}`);
     }
 });
