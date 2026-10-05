@@ -1,5 +1,5 @@
 //---------------------------------------------------------------------------
-//           KAMRAN-MD - YOUTUBE AUDIO DOWNLOADER (MULTI-API FALLBACK)
+//           KAMRAN-MD - YOUTUBE AUDIO DOWNLOADER (WITH YTS)
 //---------------------------------------------------------------------------
 
 import { fileURLToPath } from 'url';
@@ -53,7 +53,7 @@ cmd(
         ytUrl = video.url;
         songTitle = video.title;
         songThumb = video.thumbnail;
-        channelName = video.author.name;
+        channelName = video.author?.name || "Unknown";
         duration = video.timestamp;
       }
 
@@ -66,20 +66,20 @@ cmd(
         const res1 = await axios.get(apiUrl, { timeout: 25000 });
         const data1 = res1.data?.result || res1.data?.data || res1.data;
         finalUrl = data1?.download || data1?.dl || data1?.mp3 || data1?.url;
-        if (data1?.title && songTitle === "YouTube Audio") songTitle = data1.title;
-        if (data1?.thumbnail) songThumb = data1.thumbnail;
+        if (data1?.title) songTitle = data1.title;
+        if (data1?.thumbnail || data1?.thumb) songThumb = data1.thumbnail || data1.thumb;
       } catch (err1) {
         console.error("API 1 failed, trying fallback...", err1.message);
       }
 
-      // Method 2: Fallback to Siputzx API if method 1 fails
+      // Method 2: Fallback to Siputzx Download API if method 1 fails
       if (!finalUrl) {
         try {
           const fallbackUrl = `https://api.siputzx.my.id/api/d/ytmp3?url=${encodeURIComponent(ytUrl)}`;
           const res2 = await axios.get(fallbackUrl, { timeout: 25000 });
           const data2 = res2.data?.data || res2.data?.result || res2.data;
           finalUrl = data2?.dl || data2?.download || data2?.url;
-          if (data2?.title && songTitle === "YouTube Audio") songTitle = data2.title;
+          if (data2?.title) songTitle = data2.title;
           if (data2?.thumb || data2?.thumbnail) songThumb = data2.thumb || data2.thumbnail;
         } catch (err2) {
           console.error("API 2 failed:", err2.message);
@@ -88,7 +88,7 @@ cmd(
 
       if (!finalUrl) {
         await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-        return reply("❌ Failed to fetch audio download link from all servers. Try another song!");
+        return reply("❌ Failed to fetch audio download link. Try another song!");
       }
 
       // Send Info & Audio
