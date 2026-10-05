@@ -80,48 +80,66 @@ cmd({
     category: "downloader",
     filename: __filename
 },           
-async (conn, mek, m, { from, q, reply, prefix }) => {
+async (conn, mek, m, { from, text, usedPrefix, command, reply }) => {
+    const reactKey = m.key
+
     try {
-        if (!q) return reply(`*Usage:* ${prefix}tiktok <link>\n*Example:* ${prefix}tiktok https://vt.tiktok.com/ZSfEbDw89/`);
+        if (!text || !text.trim()) {
+            await conn.sendMessage(from, { react: { text: '❌', key: reactKey } }).catch(() => {})
+            return reply(
+                `╭─❏ 「 TIKTOK 」\n` +
+                `│ Please provide a TikTok link!\n` +
+                `│ Example: ${usedPrefix + command} https://vt.tiktok.com/ZSfEbDw89/\n` +
+                `╰───────────────\n` +
+                `> ©𝐏𝐨𝐰𝐞𝐫𝐞𝐝 𝐁𝐲 KAMRAN-MD`
+            )
+        }
 
-        const targetChat = conn.decodeJid(from);
-        
-        // Search Reaction
-        await conn.sendMessage(targetChat, { react: { text: "🔍", key: m.key } });
+        await conn.sendMessage(from, { react: { text: "🔍", key: reactKey } });
 
-        const data = await tiktokScraper(q.trim());
+        const data = await tiktokScraper(text.trim());
 
         if (data.status === 'error' || (!data.mp4 && !data.mp4_hd && (!data.foto || data.foto.length === 0))) {
-            await conn.sendMessage(targetChat, { react: { text: "❌", key: m.key } }).catch(() => {});
-            return reply("❌ Failed to fetch TikTok media. Link invalid or private.");
+            await conn.sendMessage(from, { react: { text: "❌", key: reactKey } }).catch(() => {});
+            return reply(
+                `╭─❏ 「 TIKTOK 」\n` +
+                `│ Failed to fetch TikTok media. Link invalid or private.\n` +
+                `╰───────────────\n` +
+                `> ©𝐏𝐨𝐰𝐞𝐫𝐞𝐝 𝐁𝐲 KAMRAN-MD`
+            );
         }
 
         // Caption template
-        const caption = `🎬 *TIKTOK DOWNLOADER* 🎬\n\n📌 *Title:* ${data.title}\n\n> © ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴋᴀᴍʀᴀɴ ᴍᴅ`;
+        const caption = `╭─❏ 「 TIKTOK DOWNLOADER 」\n│ 📌 *Title:* ${data.title}\n╰───────────────\n> ©𝐏𝐨𝐰𝐞𝐫𝐞𝐝 𝐁𝐲 KAMRAN-MD`;
 
         // Check if it's a Video or Photo Slideshow
         if (data.mp4 || data.mp4_hd) {
-            // Sending Video Directly
-            await conn.sendMessage(targetChat, {
+            await conn.sendMessage(from, { react: { text: "📤", key: reactKey } });
+            await conn.sendMessage(from, {
                 video: { url: data.mp4_hd || data.mp4 },
                 caption: caption,
                 mimetype: "video/mp4"
             }, { quoted: mek });
 
         } else if (data.foto && data.foto.length > 0) {
-            // Sending Slideshow Photos Directly
-            reply(`📸 *Slideshow Detected!* Sending ${data.foto.length} photos...`);
+            await reply(`📸 *Slideshow Detected!* Sending ${data.foto.length} photos...`);
             for (let img of data.foto) {
-                await conn.sendMessage(targetChat, { image: { url: img } }, { quoted: mek });
+                await conn.sendMessage(from, { image: { url: img } }, { quoted: mek });
             }
         }
 
         // Success Reaction
-        await conn.sendMessage(targetChat, { react: { text: "✅", key: m.key } });
+        await conn.sendMessage(from, { react: { text: "✅", key: reactKey } });
 
     } catch (e) {
         console.error("TikTok Error:", e);
-        await conn.sendMessage(targetChat, { react: { text: "❌", key: m.key } }).catch(() => {});
-        reply("❌ An unexpected error occurred.");
+        await conn.sendMessage(from, { react: { text: "❌", key: reactKey } }).catch(() => {});
+        reply(
+            `╭─❏ 「 ERROR 」\n` +
+            `│ An unexpected error occurred.\n` +
+            `│ ${e.message || e}\n` +
+            `╰───────────────\n` +
+            `> ©𝐏𝐨𝐰𝐞𝐫𝐞𝐝 𝐁𝐲 KAMRAN-MD`
+        );
     }
 });
