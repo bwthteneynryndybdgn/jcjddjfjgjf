@@ -5,8 +5,8 @@ import fetch from 'node-fetch';
 const __filename = fileURLToPath(import.meta.url);
 
 cmd({
-    pattern: "play",
-    alias: ["song", "audio", "ytmp3"],
+    pattern: "play3",
+    alias: ["song3", "audio3", "ytmp33"],
     desc: "Search or download songs from YouTube using name or link.",
     category: "downloader",
     react: "🎵",
