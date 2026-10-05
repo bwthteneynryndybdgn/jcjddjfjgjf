@@ -1,21 +1,21 @@
 //---------------------------------------------------------------------------
-//           KAMRAN-MD - YOUTUBE AUDIO DOWNLOADER (NO-SEARCH ERROR FIX)
+//           KAMRAN-MD - YOUTUBE AUDIO DOWNLOADER (MULTI-API FALLBACK)
 //---------------------------------------------------------------------------
 
 import { fileURLToPath } from 'url';
 import axios from 'axios';
 import { cmd } from '../command.js';
+import yts from 'yt-search';
 
 const __filename = fileURLToPath(import.meta.url);
 
 const AUTHOR = "DR KAMRAN";
-const AUTH_TOKEN_PARTS = ["Vajira", "Ofc"];
 const STRICT_OWNER_LOCK = false;
 
 cmd(
   {
-    pattern: "song65",
-    alias: ["play65", "ytmp65", "audio64"],
+    pattern: "song",
+    alias: ["play", "ytmp3", "audio"],
     react: "🎵",
     desc: "Search and download audio from YouTube.",
     category: "download",
@@ -36,38 +36,60 @@ cmd(
 
       await conn.sendMessage(from, { react: { text: "🔍", key: mek.key } });
 
-      // Direct API call without yt-search to prevent title.trim crashes
-      const assembledApiKey = AUTH_TOKEN_PARTS.join("");
-      const apiUrl = `https://vajiraofc-apis.vercel.app/api/ytmp3?apikey=${assembledApiKey}&url=${encodeURIComponent(q)}&quality=128`;
-      
-      const response = await axios.get(apiUrl, { timeout: 30000 });
-      const data = response.data;
-
-      if (!data || (data.status !== true && data.status !== 200 && !data.result)) {
-        await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-        return reply("❌ Could not find or download audio for your query. Try providing a direct YouTube link!");
-      }
-
-      const res = data.result || data.data || data;
-      
-      let finalUrl = res.download || res.dl || res.mp3 || res.url;
-      if (typeof finalUrl === 'object' && finalUrl !== null) {
-        finalUrl = finalUrl.url || finalUrl.download || finalUrl.dl || Object.values(finalUrl)[0];
-      }
-
-      if (!finalUrl || typeof finalUrl !== 'string') {
-        await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-        return reply("❌ Invalid download link received from API.");
-      }
-
+      let ytUrl = q;
       let songTitle = "YouTube Audio";
-      if (res.title) {
-        songTitle = typeof res.title === 'string' ? res.title : (res.title.text || String(res.title));
+      let songThumb = "https://i.imgur.com/Te4kE0x.jpeg";
+      let channelName = "Unknown";
+      let duration = "N/A";
+
+      // If query is not a direct URL, search using yt-search
+      if (!q.startsWith("http")) {
+        const search = await yts(q);
+        const video = search.videos?.[0];
+        if (!video) {
+          await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+          return reply("❌ No YouTube video found for your query.");
+        }
+        ytUrl = video.url;
+        songTitle = video.title;
+        songThumb = video.thumbnail;
+        channelName = video.author.name;
+        duration = video.timestamp;
       }
 
-      const songThumb = res.thumbnail || res.image || "https://i.imgur.com/Te4kE0x.jpeg";
-      const channelName = res.author || res.channel || "Unknown";
-      const duration = res.duration || res.timestamp || "N/A";
+      let finalUrl = null;
+
+      // Method 1: Try Vajira API with URL
+      try {
+        const assembledApiKey = ["Vajira", "Ofc"].join("");
+        const apiUrl = `https://vajiraofc-apis.vercel.app/api/ytmp3?apikey=${assembledApiKey}&url=${encodeURIComponent(ytUrl)}&quality=128`;
+        const res1 = await axios.get(apiUrl, { timeout: 25000 });
+        const data1 = res1.data?.result || res1.data?.data || res1.data;
+        finalUrl = data1?.download || data1?.dl || data1?.mp3 || data1?.url;
+        if (data1?.title && songTitle === "YouTube Audio") songTitle = data1.title;
+        if (data1?.thumbnail) songThumb = data1.thumbnail;
+      } catch (err1) {
+        console.error("API 1 failed, trying fallback...", err1.message);
+      }
+
+      // Method 2: Fallback to Siputzx API if method 1 fails
+      if (!finalUrl) {
+        try {
+          const fallbackUrl = `https://api.siputzx.my.id/api/d/ytmp3?url=${encodeURIComponent(ytUrl)}`;
+          const res2 = await axios.get(fallbackUrl, { timeout: 25000 });
+          const data2 = res2.data?.data || res2.data?.result || res2.data;
+          finalUrl = data2?.dl || data2?.download || data2?.url;
+          if (data2?.title && songTitle === "YouTube Audio") songTitle = data2.title;
+          if (data2?.thumb || data2?.thumbnail) songThumb = data2.thumb || data2.thumbnail;
+        } catch (err2) {
+          console.error("API 2 failed:", err2.message);
+        }
+      }
+
+      if (!finalUrl) {
+        await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+        return reply("❌ Failed to fetch audio download link from all servers. Try another song!");
+      }
 
       // Send Info & Audio
       const infoText = `
@@ -96,7 +118,7 @@ _📥 Sending your audio file..._
               title: "YT AUDIO DOWNLOADER",
               body: songTitle,
               thumbnailUrl: songThumb,
-              sourceUrl: q.startsWith("http") ? q : "https://youtube.com",
+              sourceUrl: ytUrl,
               mediaType: 2,
               renderLargerThumbnail: true
             }
