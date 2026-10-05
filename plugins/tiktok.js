@@ -6,10 +6,11 @@ import { cmd } from '../command.js';
 const __filename = fileURLToPath(import.meta.url);
 
 /**
- * Scraper function for SaveTik
+ * Scraper function with fallback for TikTok
  */
 async function tiktokScraper(url) {
     try {
+        // First try: Savetik Scraper
         const r = await axios.post(
             'https://savetik.co/api/ajaxSearch',
             new URLSearchParams({ q: url, lang: 'id' }).toString(),
@@ -20,21 +21,53 @@ async function tiktokScraper(url) {
                     'X-Requested-With': 'XMLHttpRequest',
                     origin: 'https://savetik.co',
                     referer: 'https://savetik.co/id1'
-                }
+                },
+                timeout: 15000,
+                validateStatus: () => true
             }
         );
-        const $ = cheerio.load(r.data.data);
-        return {
-            title: $('h3').first().text().trim() || 'TikTok Media',
-            thumbnail: $('.image-tik img').attr('src') || $('.thumbnail img').attr('src') || null,
-            mp4: $('.dl-action a:contains("MP4")').not(':contains("HD")').attr('href') || null,
-            mp4_hd: $('.dl-action a:contains("HD")').attr('href') || null,
-            mp3: $('.dl-action a:contains("MP3")').attr('href') || null,
-            foto: $('.photo-list a[href*="snapcdn"]').map((_, e) => $(e).attr('href')).get()
-        };
+        
+        if (r.data && r.data.data) {
+            const $ = cheerio.load(r.data.data);
+            const title = $('h3').first().text().trim() || 'TikTok Media';
+            const mp4 = $('.dl-action a:contains("MP4")').not(':contains("HD")').attr('href') || null;
+            const mp4_hd = $('.dl-action a:contains("HD")').attr('href') || null;
+            const foto = $('.photo-list a[href*="snapcdn"]').map((_, e) => $(e).attr('href')).get();
+
+            if (mp4 || mp4_hd || (foto && foto.length > 0)) {
+                return {
+                    title,
+                    mp4,
+                    mp4_hd,
+                    foto: foto || []
+                };
+            }
+        }
     } catch (e) {
-        return { status: 'error', msg: e.message };
+        // Fallback will be triggered if primary fails
     }
+
+    try {
+        // Second try: KamranTech API Fallback
+        const fallbackUrl = `https://kamrantech-apis.vercel.app/api/download/tiktok?url=${encodeURIComponent(url)}&key=KAMRAN-MASTER-2026`;
+        const res = await axios.get(fallbackUrl, { timeout: 15000, validateStatus: () => true });
+        const json = res.data;
+
+        if (json && json.status && json.data) {
+            const data = json.data;
+            const videoUrl = data.nowm || data.url || data.video || data.download;
+            if (videoUrl) {
+                return {
+                    title: data.title || data.desc || 'TikTok Video',
+                    mp4: videoUrl,
+                    mp4_hd: null,
+                    foto: []
+                };
+            }
+        }
+    } catch (e) {}
+
+    return { status: 'error', msg: 'Failed to fetch media' };
 }
 
 // --- MAIN COMMAND ---
@@ -58,7 +91,8 @@ async (conn, mek, m, { from, q, reply, prefix }) => {
 
         const data = await tiktokScraper(q.trim());
 
-        if (data.status === 'error' || (!data.mp4 && !data.mp4_hd && data.foto.length === 0)) {
+        if (data.status === 'error' || (!data.mp4 && !data.mp4_hd && (!data.foto || data.foto.length === 0))) {
+            await conn.sendMessage(targetChat, { react: { text: "❌", key: m.key } }).catch(() => {});
             return reply("❌ Failed to fetch TikTok media. Link invalid or private.");
         }
 
@@ -87,6 +121,7 @@ async (conn, mek, m, { from, q, reply, prefix }) => {
 
     } catch (e) {
         console.error("TikTok Error:", e);
+        await conn.sendMessage(targetChat, { react: { text: "❌", key: m.key } }).catch(() => {});
         reply("❌ An unexpected error occurred.");
     }
 });
