@@ -35,15 +35,16 @@ cmd({
 
     await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
-    // Media buffer download karne ke liye robust tareeqa
     let mediaBuffer;
     try {
-      if (typeof m.quoted?.download === 'function') {
+      if (m.quoted && typeof m.quoted.download === 'function') {
         mediaBuffer = await m.quoted.download();
-      } else if (typeof conn.downloadAndSaveMediaMessage === 'function') {
+      } else if (conn.downloadAndSaveMediaMessage) {
         const streamPath = await conn.downloadAndSaveMediaMessage(quotedMsg, 'temp_media');
         mediaBuffer = fs.readFileSync(streamPath);
         try { fs.unlinkSync(streamPath); } catch {}
+      } else if (conn.downloadMediaMessage) {
+        mediaBuffer = await conn.downloadMediaMessage(quotedMsg);
       } else {
         const type = Object.keys(quotedMsg)[0];
         const stream = await conn.downloadContentFromMessage(quotedMsg[type], type.replace('Message', '').toLowerCase());
@@ -54,36 +55,30 @@ cmd({
         mediaBuffer = Buffer.concat(chunks);
       }
     } catch (downloadErr) {
-      console.error('Buffer download error:', downloadErr);
+      console.error('Download Buffer Error:', downloadErr);
     }
 
     if (!mediaBuffer || mediaBuffer.length === 0) {
       await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-      return reply("❌ *Media download karne me asamarth! Kripya dobara koshish karein.*");
+      return reply("❌ *Media download karne me asamarth! Quoted message valid nahi hai.*");
     }
 
     const mimeType = quotedMsg.imageMessage?.mimetype ||
                      quotedMsg.videoMessage?.mimetype ||
                      quotedMsg.audioMessage?.mimetype ||
                      quotedMsg.documentMessage?.mimetype ||
-                     quotedMsg.stickerMessage?.mimetype || '';
+                     quotedMsg.stickerMessage?.mimetype || 'image/jpeg';
 
     tempFilePath = path.join(os.tmpdir(), `catbox_upload_${Date.now()}`);
     fs.writeFileSync(tempFilePath, mediaBuffer);
 
-    let extension = '';
-    if (mimeType.includes('image/jpeg')) extension = '.jpg';
-    else if (mimeType.includes('image/png')) extension = '.png';
-    else if (mimeType.includes('image/webp')) extension = '.webp';
+    let extension = '.jpg';
+    if (mimeType.includes('png')) extension = '.png';
+    else if (mimeType.includes('webp')) extension = '.webp';
     else if (mimeType.includes('video')) extension = '.mp4';
-    else if (mimeType.includes('audio/mpeg')) extension = '.mp3';
-    else if (mimeType.includes('audio/mp4') || mimeType.includes('audio/x-m4a')) extension = '.m4a';
-    else if (mimeType.includes('application/zip')) extension = '.zip';
-    else if (mimeType.includes('text/javascript')) extension = '.js';
-    else if (mimeType.includes('audio/')) extension = '.audio';
-    else if (mimeType.includes('image/')) extension = '.image';
-    else if (mimeType.includes('text/')) extension = '.txt';
-    else extension = '.file';
+    else if (mimeType.includes('audio')) extension = '.mp3';
+    else if (mimeType.includes('zip')) extension = '.zip';
+    else if (mimeType.includes('javascript')) extension = '.js';
     
     const fileName = `file${extension}`;
 
@@ -109,7 +104,6 @@ cmd({
     if (mimeType.includes('image')) mediaType = 'Image';
     else if (mimeType.includes('video')) mediaType = 'Video';
     else if (mimeType.includes('audio')) mediaType = 'Audio';
-    else if (mimeType.includes('application/zip')) mediaType = 'ZIP Archive';
 
     const uploadBox = `
 ╔════════════════════════╗
