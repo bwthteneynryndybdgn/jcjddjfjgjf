@@ -11,7 +11,7 @@ cmd({
     pattern: "song",
     alias: ["play", "ytmp3", "audio", "song2"],
     react: '🎵',
-    desc: "Download audio from YouTube with full details",
+    desc: "Download audio with details first, then audio",
     category: "downloader",
     filename: __filename
 }, async (client, message, m, { 
@@ -32,15 +32,15 @@ cmd({
 
         const DESCRIPTION = userConfig?.DESCRIPTION || config.DESCRIPTION || "Powered by Bot";
 
-        // Initial reaction (Loading)
+        // Initial loading reaction
         await client.sendMessage(from, { react: { text: '⏳', key: message.key } });
 
         let targetUrl = q.trim();
         let videoInfo = null;
 
-        // Agar user ne name diya hai ya link, dono sorat mein yt-search se details nikal lenge
+        // Search & fetch details using yt-search
         try {
-            let search = await yts(targetUrl.startsWith("http") ? targetUrl : targetUrl);
+            let search = await yts(targetUrl);
             let videos = search?.videos || search?.all;
             
             if (!videos || videos.length === 0) {
@@ -84,20 +84,23 @@ cmd({
 ╰━━━━━━━━━━━━━━━━━━━━━━━┈⊷
 > ${DESCRIPTION}`;
 
-        // (Optional) Agar aap chahte hain ke audio se pehle song ki DP (Thumbnail) bheji jaye:
+        // 1️⃣ Step 1: Sabse pehle DP (Thumbnail) aur Detail message bhejein
         if (thumbUrl) {
             await client.sendMessage(from, {
                 image: { url: thumbUrl },
-                caption: `📥 *Downloading Audio... Please wait.*`
+                caption: captionText
+            }, { quoted: message });
+        } else {
+            await client.sendMessage(from, {
+                text: captionText
             }, { quoted: message });
         }
 
-        // Send Audio File with Details Caption
+        // 2️⃣ Step 2: Uske baad MP3 Audio file bhejein
         const options = {
             audio: { url: audioDownloadUrl },
             mimetype: 'audio/mp4',
-            ptt: false,
-            caption: captionText
+            ptt: false
         };
 
         await client.sendMessage(from, options, { quoted: message });
