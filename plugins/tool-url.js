@@ -27,7 +27,7 @@ cmd({
     if (!quoted) {
       return reply(
         `╔════════════════════════╗\n` +
-        `║   🖇 FATIMA-MD TOURL   🖇   \n` +
+        `║   🖇 KAMRAN-MD TOURL   🖇   \n` +
         `╚════════════════════════╝\n\n` +
         `❌ *Kripya kisi Image, Video, Audio ya File par reply karein!*\n\n` +
         `> ⚡ *Version:* \`12.00\``
@@ -122,22 +122,22 @@ cmd({
 
     const uploadBox = `
 ╔════════════════════════╗
-║   🖇 FATIMA-MD TOURL   🖇   
+║   🖇 KAMI-MD TOURL   🖇   
 ╚════════════════════════╝
  📦 *Type:* \`${mediaType}\`
  📊 *Size:* \`${formatBytes(buffer.length)}\`
  🔗 *URL:* ${mediaUrl}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
-> ⚡ *Version:* \`12.00\`
-> 👑 *Powered by ꜰᴀᴛɪᴍᴀ-ᴍᴅ*`.trim();
+> ⚡ *Version:* \`10.00\`
+> 👑 *Powered by KAMI-MD*`.trim();
 
     await reply(uploadBox, {
       contextInfo: { 
         forwardingScore: 999, 
         isForwarded: true, 
         forwardedNewsletterMessageInfo: { 
-          newsletterJid: '120363412031212190@newsletter', 
-          newsletterName: 'ꜰᴀᴛɪᴍᴀ-ᴍᴅ ᴏғғɪᴄɪᴀʟ', 
+          newsletterJid: '120363418144382782@newsletter', 
+          newsletterName: 'KAMI-MD', 
           serverMessageId: 143 
         } 
       }
