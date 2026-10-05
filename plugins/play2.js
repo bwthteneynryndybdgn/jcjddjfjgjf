@@ -1,135 +1,66 @@
-//---------------------------------------------------------------------------
-//           KAMRAN-MD - YOUTUBE AUDIO DOWNLOADER (VAJIRA API DIRECT)
-//---------------------------------------------------------------------------
-
-import { fileURLToPath } from 'url';
-import axios from 'axios';
 import { cmd } from '../command.js';
+import { fileURLToPath } from 'url';
+import fetch from 'node-fetch';
 
 const __filename = fileURLToPath(import.meta.url);
 
-const AUTHOR = "KAMRAN-MD";
-
-cmd(
-  {
-    pattern: "song",
-    alias: ["play", "ytmp3", "audio"],
+cmd({
+    pattern: "play",
+    alias: ["song", "audio", "ytmp3"],
+    desc: "Download and play songs from YouTube using VajiraOfc API.",
+    category: "downloader",
     react: "🎵",
-    desc: "Search and download audio from YouTube using Vajira API.",
-    category: "download",
-    filename: __filename,
-  },
-  async (conn, mek, m, { from, text, reply }) => {
+    filename: __filename
+}, async (conn, mek, m, { from, text, reply }) => {
+
+    if (!text) return reply("❌ Please provide a song name or YouTube URL!\n\n*Example:* `.play Faded`");
+
     try {
-      const q = text ? text.trim() : "";
+        await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
-      if (!q) {
-        return reply(`🎵 *Audio Downloader (${AUTHOR})*\n\nUsage: \`.song <song name or link>\`\nExample: \`.song matata\``);
-      }
+        let ytUrl = text.trim();
 
-      await conn.sendMessage(from, { react: { text: "🔍", key: mek.key } });
-
-      let targetUrl = q;
-      let songTitle = "YouTube Audio";
-      let songThumb = "https://i.imgur.com/Te4kE0x.jpeg";
-      let channelName = "YouTube";
-      let duration = "N/A";
-
-      // If query is not a direct URL, search first using reliable search endpoint to get YouTube link
-      if (!q.startsWith("http")) {
-        try {
-          const searchRes = await axios.get(`https://delirius-api-oficial.vercel.app/search/ytsearch?q=${encodeURIComponent(q)}`, { timeout: 15000 });
-          const videos = searchRes.data?.data || searchRes.data?.result || [];
-          if (videos.length > 0) {
-            targetUrl = videos[0].url || videos[0].link;
-            songTitle = videos[0].title || songTitle;
-            songThumb = videos[0].image || videos[0].thumbnail || songThumb;
-            channelName = videos[0].author?.name || channelName;
-            duration = videos[0].timestamp || videos[0].duration || duration;
-          }
-        } catch (searchErr) {
-          console.error("Search API error:", searchErr.message);
-        }
-      }
-
-      let finalUrl = null;
-
-      // Call Vajira API with the resolved YouTube URL and API Key
-      try {
-        const apiKey = ["Vajira", "Ofc"].join("");
-        const apiUrl = `https://vajiraofc-apis.vercel.app/api/ytmp3?apikey=${apiKey}&url=${encodeURIComponent(targetUrl)}&quality=128`;
+        // If the user entered a search query instead of a direct URL, you can optionally search or let the API handle it if it supports searches. 
+        // (Note: If the API only accepts direct YouTube URLs, make sure to pass a valid link or use a search API first).
+        // For demonstration, let's assume if it doesn't start with http, we search for it or pass it directly.
+        // If your API specifically requires a YouTube URL, you might want to integrate a search helper or prompt users for a link.
         
-        const res = await axios.get(apiUrl, { timeout: 30000 });
-        const resData = res.data;
+        // Let's encode the URL properly for the API request:
+        const apiUrl = `https://vajiraofc-apis.vercel.app/api/ytmp3?apikey=VajiraOfc&url=${encodeURIComponent(ytUrl)}&quality=92`;
 
-        if (resData && resData.status === 200 && resData.data) {
-          finalUrl = resData.data.download?.url || resData.data.url;
-          if (resData.data.title && resData.data.title !== "Unknown Title") {
-            songTitle = resData.data.title;
-          }
+        const response = await fetch(apiUrl);
+        const json = await response.json();
+
+        if (!json.success || !json.data || !json.data.download || !json.data.download.url) {
+            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+            return reply("❌ Failed to fetch audio. Please check your query or try again later.");
         }
-      } catch (apiErr) {
-        console.error("Vajira API error:", apiErr.message);
-      }
 
-      // Fallback to alternative API if Vajira fails
-      if (!finalUrl) {
-        try {
-          const fallbackRes = await axios.get(`https://api.v-api.xyz/ytmp3?url=${encodeURIComponent(targetUrl)}`, { timeout: 25000 });
-          finalUrl = fallbackRes.data?.url || fallbackRes.data?.dl || fallbackRes.data?.download;
-        } catch (fbErr) {
-          console.error("Fallback API error:", fbErr.message);
-        }
-      }
+        const songData = json.data;
+        const downloadInfo = songData.download;
 
-      if (!finalUrl) {
+        // Message caption with details
+        const infoMessage = `🎵 *KAMRAN-MD PLAYER*\n\n` +
+            `*Title:* ${songData.title}\n` +
+            `*Quality:* ${downloadInfo.quality}\n` +
+            `*URL:* ${songData.url}\n\n` +
+            `━━━━━━━━━━━━━━━━━━\n` +
+            `~ *KAMRAN-MD*`;
+
+        // Send thumbnail/info text first or send audio directly with caption
+        await conn.sendMessage(from, {
+            audio: { url: downloadInfo.url },
+            mimetype: 'audio/mp4',
+            fileName: `${songData.title}.mp3`,
+            caption: infoMessage,
+            ptt: false // Set to true if you want it as a voice note (audio memo)
+        }, { quoted: mek });
+
+        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
+
+    } catch (error) {
+        console.error("Play Command Error:", error);
         await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-        return reply("❌ Audio download link nahi mil saki. Kripya direct YouTube link try karein!");
-      }
-
-      // Send Info & Thumbnail
-      const infoText = `
-🎵 *YT AUDIO DOWNLOADER* 🎵
-
-📌 *Title:* ${songTitle}
-🎬 *Channel:* ${channelName}
-⏱️ *Duration:* ${duration}
-
-_📥 Sending your audio file..._
-
-> © ᴘᴏᴡᴇʀᴇᴅ ʙʏ ${AUTHOR}`;
-
-      await conn.sendMessage(from, { image: { url: songThumb }, caption: infoText }, { quoted: mek });
-      await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
-
-      // Send Audio File
-      await conn.sendMessage(
-        from,
-        {
-          audio: { url: finalUrl },
-          mimetype: "audio/mpeg",
-          ptt: false,
-          caption: `✅ *${songTitle}*\n\n*🚀 Powered by ${AUTHOR}*`,
-          contextInfo: {
-            externalAdReply: {
-              title: "YT AUDIO DOWNLOADER",
-              body: songTitle,
-              thumbnailUrl: songThumb,
-              sourceUrl: targetUrl,
-              mediaType: 2,
-              renderLargerThumbnail: true
-            }
-          }
-        },
-        { quoted: mek }
-      );
-
-      await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
-
-    } catch (e) {
-      console.error("Song Command Fatal Error:", e);
-      await conn.sendMessage(from, { react: { text: "❌", key: mek.key }});
-      reply(`⚠️ *Error:* ${e.message || "Something went wrong."}`);
+        reply(`❌ *Error:* ${error.message}`);
     }
-  }
-);
+});
