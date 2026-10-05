@@ -3,14 +3,15 @@ import { fileURLToPath } from 'url';
 import { cmd } from '../command.js';
 import config from '../config.js';
 import axios from 'axios';
+import yts from 'yt-search';
 
 const __filename = fileURLToPath(import.meta.url);
 
 cmd({
-    pattern: "song3",
-    alias: ["play2", "ytmp32", "audio2", "song2"],
+    pattern: "song",
+    alias: ["play", "ytmp3", "audio", "song2"],
     react: '🎵',
-    desc: "Download audio from YouTube using API",
+    desc: "Download audio from YouTube using Link or Song Name",
     category: "downloader",
     filename: __filename
 }, async (client, message, m, { 
@@ -25,7 +26,7 @@ cmd({
     try {
         if (!q) {
             return await client.sendMessage(from, {
-                text: `*🍁 Please provide a YouTube link!*\n\n*Example:* ${prefix + command} https://youtu.be/6_E7eJySKYs`
+                text: `*🍁 Please provide a YouTube link or song name!*\n\n*Example:* ${prefix + command} pal pal`
             }, { quoted: message });
         }
 
@@ -35,14 +36,20 @@ cmd({
         await client.sendMessage(from, { react: { text: '⏳', key: message.key } });
 
         let targetUrl = q.trim();
-        // Agar user ne direct link nahi diya toh aapki API ke mutabiq link hona zaroori hai
+
+        // Agar user ne direct link nahi diya, toh yt-search se pehle link nikalenge
         if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
-            return await client.sendMessage(from, {
-                text: "❌ *Kripya valid YouTube link provide karein!* (Text search is API ke liye supported nahi hai)"
-            }, { quoted: message });
+            const searchResults = await yts(targetUrl);
+            if (!searchResults || !searchResults.videos || searchResults.videos.length === 0) {
+                return await client.sendMessage(from, {
+                    text: "❌ *Koi song nahi mila!* Kripya sahi naam ya link dein."
+                }, { quoted: message });
+            }
+            // Pehli video ka URL utha lenge
+            targetUrl = searchResults.videos[0].url;
         }
 
-        // Aapka naya API endpoint ya purana wala jo URL accept kare
+        // API Endpoint with YouTube URL
         const apiUrl = `https://eliteprotech-apis.zone.id/download/ytmp3?url=${encodeURIComponent(targetUrl)}`;
 
         const response = await axios.get(apiUrl);
@@ -58,7 +65,7 @@ cmd({
         const songTitle = data.download.title || "YouTube Audio";
         const audioDownloadUrl = data.download.downloadUrl;
 
-        // Send audio buffer or URL with title
+        // Send audio with title & description
         const options = {
             audio: { url: audioDownloadUrl },
             mimetype: 'audio/mp4',
