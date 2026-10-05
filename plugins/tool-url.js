@@ -1,163 +1,190 @@
-// DR KAMRAN 
-
 import { fileURLToPath } from 'url';
-import path from 'path';
 import axios from 'axios';
 import FormData from 'form-data';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import { cmd } from '../command.js';
 
 const __filename = fileURLToPath(import.meta.url);
-const API = 'https://pone.rs/upload.php';
-
-function getExtFromMime(mime = '') {
-    if (mime.includes('image/jpeg')) return '.jpg';
-    if (mime.includes('image/png')) return '.png';
-    if (mime.includes('image/webp')) return '.webp';
-    if (mime.includes('image/gif')) return '.gif';
-    if (mime.includes('video/mp4')) return '.mp4';
-    if (mime.includes('video/webm')) return '.webm';
-    if (mime.includes('audio/mpeg')) return '.mp3';
-    if (mime.includes('audio/ogg')) return '.ogg';
-    if (mime.includes('audio/mp4')) return '.m4a';
-    if (mime.includes('application/pdf')) return '.pdf';
-    if (mime.includes('application/zip')) return '.zip';
-    return '.bin';
-}
-
-async function uploadPone(buffer, filename = 'file.bin') {
-    const form = new FormData();
-    form.append('files[]', buffer, { filename });
-
-    try {
-        const res = await axios.post(API, form, {
-            headers: {
-                ...form.getHeaders(),
-                'user-agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Mobile Safari/537.36',
-                accept: '*/*',
-                origin: 'https://pone.rs',
-                referer: 'https://pone.rs/'
-            },
-            maxBodyLength: Infinity,
-            maxContentLength: Infinity,
-            validateStatus: () => true
-        });
-
-        const data = res.data;
-        const url = data?.files?.[0]?.url?.replaceAll('\\/', '/') || null;
-
-        return {
-            status: Boolean(data?.success && url),
-            code: res.status,
-            result_url: url
-        };
-    } catch (err) {
-        return {
-            status: false,
-            code: err.response?.status || 500,
-            result_url: null,
-            error: err.message
-        };
-    }
-}
 
 cmd({
     pattern: "tourl",
-    alias: ["tolink", "upload"],
-    desc: "Upload media and convert to URL",
-    category: "tools",
-    react: "🔗",
+    alias: ["url", "upload"],
+    desc: "Upload media (image/video/audio/document) to Catbox and ImgBB",
+    category: "downloader",
+    react: "📤",
     filename: __filename
-},
-async (conn, mek, m, { from, quoted, body, isCmd, command, args, q, reply }) => {
+}, async (conn, mek, m, { from, text, usedPrefix, command, reply }) => {
+    const reactKey = m.key
+
     try {
-        // Masla ye tha ke bot 'quoted' ya 'mek' ke andar specific media message object (jaise imageMessage, viewOnceMessage, etc.) ko direct detect nahi kar paa raha tha.
-        // Neeche ab saare nested objects aur quoted message structures ko properly handle karne ke liye robust check laga diya hai:
-        const targetMsg = quoted ? quoted : mek;
-        
-        // Quoted message agar viewOnce ya nested ho toh uske message object ko target karo
-        const realMsg = targetMsg.msg || targetMsg.message || targetMsg;
-        
-        const mime = realMsg.mimetype || 
-                     targetMsg.mimetype || 
-                     realMsg.imageMessage?.mimetype || 
-                     realMsg.videoMessage?.mimetype || 
-                     realMsg.documentMessage?.mimetype || 
-                     realMsg.audioMessage?.mimetype || '';
+        // Check if quoted message exists
+        const quoted = m.quoted || (m.msg && m.msg.contextInfo && m.msg.contextInfo.quotedMessage);
+        const quotedMsg = m.msg?.contextInfo?.quotedMessage;
+
+        if (!quotedMsg) {
+            await conn.sendMessage(from, { react: { text: '❌', key: reactKey } }).catch(() => {});
+            return reply("❌ *Please reply to an image, video, audio, or document.*");
+        }
+
+        const mime = quotedMsg.imageMessage?.mimetype ||
+                     quotedMsg.videoMessage?.mimetype ||
+                     quotedMsg.audioMessage?.mimetype ||
+                     quotedMsg.documentMessage?.mimetype;
 
         if (!mime) {
-            return reply(
-                `╔════════════════════════╗\n` +
-                `║   🔗 KAMRAN-MD TOURL 🔗   \n` +
-                `╚════════════════════════╝\n\n` +
-                `❌ *Kripya kisi media (image, video, audio, document) ko reply ya send karein!*\n\n` +
-                `> 📌 *Example:* \`.tourl\` (replying to media)\n` +
-                `> ⚡ *Version:* \`12.00\``
-            );
+            await conn.sendMessage(from, { react: { text: '❌', key: reactKey } }).catch(() => {});
+            return reply("❌ *Please reply to a valid media file (image/video/audio/document).*");
         }
 
-        await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
+        await conn.sendMessage(from, { react: { text: "⌛", key: reactKey } });
 
-        // Media download function ko direct aur safe tareeqe se call karna
+        let mediaType;
+        let msgKey;
+
+        if (quotedMsg.imageMessage) {
+            mediaType = 'image';
+            msgKey = quotedMsg.imageMessage;
+        } else if (quotedMsg.videoMessage) {
+            mediaType = 'video';
+            msgKey = quotedMsg.videoMessage;
+        } else if (quotedMsg.audioMessage) {
+            mediaType = 'audio';
+            msgKey = quotedMsg.audioMessage;
+        } else if (quotedMsg.documentMessage) {
+            mediaType = 'document';
+            msgKey = quotedMsg.documentMessage;
+        }
+
+        // Download media buffer using Baileys downloadMediaMessage helper or stream
         let buffer;
         try {
-            if (typeof targetMsg.download === 'function') {
-                buffer = await targetMsg.download();
-            } else if (typeof conn.downloadMediaMessage === 'function') {
-                buffer = await conn.downloadMediaMessage(targetMsg);
+            // Using downloadMediaMessage if available in conn, or fallback to direct stream download
+            if (typeof conn.downloadMediaMessage === 'function') {
+                buffer = await conn.downloadMediaMessage({
+                    key: m.msg.contextInfo.stanzaId ? { remoteJid: from, id: m.msg.contextInfo.stanzaId, participant: m.msg.contextInfo.participant } : mek,
+                    message: quotedMsg
+                });
             } else {
-                buffer = await conn.downloadAndSaveMediaMessage(targetMsg);
+                const stream = await conn.downloadAndSaveMediaMessage(quotedMsg, 'temp_media');
+                buffer = fs.readFileSync(stream);
+                try { fs.unlinkSync(stream); } catch {}
             }
-        } catch (err) {
-            buffer = await conn.downloadMediaMessage(mek);
-        }
-
-        if (!buffer || !Buffer.isBuffer(buffer) || buffer.length < 1) {
-            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return reply("❌ *Gagal download media, buffer kosong!*");
-        }
-
-        let filename =
-            realMsg.fileName ||
-            targetMsg.fileName ||
-            `KAMRAN-MD-${Date.now()}${getExtFromMime(mime)}`;
-
-        filename = path.basename(filename);
-
-        const result = await uploadPone(buffer, filename);
-
-        if (!result.status) {
-            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return reply(`❌ *Upload gagal!*\n\nCode: ${result.code || '-'}\nError: ${result.error || 'Tidak diketahui'}`);
-        }
-
-        const urlBox = `
-╔════════════════════════╗
-║   🔗 KAMRAN-MD TOURL UPLOAD   
-╚════════════════════════╝
-
-📦 *File:* ${filename}
-🔗 *URL:* ${result.result_url}
-
-> ⚡ *Version:* \`12.00\`
-> 👑 *Powered by KAMRAN MD*`.trim();
-
-        await reply(urlBox, {
-            contextInfo: { 
-                forwardingScore: 999, 
-                isForwarded: true, 
-                forwardedNewsletterMessageInfo: { 
-                    newsletterJid: '120363418144382782@newsletter', 
-                    newsletterName: 'DR KAMRAN', 
-                    serverMessageId: 143 
-                } 
+        } catch (downloadErr) {
+            console.error('Download media error:', downloadErr);
+            // Fallback manual stream download if helper fails
+            const stream = await conn.downloadContentFromMessage(msgKey, mediaType);
+            let chunks = [];
+            for await (const chunk of stream) {
+                chunks.push(chunk);
             }
-        });
+            buffer = Buffer.concat(chunks);
+        }
 
-        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
+        if (!buffer || buffer.length === 0) {
+            throw new Error('Failed to download media buffer.');
+        }
+
+        const ext = mime.split('/')[1] || 'tmp';
+        const tempFilePath = path.join(os.tmpdir(), `upload_${Date.now()}.${ext}`);
+        fs.writeFileSync(tempFilePath, buffer);
+
+        const fileSize = (buffer.length / 1024 / 1024).toFixed(2) + ' MB';
+        const typeStr = mediaType.charAt(0).toUpperCase() + mediaType.slice(1);
+
+        let catboxUrl = '';
+        let imgbbUrl = '';
+
+        // Upload to Catbox
+        try {
+            const catboxForm = new FormData();
+            catboxForm.append('fileToUpload', fs.createReadStream(tempFilePath));
+            catboxForm.append('reqtype', 'fileupload');
+
+            const catboxResponse = await axios.post('https://catbox.moe/user/api.php', catboxForm, {
+                headers: catboxForm.getHeaders(),
+                timeout: 30000
+            });
+            catboxUrl = catboxResponse.data.trim();
+        } catch (catboxError) {
+            console.error('Catbox upload error:', catboxError);
+            catboxUrl = '❌ Upload failed';
+        }
+
+        // Upload to ImgBB
+        try {
+            const base64Data = buffer.toString('base64');
+            const imgbbForm = new FormData();
+            imgbbForm.append('key', 'e4b536bbf102cfccc5d8758489052547');
+            imgbbForm.append('image', base64Data);
+
+            const imgbbResponse = await axios.post('https://api.imgbb.com/1/upload', imgbbForm, {
+                headers: imgbbForm.getHeaders(),
+                timeout: 30000
+            });
+
+            if (imgbbResponse.data && imgbbResponse.data.success) {
+                imgbbUrl = imgbbResponse.data.data.url;
+            } else {
+                imgbbUrl = '❌ Upload failed';
+            }
+        } catch (imgbbError) {
+            console.error('ImgBB upload error:', imgbbError);
+            imgbbUrl = '❌ Upload failed';
+        }
+
+        // Cleanup temp file
+        try { if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath); } catch {}
+
+        // Prepare message text
+        const txt = `
+🔗 *KAMRAN-MD 𝗨ʀʟ 𝗖ᴏɴᴠᴇɴᴛᴇʀ*
+
+📂 *ᴛʏᴘᴇ:* ${typeStr}
+📊 *ꜱɪᴢᴇ:* ${fileSize}
+
+📦 *ᴄᴀᴛʙᴏx ᴜʀʟ:*
+${catboxUrl}
+
+📦 *ɪᴍɢʙʙ ᴜʀʟ:*
+${imgbbUrl}
+
+> *𝐏𝙾𝚆𝙴𝚁𝙴𝙳 𝐁𝐘 KAMRAN-MD*`.trim();
+
+        // Determine thumbnail for preview
+        let thumbnailUrl = "https://cdn-icons-png.flaticon.com/512/337/337946.png";
+        if (catboxUrl && !catboxUrl.includes('❌') && catboxUrl.match(/\.(jpeg|jpg|gif|png)$/i)) {
+            thumbnailUrl = catboxUrl;
+        } else if (imgbbUrl && !imgbbUrl.includes('❌')) {
+            thumbnailUrl = imgbbUrl;
+        }
+
+        // Fake Quote for Style
+        const metaQuote = {
+            key: { remoteJid: "status@broadcast", participant: "0@s.whatsapp.net", fromMe: false, id: "META_MEDIA" },
+            message: { contactMessage: { displayName: "KAMRAN-MD", vcard: `BEGIN:VCARD\nVERSION:3.0\nFN:Upload Service\nORG:Catbox/ImgBB\nEND:VCARD` } }
+        };
+
+        await conn.sendMessage(from, {
+            text: txt,
+            contextInfo: {
+                externalAdReply: {
+                    title: "Media Uploaded Successfully!",
+                    body: "Dual Upload Service",
+                    thumbnailUrl: thumbnailUrl,
+                    sourceUrl: catboxUrl && !catboxUrl.includes('❌') ? catboxUrl : (imgbbUrl && !imgbbUrl.includes('❌') ? imgbbUrl : ''),
+                    mediaType: 1,
+                    renderLargerThumbnail: true
+                }
+            }
+        }, { quoted: metaQuote });
+
+        await conn.sendMessage(from, { react: { text: "✅", key: reactKey } });
 
     } catch (e) {
-        await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-        return reply("❌ *Kuch galat ho gaya, kripya thodi der baad koshish karein!*");
+        console.error("Tourl Error:", e);
+        await conn.sendMessage(from, { react: { text: "❌", key: reactKey } }).catch(() => {});
+        reply("❌ *Error uploading media.*");
     }
 });
-                
