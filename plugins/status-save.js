@@ -1,96 +1,105 @@
-// plugins/song.js - ESM Version
+import { cmd } from "../command.js";
+import config from '../config.js';
 import { fileURLToPath } from 'url';
-import { cmd } from '../command.js';
-import axios from 'axios';
-import yts from 'yt-search';
 
 const __filename = fileURLToPath(import.meta.url);
 
+// Define the command keywords
+const commandKeywords = ["send", "sendme", "do", "give", "bhejo", "bhej", "save", "sand", "sent", "forward"];
+
+// No prefix keyword handler
 cmd({
-    pattern: "song",
-    alias: ["play", "ytmp3", "audio", "song2"],
-    react: '🎵',
-    desc: "Download YouTube audio with thumbnail and details first",
-    category: "downloader",
-    filename: __filename
-}, async (client, message, m, { from, prefix, command, q }) => {
-    try {
-        if (!q) {
-            return await client.sendMessage(from, {
-                text: `*🍁 Kripya YouTube link ya song ka naam dein!*\n\n*Example:* ${prefix + command} pal pal`
-            }, { quoted: message });
-        }
+  'on': "body"
+}, async (client, message, store, {
+  from,
+  body,
+  isGroup,
+  isAdmins,
+  isBotAdmins,
+  reply,
+  sender,
+  userConfig
+}) => {
+  try {
+    // Ignore messages from groups (remove this line if you want it to work in groups too)
+    if (isGroup) return;
 
-        // Loading reaction
-        await client.sendMessage(from, { react: { text: '⏳', key: message.key } });
+    const messageText = body.toLowerCase();
+    const containsKeyword = commandKeywords.some(word => messageText.includes(word));
 
-        let targetUrl = q.trim();
-        let videoInfo = null;
+    // Only process if contains keyword AND replying to status broadcast
+    if (containsKeyword && message.quoted?.chat === 'status@broadcast') {
+      // ⏳ React - processing
+      await client.sendMessage(from, { react: { text: '⏳', key: message.key } });
 
-        // Agar link nahi diya toh yt-search se song dhoondh lo
-        if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
-            let search = await yts(targetUrl);
-            let videos = search?.videos || search?.all;
-            
-            if (!videos || videos.length === 0) {
-                return await client.sendMessage(from, {
-                    text: "❌ *Koi song nahi mila!* Sahi naam ya link dein."
-                }, { quoted: message });
-            }
-            videoInfo = videos[0];
-            targetUrl = videoInfo.url;
-        } else {
-            let search = await yts(targetUrl);
-            if (search?.videos && search.videos.length > 0) {
-                videoInfo = search.videos[0];
-            }
-        }
+      const mtype = message.quoted.mtype;
+      const originalCaption = message.quoted.text || message.quoted.msg?.text || '';
+      const options = { quoted: message };
+      const DESCRIPTION = userConfig?.DESCRIPTION || config.DESCRIPTION || "";
 
-        // API se MP3 download link lena
-        const apiUrl = `https://eliteprotech-apis.zone.id/download/ytmp3?url=${encodeURIComponent(targetUrl)}`;
-        const response = await axios.get(apiUrl);
-        const data = response.data;
+      let messageContent = {};
+      let buffer = null;
 
-        if (!data || !data.status || !data.download || !data.download.downloadUrl) {
-            return await client.sendMessage(from, {
-                text: "❌ *Audio download link nahi mil saki!*"
-            }, { quoted: message });
-        }
+      // Only download buffer if the status contains media
+      if (["imageMessage", "videoMessage", "audioMessage"].includes(mtype)) {
+        buffer = await message.quoted.download();
+      }
 
-        const songTitle = data.download.title || videoInfo?.title || "YouTube Audio";
-        const audioDownloadUrl = data.download.downloadUrl;
-        const duration = videoInfo?.timestamp || "N/A";
-        const author = videoInfo?.author?.name || "N/A";
-        const thumbUrl = videoInfo?.thumbnail || "";
+      switch (mtype) {
+        case "imageMessage":
+          messageContent = {
+            image: buffer,
+            caption: originalCaption ? `${originalCaption}\n\n> ${DESCRIPTION}` : (DESCRIPTION ? `> ${DESCRIPTION}` : ""),
+            mimetype: message.quoted.mimetype || "image/jpeg"
+          };
+          break;
+        case "videoMessage":
+          messageContent = {
+            video: buffer,
+            caption: originalCaption ? `${originalCaption}\n\n> ${DESCRIPTION}` : (DESCRIPTION ? `> ${DESCRIPTION}` : ""),
+            mimetype: message.quoted.mimetype || "video/mp4"
+          };
+          break;
+        case "audioMessage":
+          messageContent = {
+            audio: buffer,
+            mimetype: "audio/mp4",
+            ptt: message.quoted.ptt || false
+          };
+          break;
+        case "conversation":
+        case "extendedTextMessage":
+          const textContent = originalCaption || message.quoted.msg?.conversation || "";
+          messageContent = {
+            text: textContent ? `${textContent}\n\n> ${DESCRIPTION}` : (DESCRIPTION ? `> ${DESCRIPTION}` : "")
+          };
+          break;
+        default:
+          // 🚫 React - unsupported type
+          await client.sendMessage(from, { react: { text: '❌', key: message.key } });
+          return; // Silently ignore unsupported types
+      }
 
-        // Details caption text
-        const detailsText = `🎵 *Title:* ${songTitle}\n⏱️ *Duration:* ${duration}\n👤 *Channel:* ${author}`;
-
-        // 1. Sabse pehle DP (Thumbnail image) aur Detail message bhejo
-        if (thumbUrl) {
-            await client.sendMessage(from, {
-                image: { url: thumbUrl },
-                caption: detailsText
-            }, { quoted: message });
-        } else {
-            await client.sendMessage(from, { text: detailsText }, { quoted: message });
-        }
-
-        // 2. Uske baad MP3 Audio file proper format ke sath bhejo taake sabko show ho
-        await client.sendMessage(from, {
-            audio: { url: audioDownloadUrl },
-            mimetype: 'audio/mp4',
-            fileName: `${songTitle}.mp3`,
-            ptt: false
-        }, { quoted: message });
-
-        // Success reaction
-        await client.sendMessage(from, { react: { text: '🎵', key: message.key } });
-
-    } catch (error) {
-        console.error("Song Error:", error);
-        await client.sendMessage(from, {
-            text: "❌ Error: " + (error.message || error)
-        }, { quoted: message });
+      try {
+        // Forward status to the same chat where keyword was sent
+        await client.sendMessage(from, messageContent, options);
+        // ✅ React - success
+        await client.sendMessage(from, { react: { text: '✅', key: message.key } });
+      } catch (sendError) {
+        console.error("Failed to send status:", sendError);
+        // ❌ React - send failed
+        await client.sendMessage(from, { react: { text: '❌', key: message.key } });
+      }
     }
+  } catch (error) {
+    console.error("Keyword Status Save Error:", error);
+    // ❌ React - general error
+    if (message && message.key) {
+      try {
+        await client.sendMessage(from, { react: { text: '❌', key: message.key } });
+      } catch (reactError) {
+        console.error("Failed to send error reaction:", reactError);
+      }
+    }
+  }
 });
