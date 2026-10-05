@@ -9,8 +9,8 @@ import { cmd } from '../command.js';
 const __filename = fileURLToPath(import.meta.url);
 
 cmd({
-    pattern: "tourl2",
-    alias: ["url2", "upload2"],
+    pattern: "tourl",
+    alias: ["url", "upload"],
     desc: "Upload replied media to Catbox and ImgBB",
     category: "downloader",
     react: "📤",
@@ -19,7 +19,6 @@ cmd({
     const reactKey = m.key
 
     try {
-        // Check if quoted message exists
         const quoted = m.quoted || m.msg?.contextInfo?.quotedMessage;
         
         if (!quoted) {
@@ -29,7 +28,6 @@ cmd({
 
         await conn.sendMessage(from, { react: { text: "⌛", key: reactKey } });
 
-        // Direct media download using bot's built-in quoted download method if available
         let buffer;
         try {
             if (typeof m.quoted?.download === 'function') {
@@ -39,24 +37,16 @@ cmd({
                 const streamPath = await conn.downloadAndSaveMediaMessage(mediaMsg, 'temp_media');
                 buffer = fs.readFileSync(streamPath);
                 try { fs.unlinkSync(streamPath); } catch {}
-            } else {
-                // Fallback stream method
-                const quotedMsg = m.msg.contextInfo.quotedMessage;
-                const type = Object.keys(quotedMsg)[0];
-                const stream = await conn.downloadContentFromMessage(quotedMsg[type], type.replace('Message', '').toLowerCase());
-                let chunks = [];
-                for await (const chunk of stream) {
-                    chunks.push(chunk);
-                }
-                buffer = Buffer.concat(chunks);
+            } else if (typeof conn.downloadMediaMessage === 'function') {
+                buffer = await conn.downloadMediaMessage(m);
             }
-        } catch (downloadErr) {
-            console.error('Buffer download error:', downloadErr);
-            return reply("❌ *Media download karne me asamarth!*");
+        } catch (err) {
+            console.error('Buffer download error:', err);
         }
 
         if (!buffer || buffer.length === 0) {
-            return reply("❌ *Media download karne me asamarth! (Empty buffer)*");
+            await conn.sendMessage(from, { react: { text: '❌', key: reactKey } }).catch(() => {});
+            return reply("❌ *Media download karne me asamarth! Kripya kisi valid image ya video par reply karein.*");
         }
 
         const quotedMsg = m.msg?.contextInfo?.quotedMessage || {};
@@ -94,7 +84,6 @@ cmd({
             });
             catboxUrl = catboxResponse.data.trim();
         } catch (catboxError) {
-            console.error('Catbox upload error:', catboxError);
             catboxUrl = '❌ Upload failed';
         }
 
@@ -116,14 +105,11 @@ cmd({
                 imgbbUrl = '❌ Upload failed';
             }
         } catch (imgbbError) {
-            console.error('ImgBB upload error:', imgbbError);
             imgbbUrl = '❌ Upload failed';
         }
 
-        // Cleanup temp file
         try { if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath); } catch {}
 
-        // Prepare message text
         const txt = `
 🔗 *KAMRAN-MD 𝗨ʀʟ 𝗖ᴏɴᴠᴇɴᴛᴇʀ*
 
