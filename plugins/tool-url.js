@@ -1,19 +1,19 @@
 // ꜰᴀᴛɪᴍᴀ-ᴍᴅ
 
 import axios from "axios";
-import FormData from 'form-data';
 import fs from 'fs';
 import os from 'os';
 import path from "path";
 import { cmd } from "../command.js";
 import { fileURLToPath } from 'url';
 import { downloadContentFromMessage } from '@whiskeysockets/baileys';
+import FormData from 'form-data';
 
 const __filename = fileURLToPath(import.meta.url);
 
 cmd({
-  pattern: "tourl2",
-  alias: ["imgtourl", "imgurl", "url2", "geturl", "upload"],
+  pattern: "tourl",
+  alias: ["imgtourl", "imgurl", "url", "geturl", "upload"],
   react: '🖇',
   desc: "Convert media to Catbox URL with FATIMA-MD style",
   category: "utility",
@@ -39,14 +39,7 @@ cmd({
     let type = Object.keys(quoted)[0];
     let content = quoted[type];
     
-    let stream;
-    try {
-      stream = await downloadContentFromMessage(content, type.replace('Message', '').toLowerCase());
-    } catch (e) {
-      // Fallback method for alternative bailey versions
-      stream = await downloadContentFromMessage(content, mediaTypeDetector(type));
-    }
-
+    const stream = await downloadContentFromMessage(content, type.replace('Message', '').toLowerCase());
     let buffer = Buffer.from([]);
     for await (const chunk of stream) {
       buffer = Buffer.concat([buffer, chunk]);
@@ -59,9 +52,6 @@ cmd({
 
     const mimeType = content.mimetype || 'image/jpeg';
 
-    tempFilePath = path.join(os.tmpdir(), `catbox_upload_${Date.now()}`);
-    fs.writeFileSync(tempFilePath, buffer);
-
     let extension = '.jpg';
     if (mimeType.includes('png')) extension = '.png';
     else if (mimeType.includes('webp')) extension = '.webp';
@@ -70,19 +60,24 @@ cmd({
     else if (mimeType.includes('zip')) extension = '.zip';
     else if (mimeType.includes('pdf')) extension = '.pdf';
     
-    const fileName = `file${extension}`;
+    tempFilePath = path.join(os.tmpdir, `catbox_${Date.now()}${extension}`);
+    fs.writeFileSync(tempFilePath, buffer);
 
+    // Upload to Catbox using safe headers
     const form = new FormData();
-    form.append('fileToUpload', fs.createReadStream(tempFilePath), fileName);
     form.append('reqtype', 'fileupload');
+    form.append('fileToUpload', fs.createReadStream(tempFilePath));
 
     const response = await axios.post("https://catbox.moe/user/api.php", form, {
-      headers: form.getHeaders(),
+      headers: {
+        ...form.getHeaders(),
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+      },
       timeout: 60000
     });
 
     if (!response.data) {
-      throw new Error("Error uploading to Catbox server");
+      throw new Error("Catbox server se response nahi mila.");
     }
 
     const mediaUrl = response.data.trim();
@@ -130,13 +125,6 @@ cmd({
     await reply(`❌ *Error uploading media:* \`\`\`${error.message || error}\`\`\``);
   }
 });
-
-function mediaTypeDetector(type) {
-  if (type.includes('image')) return 'image';
-  if (type.includes('video')) return 'video';
-  if (type.includes('audio')) return 'audio';
-  return 'document';
-}
 
 function formatBytes(bytes) {
   if (bytes === 0) return '0 Bytes';
