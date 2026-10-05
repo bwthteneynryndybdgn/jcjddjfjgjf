@@ -60,10 +60,9 @@ cmd({
     else if (mimeType.includes('zip')) extension = '.zip';
     else if (mimeType.includes('pdf')) extension = '.pdf';
     
-    tempFilePath = path.join(os.tmpdir, `catbox_${Date.now()}${extension}`);
+    tempFilePath = path.join(os.tmpdir(), `catbox_${Date.now()}${extension}`);
     fs.writeFileSync(tempFilePath, buffer);
 
-    // Upload to Catbox using safe headers
     const form = new FormData();
     form.append('reqtype', 'fileupload');
     form.append('fileToUpload', fs.createReadStream(tempFilePath));
