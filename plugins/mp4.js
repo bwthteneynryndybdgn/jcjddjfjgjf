@@ -1,92 +1,121 @@
-import { cmd } from '../command.js';
+// plugins/song.js - ESM Version
 import { fileURLToPath } from 'url';
-import fetch from 'node-fetch';
+import { cmd } from '../command.js';
+import config from '../config.js';
+import axios from 'axios';
+import yts from 'yt-search';
 
 const __filename = fileURLToPath(import.meta.url);
 
 cmd({
-    pattern: "play",
-    alias: ["song", "audio", "ytmp3"],
-    desc: "Search or download songs from YouTube with image and details.",
+    pattern: "song",
+    alias: ["play", "ytmp3", "audio", "song2"],
+    react: '🎵',
+    desc: "Download audio from YouTube with details and thumbnail",
     category: "downloader",
-    react: "🎵",
     filename: __filename
-}, async (conn, mek, m, { from, text, reply }) => {
-
-    if (!text) return reply("❌ Please provide a song name or YouTube URL!\n\n*Example:* `.play pal pal` or `.play https://youtu.be/...`");
-
+}, async (client, message, m, { 
+    from, 
+    prefix, 
+    command, 
+    args, 
+    q, 
+    isCreator,
+    userConfig
+}) => {
     try {
-        await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
+        if (!q) {
+            return await client.sendMessage(from, {
+                text: `*🍁 Please provide a YouTube link or song name!*\n\n*Example:* ${prefix + command} pal pal`
+            }, { quoted: message });
+        }
 
-        let query = text.trim();
-        let ytUrl = query;
-        let thumbnail = null;
+        const DESCRIPTION = userConfig?.DESCRIPTION || config.DESCRIPTION || "Powered by Bot";
 
-        // Agar user ne link nahi diya, toh search API se link aur thumbnail nikal lenge
-        if (!query.includes("youtu.be") && !query.includes("youtube.com")) {
-            const searchApi = `https://api.siputzx.my.id/api/s/youtube?query=${encodeURIComponent(query)}`;
-            const searchRes = await fetch(searchApi);
-            const searchJson = await searchRes.json();
+        // Initial reaction
+        await client.sendMessage(from, { react: { text: '⏳', key: message.key } });
 
-            if (!searchJson || !searchJson.status || !searchJson.data || searchJson.data.length === 0) {
-                await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-                return reply("❌ No results found for your query. Please try another song name.");
+        let targetUrl = q.trim();
+        let videoDetails = null;
+
+        // yt-search se details aur URL nikalna
+        try {
+            let search = await yts(targetUrl.startsWith("http") ? { videoId: targetUrl } : targetUrl);
+            let videos = search?.videos || search?.all;
+            
+            if (!videos || videos.length === 0) {
+                return await client.sendMessage(from, {
+                    text: "❌ *Koi song nahi mila!* Kripya sahi naam ya link dein."
+                }, { quoted: message });
             }
-
-            ytUrl = searchJson.data[0].url;
-            thumbnail = searchJson.data[0].thumbnail || searchJson.data[0].image;
+            
+            videoDetails = videos[0];
+            targetUrl = videoDetails.url;
+        } catch (searchErr) {
+            console.error("YTS Search Error:", searchErr);
+            if (!targetUrl.startsWith("http")) {
+                return await client.sendMessage(from, {
+                    text: "❌ *YouTube search karne me error aayi!*"
+                }, { quoted: message });
+            }
         }
 
-        // VajiraOfc API se audio download link fetch karenge
-        let apiUrl = `https://vajiraofc-apis.vercel.app/api/ytmp3?apikey=VajiraOfc&url=${encodeURIComponent(ytUrl)}&quality=92`;
+        // API Endpoint with YouTube URL
+        const apiUrl = `https://eliteprotech-apis.zone.id/download/ytmp3?url=${encodeURIComponent(targetUrl)}`;
 
-        const response = await fetch(apiUrl);
-        const json = await response.json();
+        const response = await axios.get(apiUrl);
+        const data = response.data;
 
-        if (!json || !json.success || !json.data || !json.data.download || !json.data.download.url) {
-            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return reply("❌ Failed to fetch audio from the API.");
+        // API response validation
+        if (!data || !data.status || !data.download || !data.download.downloadUrl) {
+            return await client.sendMessage(from, {
+                text: "❌ *Audio download link nahi mil saki!* Kripya dubara koshish karein."
+            }, { quoted: message });
         }
 
-        const songData = json.data;
-        const downloadUrl = songData.download.url;
-        const songTitle = songData.title || "Audio Track";
-        const quality = songData.download.quality || "92kbps";
-        
-        // Fallback thumbnail if search didn't provide one
-        if (!thumbnail) {
-            thumbnail = `https://i.ytimg.com/vi/${songData.id || "qF-JLqKtr2Q"}/hqdefault.jpg`;
-        }
+        const songTitle = videoDetails?.title || data.download.title || "YouTube Audio";
+        const songDuration = videoDetails?.timestamp || "Unknown";
+        const songViews = videoDetails?.views ? videoDetails.views.toLocaleString() : "Unknown";
+        const channelName = videoDetails?.author?.name || "Unknown";
+        const thumbnail = videoDetails?.thumbnail || "";
+        const audioDownloadUrl = data.download.downloadUrl;
 
-        const infoMessage = `🎵 *KAMRAN-MD PLAYER*\n\n` +
-            `*Title:* ${songTitle}\n` +
-            `*Quality:* ${quality}\n\n` +
-            `━━━━━━━━━━━━━━━━━━\n` +
-            `~ *KAMRAN-MD*`;
+        // Message caption with full details
+        let caption = `*🎵 YOUTUBE AUDIO DOWNLOADER* 🎵\n\n`;
+        caption += `*▪ Title:* ${songTitle}\n`;
+        caption += `*▪ Channel:* ${channelName}\n`;
+        caption += `*▪ Duration:* ${songDuration}\n`;
+        caption += `*▪ Views:* ${songViews}\n\n`;
+        caption += `> ${DESCRIPTION}`;
 
-        // Pehle Image + Caption bhejein ge
-        if (thumbnail) {
-            await conn.sendMessage(from, {
-                image: { url: thumbnail },
-                caption: infoMessage
-            }, { quoted: mek });
-        } else {
-            await reply(infoMessage);
-        }
-
-        // Phir Audio file send karenge
-        await conn.sendMessage(from, {
-            audio: { url: downloadUrl },
+        // Send audio with Thumbnail/DP and Details
+        const options = {
+            audio: { url: audioDownloadUrl },
             mimetype: 'audio/mp4',
-            fileName: `${songTitle.replace(/[\\/:*?"<>|]/g, '')}.mp3`,
-            ptt: false
-        }, { quoted: mek });
+            ptt: false,
+            fileName: `${songTitle}.mp3`,
+            caption: caption,
+            headerType: 4,
+            contextInfo: {
+                externalAdReply: {
+                    title: songTitle,
+                    body: `Channel: ${channelName} (${songDuration})`,
+                    mediaType: 2,
+                    thumbnailUrl: thumbnail,
+                    sourceUrl: targetUrl,
+                    renderLargerThumbnail: true
+                }
+            }
+        };
 
-        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
+        await client.sendMessage(from, options, { quoted: message });
+        await client.sendMessage(from, { react: { text: '🎵', key: message.key } });
 
     } catch (error) {
-        console.error("Play Command Error:", error);
-        await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-        reply(`❌ *Error:* ${error.message}`);
+        console.error("YouTube MP3 Error:", error);
+        let errorMsg = error?.message || error;
+        await client.sendMessage(from, {
+            text: "❌ Error downloading song:\n" + errorMsg
+        }, { quoted: message });
     }
 });
