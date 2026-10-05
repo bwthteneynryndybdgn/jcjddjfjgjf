@@ -1,125 +1,97 @@
-// DR KAMRAN 
+import { fileURLToPath } from 'url'
+import { cmd } from '../command.js'
+import axios from 'axios'
 
-import { fileURLToPath } from 'url';
-import axios from 'axios';
-import { cmd } from '../command.js';
-
-const __filename = fileURLToPath(import.meta.url);
-
-const headers = {
-    'user-agent': 'Mozilla/5.0'
-};
-
-async function sendCustomMessage(client, jid, content, options = {}) {
-    const isMedia = content.video || content.image;
-
-    const customContent = {
-        ...content,
-        mentions: content.mentions || client.parseMention?.(content?.text || content?.caption || '') || []
-    };
-
-    if (isMedia) {
-        customContent.streamingSidecar = Buffer.from('Omw4hLediba3yg==', 'base64');
-        customContent.annotations = [
-            {
-                polygonVertices: [
-                    { x: 0, y: 0 },
-                    { x: 1000, y: 0 },
-                    { x: 1000, y: 1000 },
-                    { x: 0, y: 1000 }
-                ],
-                shouldSkipConfirmation: true,
-                embeddedContent: {
-                    embeddedMusic: {
-                        musicContentMediaId: "1409620227516822",
-                        songId: "244215252974958",
-                        author: global.author || "DR KAMRAN",
-                        title: global.namebot || "KAMRAN-MD",
-                        artistAttribution: "https://whatsapp.com/channel/0029VbAhxYY90x2vgwhXJV3O/6707",
-                        countryBlocklist: "",
-                        isExplicit: false
-                    }
-                },
-                embeddedAction: true
-            }
-        ];
-    }
-
-    return await client.sendMessage(jid, customContent, options);
-}
+const __filename = fileURLToPath(import.meta.url)
 
 cmd({
-    pattern: "ttsearch",
-    alias: ["tiktoksearch"],
-    desc: "Search videos from TikTok",
-    category: "search",
-    react: "🎬",
+    pattern: "tiktok",
+    alias: ["tt", "ttdl"],
+    desc: "Download TikTok videos without watermark using KamranTech API",
+    category: "downloader",
+    react: "📥",
     filename: __filename
-},
-async (conn, mek, m, { from, quoted, body, isCmd, command, args, q, reply }) => {
+}, async (conn, mek, m, { from, text, usedPrefix, command, reply }) => {
+    const reactKey = m.key
+
     try {
-        if (!q) {
+        if (!text || !text.trim() || !text.includes('tiktok')) {
+            await conn.sendMessage(from, { react: { text: '❌', key: reactKey } }).catch(() => {})
             return reply(
-                `╔════════════════════════╗\n` +
-                `║   🎬 KAMRAN-MD TIKTOK SEARCH 🎬   \n` +
-                `╚════════════════════════╝\n\n` +
-                `❌ *Kripya TikTok search ke liye query dein!*\n\n` +
-                `> 📌 *Example:* \`.ttsearch Makima edit\`\n` +
-                `> ⚡ *Version:* \`12.00\``
-            );
+                `╭─❏ 「 TIKTOK DOWNLOADER 」\n` +
+                `│ Please provide a valid TikTok URL!\n` +
+                `│ Example: ${usedPrefix + command} https://vt.tiktok.com/ZSbxYd9FU/\n` +
+                `╰───────────────\n` +
+                `> ©𝐏𝐨𝐰𝐞𝐫𝐞𝐝 𝐁𝐲 KAMRAN-MD`
+            )
         }
 
-        await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
+        await conn.sendMessage(from, { react: { text: "⏳", key: reactKey } })
 
-        const { data } = await axios.get('https://api.nexray.eu.cc/search/tiktok', {
-            params: {
-                q: q
-            },
-            headers
-        });
+        const tiktokUrl = text.trim()
+        const apiKey = "KAMRAN-MASTER-2026"
+        const apiUrl = `https://kamrantech-apis.vercel.app/api/download/tiktok?url=${encodeURIComponent(tiktokUrl)}&key=${apiKey}`
+        
+        const response = await axios.get(apiUrl, { timeout: 30000, validateStatus: () => true })
+        const json = response.data
 
-        if (!data?.status || !Array.isArray(data.result) || data.result.length === 0) {
-            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return reply("❌ *Video TikTok nahi mili!*");
+        if (!json || !json.status || !json.data) {
+            await conn.sendMessage(from, { react: { text: "❌", key: reactKey } }).catch(() => {})
+            return reply(
+                `╭─❏ 「 TIKTOK DOWNLOADER 」\n` +
+                `│ Failed to fetch TikTok video. Link might be invalid.\n` +
+                `╰───────────────\n` +
+                `> ©𝐏𝐨𝐰𝐞𝐫𝐞𝐝 𝐁𝐲 KAMRAN-MD`
+            )
         }
 
-        const result = data.result.find(v => v?.data);
+        // API response ke mutabiq video download link (no watermark) extract karna
+        const videoData = json.data
+        const videoUrl = videoData.nowm || videoData.url || videoData.video || videoData.download || (typeof videoData === 'string' ? videoData : null)
 
-        if (!result) {
-            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return reply("❌ *Media video nahi mili!*");
+        if (!videoUrl) {
+            await conn.sendMessage(from, { react: { text: "❌", key: reactKey } }).catch(() => {})
+            return reply(
+                `╭─❏ 「 TIKTOK DOWNLOADER 」\n` +
+                `│ Video download link not found in API response.\n` +
+                `╰───────────────\n` +
+                `> ©𝐏𝐨𝐰𝐞𝐫𝐞𝐝 𝐁𝐲 KAMRAN-MD`
+            )
         }
 
-        const caption = `
-╔════════════════════════╗
-║   🎬 TIKTOK SEARCH RESULT   
-╚════════════════════════╝
+        const title = videoData.title || videoData.desc || "TikTok_Video"
+        const author = videoData.author || videoData.nickname || "Unknown"
 
-❀ *Judul:* ${result.title || 'TikTok Video'}
-❀ *Uploader:* ${result.author?.nickname || 'Unknown'}
+        await conn.sendMessage(from, { react: { text: "📤", key: reactKey } })
 
-> ⚡ *Version:* \`10.00\`
-> 👑 *Powered by KAMRAN MD*`.trim();
-
-        await sendCustomMessage(
-            conn,
+        // Send as Document / Video
+        const safeFileName = `${title.replace(/[<>:"/\\|?*]/g, '_').substring(0, 50)}.mp4`
+        await conn.sendMessage(
             from,
             {
-                video: {
-                    url: result.data
-                },
-                mimetype: 'video/mp4',
-                caption: caption
+                document: { url: videoUrl },
+                fileName: safeFileName,
+                mimetype: "video/mp4",
+                caption: `╭─❏ 「 TIKTOK DOWNLOAD 」\n` +
+                         `│ 📝 *Caption:* ${title}\n` +
+                         `│ 👤 *Author:* ${author}\n` +
+                         `╰───────────────\n` +
+                         `> ©𝐏𝐨𝐰𝐞𝐫𝐞𝐝 𝐁𝐲 KAMRAN-MD`
             },
-            {
-                quoted: mek
-            }
-        );
+            { quoted: mek }
+        )
 
-        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
+        await conn.sendMessage(from, { react: { text: "✅", key: reactKey } })
 
-    } catch (e) {
-        await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-        return reply("❌ *Kuch galat ho gaya, kripya thodi der baad koshish karein!*");
+    } catch (error) {
+        console.error('TikTok download error:', error)
+        await conn.sendMessage(from, { react: { text: "❌", key: reactKey } }).catch(() => {})
+        reply(
+            `╭─❏ 「 ERROR 」\n` +
+            `│ TikTok download failed.\n` +
+            `│ ${error.message || error}\n` +
+            `╰───────────────\n` +
+            `> ©𝐏𝐨𝐰𝐞𝐫𝐞𝐝 𝐁𝐲 KAMRAN-MD`
+        )
     }
-});
+})
