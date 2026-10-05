@@ -5,9 +5,9 @@ import fetch from 'node-fetch';
 const __filename = fileURLToPath(import.meta.url);
 
 cmd({
-    pattern: "play55",
-    alias: ["song", "audio", "ytmp3"],
-    desc: "Download and play songs from YouTube using VajiraOfc API.",
+    pattern: "play44",
+    alias: ["song55", "audio", "ytmp3"],
+    desc: "Download and play songs from YouTube.",
     category: "downloader",
     react: "🎵",
     filename: __filename
@@ -18,42 +18,63 @@ cmd({
     try {
         await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
-        let ytUrl = text.trim();
+        let query = text.trim();
+        let downloadUrl = null;
+        let songTitle = "Audio Track";
 
-        // If the user entered a search query instead of a direct URL, you can optionally search or let the API handle it if it supports searches. 
-        // (Note: If the API only accepts direct YouTube URLs, make sure to pass a valid link or use a search API first).
-        // For demonstration, let's assume if it doesn't start with http, we search for it or pass it directly.
-        // If your API specifically requires a YouTube URL, you might want to integrate a search helper or prompt users for a link.
-        
-        // Let's encode the URL properly for the API request:
-        const apiUrl = `https://vajiraofc-apis.vercel.app/api/ytmp3?apikey=VajiraOfc&url=${encodeURIComponent(ytUrl)}&quality=92`;
+        // ── API Endpoint List (Primary + Fallbacks) ──
+        const apis = [
+            `https://vajiraofc-apis.vercel.app/api/ytmp3?apikey=VajiraOfc&url=${encodeURIComponent(query)}&quality=92`,
+            // You can add working alternative APIs here if you have them, for example:
+            // `https://api.siputzx.my.id/api/s/youtube?query=${encodeURIComponent(query)}`
+        ];
 
-        const response = await fetch(apiUrl);
-        const json = await response.json();
-
-        if (!json.success || !json.data || !json.data.download || !json.data.download.url) {
-            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return reply("❌ Failed to fetch audio. Please check your query or try again later.");
+        let json = null;
+        for (const apiUrl of apis) {
+            try {
+                const response = await fetch(apiUrl, {
+                    headers: { 'User-Agent': 'Mozilla/5.0' }
+                });
+                if (response.ok) {
+                    const resJson = await response.json();
+                    if (resJson && (resJson.success || resJson.status === 200) && (resJson.data?.download?.url || resJson.data?.url)) {
+                        json = resJson;
+                        break;
+                    }
+                }
+            } catch (e) {
+                console.log(`API failed, trying next...`);
+            }
         }
 
-        const songData = json.data;
-        const downloadInfo = songData.download;
+        // If all APIs fail, try a general search or notify user
+        if (!json) {
+            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+            return reply("❌ The downloader API is currently down or unresponsive. Please try again later or update the API link.");
+        }
 
-        // Message caption with details
+        // Extract data based on your API structure
+        const songData = json.data;
+        downloadUrl = songData.download?.url || songData.url;
+        songTitle = songData.title || "Unknown Title";
+
+        if (!downloadUrl) {
+            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+            return reply("❌ Failed to retrieve download link from the API response.");
+        }
+
         const infoMessage = `🎵 *KAMRAN-MD PLAYER*\n\n` +
-            `*Title:* ${songData.title}\n` +
-            `*Quality:* ${downloadInfo.quality}\n` +
-            `*URL:* ${songData.url}\n\n` +
+            `*Title:* ${songTitle}\n\n` +
             `━━━━━━━━━━━━━━━━━━\n` +
             `~ *KAMRAN-MD*`;
 
-        // Send thumbnail/info text first or send audio directly with caption
+        // Send the audio file
         await conn.sendMessage(from, {
-            audio: { url: downloadInfo.url },
+            audio: { url: downloadUrl },
             mimetype: 'audio/mp4',
-            fileName: `${songData.title}.mp3`,
+            fileName: `${songTitle.replace(/[\\/:*?"<>|]/g, '')}.mp3`,
             caption: infoMessage,
-            ptt: false // Set to true if you want it as a voice note (audio memo)
+            ptt: false
         }, { quoted: mek });
 
         await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
@@ -61,6 +82,6 @@ cmd({
     } catch (error) {
         console.error("Play Command Error:", error);
         await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-        reply(`❌ *Error:* ${error.message}`);
+        reply(`❌ *Error:* ${error.message || "Something went wrong."}`);
     }
 });
