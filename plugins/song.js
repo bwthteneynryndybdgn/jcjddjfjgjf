@@ -1,6 +1,7 @@
 import { cmd } from '../command.js';
 import { fileURLToPath } from 'url';
 import fetch from 'node-fetch';
+import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -15,9 +16,9 @@ const APIS = (url) => [
 ];
 
 cmd({
-    pattern: "play2",
-    alias: ["song2", "audio2", "ytmp32"],
-    desc: "Search or download songs from YouTube with image and details.",
+    pattern: "play",
+    alias: ["song", "audio", "ytmp3"],
+    desc: "Search or download songs from YouTube with image and buffer upload.",
     category: "downloader",
     react: "🎵",
     filename: __filename
@@ -50,17 +51,15 @@ cmd({
             songTitle = searchJson.data[0].title || query;
         }
 
-        // Multi-API Fallback Loop (Ek ke baad aik sabhi APIs check karega jab tak link na mil jaye)
+        // Multi-API Fallback Loop
         const apiList = APIS(ytUrl);
-        let apiSuccess = false;
-
+        
         for (const apiUrl of apiList) {
             try {
                 const response = await fetch(apiUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
                 if (!response.ok) continue;
                 const json = await response.json();
 
-                // Alag alag APIs ke response formats ko handle karne ke checks
                 const dUrl = json.data?.download?.url || json.data?.url || json.url || json.download || json.audio || json.mp3 || json.result?.mp3 || json.result?.url;
                 
                 if (dUrl && typeof dUrl === "string" && dUrl.startsWith("http")) {
@@ -68,7 +67,6 @@ cmd({
                     if (json.data?.title) songTitle = json.data.title;
                     if (json.result?.title) songTitle = json.result.title;
                     if (json.data?.thumbnail) thumbnail = json.data.thumbnail;
-                    apiSuccess = true;
                     break;
                 }
             } catch (err) {
@@ -81,7 +79,7 @@ cmd({
             return reply("❌ Failed to fetch audio from all APIs. Please try again later.");
         }
 
-        // Fallback thumbnail agar pehle na mili ho
+        // Fallback thumbnail
         if (!thumbnail) {
             const videoIdMatch = ytUrl.match(/(?:v=|youtu\.be\/)([\w-]{11})/);
             const videoId = videoIdMatch ? videoIdMatch[1] : "qF-JLqKtr2Q";
@@ -103,9 +101,18 @@ cmd({
             await reply(infoMessage);
         }
 
-        // Phir Audio file send karenge
+        // ── Audio ko buffer mein download karke WhatsApp par bhejna ──
+        await conn.sendMessage(from, { react: { text: "⬇️", key: mek.key } });
+        
+        const audioRes = await axios.get(downloadUrl, { 
+            responseType: 'arraybuffer',
+            headers: { 'User-Agent': 'Mozilla/5.0' }
+        });
+        const audioBuffer = Buffer.from(audioRes.data);
+
+        // Phir Audio file buffer ke zariye send karenge
         await conn.sendMessage(from, {
-            audio: { url: downloadUrl },
+            audio: audioBuffer,
             mimetype: 'audio/mp4',
             fileName: `${songTitle.replace(/[\\/:*?"<>|]/g, '')}.mp3`,
             ptt: false
@@ -116,6 +123,6 @@ cmd({
     } catch (error) {
         console.error("Play Command Error:", error);
         await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-        reply(`❌ *Error:* ${error.message}`);
+        reply(`❌ *Error:* ${error.message || "An unexpected error occurred."}`);
     }
 });
