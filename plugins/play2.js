@@ -1,5 +1,5 @@
 //---------------------------------------------------------------------------
-//           KAMRAN-MD - YOUTUBE AUDIO DOWNLOADER (STABLE ESM)
+//           KAMRAN-MD - YOUTUBE AUDIO DOWNLOADER (FIXED STRUCTURE)
 //---------------------------------------------------------------------------
 
 import { fileURLToPath } from 'url';
@@ -8,8 +8,7 @@ import { cmd } from '../command.js';
 
 const __filename = fileURLToPath(import.meta.url);
 
-const AUTHOR = "DR KAMRAN";
-const STRICT_OWNER_LOCK = false;
+const AUTHOR = "KAMRAN-MD";
 
 cmd(
   {
@@ -20,17 +19,12 @@ cmd(
     category: "download",
     filename: __filename,
   },
-  async (conn, mek, m, { from, q, reply, isOwner, prefix, command }) => {
+  async (conn, mek, m, { from, text, reply }) => {
     try {
-      if (STRICT_OWNER_LOCK && !isOwner) {
-        return reply(`❌ *Access Denied:* This protected module belongs exclusively to *${AUTHOR}*.`);
-      }
-
-      const usedPrefix = prefix || ".";
-      const usedCommand = command || "song";
+      const q = text ? text.trim() : "";
 
       if (!q) {
-        return reply(`🎵 *Audio Downloader (${AUTHOR})*\n\nUsage: \`${usedPrefix + usedCommand} <song name or link>\`\nExample: \`${usedPrefix + usedCommand} karan aujla song\``);
+        return reply(`🎵 *Audio Downloader (${AUTHOR})*\n\nUsage: \`.song <song name or link>\`\nExample: \`.song karan aujla\``);
       }
 
       await conn.sendMessage(from, { react: { text: "🔍", key: mek.key } });
@@ -41,7 +35,7 @@ cmd(
       let channelName = "Unknown";
       let duration = "N/A";
 
-      // If query is not a direct URL, fetch video details using reliable search API
+      // If query is not a direct URL, search first using reliable search endpoint
       if (!q.startsWith("http")) {
         try {
           const searchRes = await axios.get(`https://api.siputzx.my.id/api/s/youtube?query=${encodeURIComponent(q)}`, { timeout: 15000 });
@@ -60,39 +54,34 @@ cmd(
 
       let finalUrl = null;
 
-      // Method 1: Try Vajira API
+      // Method 1: Try Exonity API
       try {
-        const assembledApiKey = ["Vajira", "Ofc"].join("");
-        const apiUrl = `https://vajiraofc-apis.vercel.app/api/ytmp3?apikey=${assembledApiKey}&url=${encodeURIComponent(targetUrl)}&quality=128`;
-        const res1 = await axios.get(apiUrl, { timeout: 25000 });
-        const data1 = res1.data?.result || res1.data?.data || res1.data;
-        finalUrl = data1?.download || data1?.dl || data1?.mp3 || data1?.url;
-        if (data1?.title) songTitle = data1.title;
-        if (data1?.thumbnail || data1?.thumb) songThumb = data1.thumbnail || data1.thumb;
-      } catch (err1) {
-        console.error("API 1 failed, trying fallback...", err1.message);
+        const api1 = `https://exonity.tech/api/v1/ytmp3?url=${encodeURIComponent(targetUrl)}`;
+        const res1 = await axios.get(api1, { timeout: 20000 });
+        finalUrl = res1.data?.result?.download || res1.data?.download || res1.data?.url;
+        if (res1.data?.result?.title) songTitle = res1.data.result.title;
+      } catch (e1) {
+        console.error("API 1 failed:", e1.message);
       }
 
-      // Method 2: Fallback to Siputzx Download API
+      // Method 2: Fallback to Siputzx API
       if (!finalUrl) {
         try {
-          const fallbackUrl = `https://api.siputzx.my.id/api/d/ytmp3?url=${encodeURIComponent(targetUrl)}`;
-          const res2 = await axios.get(fallbackUrl, { timeout: 25000 });
-          const data2 = res2.data?.data || res2.data?.result || res2.data;
-          finalUrl = data2?.dl || data2?.download || data2?.url;
-          if (data2?.title) songTitle = data2.title;
-          if (data2?.thumb || data2?.thumbnail) songThumb = data2.thumb || data2.thumbnail;
-        } catch (err2) {
-          console.error("API 2 failed:", err2.message);
+          const api2 = `https://api.siputzx.my.id/api/d/ytmp3?url=${encodeURIComponent(targetUrl)}`;
+          const res2 = await axios.get(api2, { timeout: 20000 });
+          finalUrl = res2.data?.data?.dl || res2.data?.result?.dl || res2.data?.url;
+          if (res2.data?.data?.title) songTitle = res2.data.data.title;
+        } catch (e2) {
+          console.error("API 2 failed:", e2.message);
         }
       }
 
       if (!finalUrl) {
         await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-        return reply("❌ Failed to fetch audio download link. Try providing a direct YouTube link!");
+        return reply("❌ Audio download link nahi mil saki. Kripya direct YouTube link try karein!");
       }
 
-      // Send Info & Audio
+      // Send Info & Audio Thumbnail
       const infoText = `
 🎵 *YT AUDIO DOWNLOADER* 🎵
 
@@ -107,13 +96,14 @@ _📥 Sending your audio file..._
       await conn.sendMessage(from, { image: { url: songThumb }, caption: infoText }, { quoted: mek });
       await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
+      // Send Audio File
       await conn.sendMessage(
         from,
         {
           audio: { url: finalUrl },
           mimetype: "audio/mpeg",
-          ptt: false, 
-          caption: `✅ *${songTitle}*\n\n*🚀 Secured & Powered by ${AUTHOR}*`,
+          ptt: false,
+          caption: `✅ *${songTitle}*\n\n*🚀 Powered by ${AUTHOR}*`,
           contextInfo: {
             externalAdReply: {
               title: "YT AUDIO DOWNLOADER",
