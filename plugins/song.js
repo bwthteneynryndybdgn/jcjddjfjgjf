@@ -8,8 +8,8 @@ import yts from 'yt-search';
 const __filename = fileURLToPath(import.meta.url);
 
 cmd({
-    pattern: "song",
-    alias: ["play", "ytmp3", "audio", "song2"],
+    pattern: "song4",
+    alias: ["play4", "ytmp34", "audio4", "song5"],
     react: '🎵',
     desc: "Download audio from YouTube using Link or Song Name",
     category: "downloader",
