@@ -1,7 +1,6 @@
 /*
-# Name : Unblur Image
-# Type : ESM (KAMRAN-MD / FATIMA-MD Style)
-# Url : https://unblurimage.ai/
+# Name : Remini / Unblur Image
+# Type : ESM (KAMRAN-MD Style)
 */
 
 import axios from 'axios';
@@ -16,25 +15,26 @@ import { downloadContentFromMessage } from '@whiskeysockets/baileys';
 const __filename = fileURLToPath(import.meta.url);
 
 cmd({
-    pattern: "unblur",
-    alias: ["enhancepic", "remini"],
+    pattern: "remini",
+    alias: ["enhance", "hd", "upscale"],
     react: '🪄',
-    desc: "Unblur or enhance replied image using AI",
+    desc: "Enhance or unblur replied image using AI",
     category: "tools",
-    use: ".unblur [reply to image]",
+    use: ".remini [reply to image]",
     filename: __filename
 }, async (conn, mek, m, { from, reply }) => {
     let tempFilePath = null;
     try {
+        // Robust quoted message checker across different bot structures
         const quoted = m.msg?.contextInfo?.quotedMessage || m.quoted;
 
         if (!quoted) {
-            return reply('❌ Kripya kisi image par reply karein!');
+            return reply('❌ Please reply to an image!');
         }
 
         const mimeType = quoted.imageMessage?.mimetype || m.quoted?.mimetype || '';
-        if (!mimeType || !mimeType.includes('image')) {
-            return reply('❌ Yeh valid image nahi hai. Kripya kisi image par reply karein.');
+        if (mimeType && !mimeType.includes('image')) {
+            return reply('❌ Please reply to a valid image file.');
         }
 
         const edit = async (text, key) => {
@@ -55,9 +55,9 @@ cmd({
             } catch {}
         };
 
-        const statusMsg = await conn.sendMessage(from, { text: '⏳ Mengunduh gambar / Image download ho rahi hai...' }, { quoted: mek });
+        const statusMsg = await conn.sendMessage(from, { text: '⏳ Downloading image...' }, { quoted: mek });
 
-        // Media download buffer
+        // Media buffer download helper
         let mediaBuffer;
         try {
             if (m.quoted && typeof m.quoted.download === 'function') {
@@ -80,11 +80,11 @@ cmd({
             return reply('❌ Media download karne me asamarth!');
         }
 
-        tempFilePath = path.join(os.tmpdir(), `unblur_${Date.now()}.jpg`);
+        tempFilePath = path.join(os.tmpdir(), `remini_${Date.now()}.jpg`);
         fs.writeFileSync(tempFilePath, mediaBuffer);
 
         try {
-            await edit('✨ Image upload ho rahi hai AI server par...', statusMsg.key);
+            await edit('✨ Uploading image to AI server...', statusMsg.key);
 
             const BASE = 'https://api.unwatermark.ai/api/web/unblurimage/v1/image-unblur-v2';
 
@@ -131,10 +131,10 @@ cmd({
                 uploadResult?.result?.jobId;
 
             if (!jobId) {
-                return edit(`Job ID nahi mili.\n\n${JSON.stringify(uploadResult, null, 2)}`, statusMsg.key);
+                return edit(`Job ID not found.\n\n${JSON.stringify(uploadResult, null, 2)}`, statusMsg.key);
             }
 
-            await edit(`🚀 Job ID: ${jobId}\n🔄 Image unblur ho rahi hai, kripya intezar karein...`, statusMsg.key);
+            await edit(`🚀 Job ID: ${jobId}\n🔄 Enhancing image, please wait...`, statusMsg.key);
 
             let result;
             let imageUrl = null;
@@ -178,7 +178,7 @@ cmd({
                     if (imageUrl) {
                         await conn.sendMessage(from, {
                             image: { url: imageUrl },
-                            caption: `✨ *Unblur Image Success!*\n\n> © 𝐏ᴏᴡᴇʀᴇᴅ 𝐁𝐘 KAMRAN-MD`
+                            caption: `✨ *Remini / Enhanced Image Success!*\n\n> © 𝐏ᴏᴡᴇʀᴇᴅ 𝐁𝐘 KAMRAN-MD`
                         }, { quoted: mek });
 
                         await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
@@ -186,7 +186,7 @@ cmd({
                     }
 
                     if (['failed', 'error', 'cancelled'].includes(String(status).toLowerCase())) {
-                        return edit(`❌ Process fail ho gaya.\nStatus: ${status}`, statusMsg.key);
+                        return edit(`❌ Process failed.\nStatus: ${status}`, statusMsg.key);
                     }
 
                     await edit(
@@ -195,11 +195,11 @@ cmd({
                     );
 
                 } catch (err) {
-                    // Continue checking loop
+                    // Continue loop
                 }
             }
 
-            await edit(`⏰ Timeout: Image process hone me zyada samay lag gaya.`, statusMsg.key);
+            await edit(`⏰ Timeout: Image processing took too long.`, statusMsg.key);
 
         } finally {
             if (tempFilePath && fs.existsSync(tempFilePath)) {
@@ -208,7 +208,7 @@ cmd({
         }
 
     } catch (error) {
-        console.error("Unblur Error:", error);
+        console.error("Remini Error:", error);
         if (tempFilePath && fs.existsSync(tempFilePath)) {
             try { fs.unlinkSync(tempFilePath); } catch {}
         }
