@@ -5,7 +5,7 @@ import fetch from 'node-fetch';
 const __filename = fileURLToPath(import.meta.url);
 
 cmd({
-    pattern: "play",
+    pattern: "play55",
     alias: ["song", "audio", "ytmp3"],
     desc: "Download and play songs from YouTube using VajiraOfc API.",
     category: "downloader",
