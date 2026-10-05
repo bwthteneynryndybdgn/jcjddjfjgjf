@@ -32,22 +32,25 @@ cmd({
         const apiKey = "KAMRAN-MASTER-2026"
         const apiUrl = `https://kamrantech-apis.vercel.app/api/download/tiktok?url=${encodeURIComponent(tiktokUrl)}&key=${apiKey}`
         
+        console.log('[TIKTOK API REQUEST]:', apiUrl)
+
         const response = await axios.get(apiUrl, { timeout: 30000, validateStatus: () => true })
         const json = response.data
+
+        console.log('[TIKTOK API RESPONSE]:', JSON.stringify(json, null, 2))
 
         if (!json || !json.status || !json.data) {
             await conn.sendMessage(from, { react: { text: "❌", key: reactKey } }).catch(() => {})
             return reply(
                 `╭─❏ 「 TIKTOK DOWNLOADER 」\n` +
-                `│ Failed to fetch TikTok video. Link might be invalid.\n` +
+                `│ Failed to fetch TikTok video. Invalid response from API.\n` +
                 `╰───────────────\n` +
                 `> ©𝐏𝐨𝐰𝐞𝐫𝐞𝐝 𝐁𝐲 KAMRAN-MD`
             )
         }
 
-        // API response ke mutabiq video download link (no watermark) extract karna
         const videoData = json.data
-        const videoUrl = videoData.nowm || videoData.url || videoData.video || videoData.download || (typeof videoData === 'string' ? videoData : null)
+        const videoUrl = videoData?.nowm || videoData?.url || videoData?.video || videoData?.download || (typeof videoData === 'string' ? videoData : null)
 
         if (!videoUrl) {
             await conn.sendMessage(from, { react: { text: "❌", key: reactKey } }).catch(() => {})
@@ -64,7 +67,6 @@ cmd({
 
         await conn.sendMessage(from, { react: { text: "📤", key: reactKey } })
 
-        // Send as Document / Video
         const safeFileName = `${title.replace(/[<>:"/\\|?*]/g, '_').substring(0, 50)}.mp4`
         await conn.sendMessage(
             from,
@@ -84,7 +86,7 @@ cmd({
         await conn.sendMessage(from, { react: { text: "✅", key: reactKey } })
 
     } catch (error) {
-        console.error('TikTok download error:', error)
+        console.error('[TIKTOK PLUGIN ERROR]:', error)
         await conn.sendMessage(from, { react: { text: "❌", key: reactKey } }).catch(() => {})
         reply(
             `╭─❏ 「 ERROR 」\n` +
