@@ -1,11 +1,10 @@
 //---------------------------------------------------------------------------
-//           KAMRAN-MD - YOUTUBE AUDIO DOWNLOADER (WITH YTS)
+//           KAMRAN-MD - YOUTUBE AUDIO DOWNLOADER (STABLE ESM)
 //---------------------------------------------------------------------------
 
 import { fileURLToPath } from 'url';
 import axios from 'axios';
 import { cmd } from '../command.js';
-import yts from 'yt-search';
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -36,33 +35,35 @@ cmd(
 
       await conn.sendMessage(from, { react: { text: "🔍", key: mek.key } });
 
-      let ytUrl = q;
+      let targetUrl = q;
       let songTitle = "YouTube Audio";
       let songThumb = "https://i.imgur.com/Te4kE0x.jpeg";
       let channelName = "Unknown";
       let duration = "N/A";
 
-      // If query is not a direct URL, search using yt-search
+      // If query is not a direct URL, fetch video details using reliable search API
       if (!q.startsWith("http")) {
-        const search = await yts(q);
-        const video = search.videos?.[0];
-        if (!video) {
-          await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-          return reply("❌ No YouTube video found for your query.");
+        try {
+          const searchRes = await axios.get(`https://api.siputzx.my.id/api/s/youtube?query=${encodeURIComponent(q)}`, { timeout: 15000 });
+          const videos = searchRes.data?.data || searchRes.data?.result || [];
+          if (videos.length > 0) {
+            targetUrl = videos[0].url || videos[0].link;
+            songTitle = videos[0].title || songTitle;
+            songThumb = videos[0].thumbnail || videos[0].image || songThumb;
+            channelName = videos[0].author?.name || videos[0].artist || channelName;
+            duration = videos[0].duration || duration;
+          }
+        } catch (searchErr) {
+          console.error("Search API error:", searchErr.message);
         }
-        ytUrl = video.url;
-        songTitle = video.title;
-        songThumb = video.thumbnail;
-        channelName = video.author?.name || "Unknown";
-        duration = video.timestamp;
       }
 
       let finalUrl = null;
 
-      // Method 1: Try Vajira API with URL
+      // Method 1: Try Vajira API
       try {
         const assembledApiKey = ["Vajira", "Ofc"].join("");
-        const apiUrl = `https://vajiraofc-apis.vercel.app/api/ytmp3?apikey=${assembledApiKey}&url=${encodeURIComponent(ytUrl)}&quality=128`;
+        const apiUrl = `https://vajiraofc-apis.vercel.app/api/ytmp3?apikey=${assembledApiKey}&url=${encodeURIComponent(targetUrl)}&quality=128`;
         const res1 = await axios.get(apiUrl, { timeout: 25000 });
         const data1 = res1.data?.result || res1.data?.data || res1.data;
         finalUrl = data1?.download || data1?.dl || data1?.mp3 || data1?.url;
@@ -72,10 +73,10 @@ cmd(
         console.error("API 1 failed, trying fallback...", err1.message);
       }
 
-      // Method 2: Fallback to Siputzx Download API if method 1 fails
+      // Method 2: Fallback to Siputzx Download API
       if (!finalUrl) {
         try {
-          const fallbackUrl = `https://api.siputzx.my.id/api/d/ytmp3?url=${encodeURIComponent(ytUrl)}`;
+          const fallbackUrl = `https://api.siputzx.my.id/api/d/ytmp3?url=${encodeURIComponent(targetUrl)}`;
           const res2 = await axios.get(fallbackUrl, { timeout: 25000 });
           const data2 = res2.data?.data || res2.data?.result || res2.data;
           finalUrl = data2?.dl || data2?.download || data2?.url;
@@ -88,7 +89,7 @@ cmd(
 
       if (!finalUrl) {
         await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-        return reply("❌ Failed to fetch audio download link. Try another song!");
+        return reply("❌ Failed to fetch audio download link. Try providing a direct YouTube link!");
       }
 
       // Send Info & Audio
@@ -118,7 +119,7 @@ _📥 Sending your audio file..._
               title: "YT AUDIO DOWNLOADER",
               body: songTitle,
               thumbnailUrl: songThumb,
-              sourceUrl: ytUrl,
+              sourceUrl: targetUrl,
               mediaType: 2,
               renderLargerThumbnail: true
             }
