@@ -1,5 +1,6 @@
 import { cmd } from '../command.js';
 import { fileURLToPath } from 'url';
+import { downloadContentFromMessage } from '@whiskeysockets/baileys';
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -20,8 +21,14 @@ cmd({
         const isAll = args[0]?.toLowerCase() === "all";
         const caption = isAll ? args.slice(1).join(" ") : text?.trim() || "";
         
-        const quotedMsg = m.quoted;
-        const mimeType = quotedMsg ? (quotedMsg.msg || quotedMsg).mimetype || "" : "";
+        const quotedMsg = m.quoted || m.msg?.contextInfo?.quotedMessage;
+        
+        let mimeType = "";
+        if (quotedMsg) {
+            const typeKey = Object.keys(quotedMsg)[0] || '';
+            const content = quotedMsg[typeKey];
+            mimeType = content?.mimetype || (m.quoted ? (m.quoted.msg || m.quoted).mimetype : "") || "";
+        }
 
         if (!quotedMsg && !caption && !isAll) {
             return reply(
@@ -33,16 +40,36 @@ cmd({
             );
         }
 
-        // ── Download Media Once ──
+        // ── Download Media Buffer ──
         let mediaBuffer = null;
         if (quotedMsg) {
-            mediaBuffer = await quotedMsg.download();
+            try {
+                if (m.quoted && typeof m.quoted.download === 'function') {
+                    mediaBuffer = await m.quoted.download();
+                } else {
+                    const typeKey = Object.keys(quotedMsg)[0] || '';
+                    const content = quotedMsg[typeKey];
+                    let mediaType = typeKey.replace('Message', '').toLowerCase();
+                    if (mediaType.includes('image')) mediaType = 'image';
+                    else if (mediaType.includes('video')) mediaType = 'video';
+                    else if (mediaType.includes('audio')) mediaType = 'audio';
+
+                    const stream = await downloadContentFromMessage(content, mediaType);
+                    let chunks = [];
+                    for await (const chunk of stream) {
+                        chunks.push(chunk);
+                    }
+                    mediaBuffer = Buffer.concat(chunks);
+                }
+            } catch (err) {
+                console.error("GCStatus media download error:", err);
+            }
         }
 
         const getMsgType = () => {
-            if (mimeType.startsWith("image/")) return "image";
-            if (mimeType.startsWith("video/")) return "video";
-            if (mimeType.startsWith("audio/")) return "audio";
+            if (mimeType.includes("image") || quotedMsg?.imageMessage) return "image";
+            if (mimeType.includes("video") || quotedMsg?.videoMessage) return "video";
+            if (mimeType.includes("audio") || quotedMsg?.audioMessage) return "audio";
             return null;
         };
 
@@ -60,6 +87,7 @@ cmd({
                 if (type === "image") messageContent = { image: mediaBuffer, caption, contextInfo };
                 else if (type === "video") messageContent = { video: mediaBuffer, caption, contextInfo };
                 else if (type === "audio") messageContent = { audio: mediaBuffer, mimetype: mimeType, ptt: mimeType.includes("ogg"), contextInfo };
+                else messageContent = { image: mediaBuffer, caption, contextInfo };
             } else {
                 messageContent = { text: caption, contextInfo };
             }
@@ -86,6 +114,7 @@ cmd({
                         if (type === "image") messageContent = { image: mediaBuffer, caption, contextInfo };
                         else if (type === "video") messageContent = { video: mediaBuffer, caption, contextInfo };
                         else if (type === "audio") messageContent = { audio: mediaBuffer, mimetype: mimeType, ptt: mimeType.includes("ogg"), contextInfo };
+                        else messageContent = { image: mediaBuffer, caption, contextInfo };
                     } else {
                         messageContent = { text: caption, contextInfo };
                     }
@@ -93,7 +122,6 @@ cmd({
                     await conn.sendMessage(group.id, messageContent);
                     successCount++;
                     
-                    // Delay to avoid spam filters
                     await new Promise(r => setTimeout(r, 1000)); 
                 } catch (err) {
                     console.error(`Failed for ${group.id}:`, err.message);
@@ -105,6 +133,7 @@ cmd({
         }
 
     } catch (error) {
+        console.error("GCStatus Error:", error);
         reply(`❌ *Error:* ${error.message}`);
     }
 });
