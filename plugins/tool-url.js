@@ -11,7 +11,7 @@ const __filename = fileURLToPath(import.meta.url);
 cmd({
     pattern: "tourl",
     alias: ["url", "upload"],
-    desc: "Upload media (image/video/audio/document) to Catbox and ImgBB",
+    desc: "Upload replied media to Catbox and ImgBB",
     category: "downloader",
     react: "📤",
     filename: __filename
@@ -19,9 +19,8 @@ cmd({
     const reactKey = m.key
 
     try {
-        // Check if quoted message exists
-        const quoted = m.quoted || (m.msg && m.msg.contextInfo && m.msg.contextInfo.quotedMessage);
-        const quotedMsg = m.msg?.contextInfo?.quotedMessage;
+        // Quoted message check karne ka robust tareeqa
+        const quotedMsg = m.msg?.contextInfo?.quotedMessage || m.quoted;
 
         if (!quotedMsg) {
             await conn.sendMessage(from, { react: { text: '❌', key: reactKey } }).catch(() => {});
@@ -31,22 +30,20 @@ cmd({
         const mime = quotedMsg.imageMessage?.mimetype ||
                      quotedMsg.videoMessage?.mimetype ||
                      quotedMsg.audioMessage?.mimetype ||
-                     quotedMsg.documentMessage?.mimetype;
+                     quotedMsg.documentMessage?.mimetype ||
+                     quotedMsg.stickerMessage?.mimetype;
 
         if (!mime) {
             await conn.sendMessage(from, { react: { text: '❌', key: reactKey } }).catch(() => {});
-            return reply("❌ *Please reply to a valid media file (image/video/audio/document).*");
+            return reply("❌ *Please reply to a valid media file.*");
         }
 
         await conn.sendMessage(from, { react: { text: "⌛", key: reactKey } });
 
-        let mediaType;
-        let msgKey;
+        let mediaType = 'image';
+        let msgKey = quotedMsg.imageMessage;
 
-        if (quotedMsg.imageMessage) {
-            mediaType = 'image';
-            msgKey = quotedMsg.imageMessage;
-        } else if (quotedMsg.videoMessage) {
+        if (quotedMsg.videoMessage) {
             mediaType = 'video';
             msgKey = quotedMsg.videoMessage;
         } else if (quotedMsg.audioMessage) {
@@ -55,35 +52,30 @@ cmd({
         } else if (quotedMsg.documentMessage) {
             mediaType = 'document';
             msgKey = quotedMsg.documentMessage;
+        } else if (quotedMsg.stickerMessage) {
+            mediaType = 'sticker';
+            msgKey = quotedMsg.stickerMessage;
         }
 
-        // Download media buffer using Baileys downloadMediaMessage helper or stream
+        // Download media buffer using bot's built-in download function
         let buffer;
         try {
-            // Using downloadMediaMessage if available in conn, or fallback to direct stream download
-            if (typeof conn.downloadMediaMessage === 'function') {
-                buffer = await conn.downloadMediaMessage({
-                    key: m.msg.contextInfo.stanzaId ? { remoteJid: from, id: m.msg.contextInfo.stanzaId, participant: m.msg.contextInfo.participant } : mek,
-                    message: quotedMsg
-                });
+            if (typeof conn.downloadAndSaveMediaMessage === 'function') {
+                const streamPath = await conn.downloadAndSaveMediaMessage(quotedMsg, 'temp_media');
+                buffer = fs.readFileSync(streamPath);
+                try { fs.unlinkSync(streamPath); } catch {}
+            } else if (typeof conn.downloadMediaMessage === 'function') {
+                buffer = await conn.downloadMediaMessage(quotedMsg);
             } else {
-                const stream = await conn.downloadAndSaveMediaMessage(quotedMsg, 'temp_media');
-                buffer = fs.readFileSync(stream);
-                try { fs.unlinkSync(stream); } catch {}
+                throw new Error("No download method available");
             }
-        } catch (downloadErr) {
-            console.error('Download media error:', downloadErr);
-            // Fallback manual stream download if helper fails
-            const stream = await conn.downloadContentFromMessage(msgKey, mediaType);
-            let chunks = [];
-            for await (const chunk of stream) {
-                chunks.push(chunk);
-            }
-            buffer = Buffer.concat(chunks);
+        } catch (err) {
+            console.error('Buffer download fallback error:', err);
+            return reply("❌ *Media download karne me asamarth! (Buffer error)*");
         }
 
         if (!buffer || buffer.length === 0) {
-            throw new Error('Failed to download media buffer.');
+            return reply("❌ *Media download karne me asamarth!*");
         }
 
         const ext = mime.split('/')[1] || 'tmp';
@@ -152,7 +144,6 @@ ${imgbbUrl}
 
 > *𝐏𝙾𝚆𝙴𝚁𝙴𝙳 𝐁𝐘 KAMRAN-MD*`.trim();
 
-        // Determine thumbnail for preview
         let thumbnailUrl = "https://cdn-icons-png.flaticon.com/512/337/337946.png";
         if (catboxUrl && !catboxUrl.includes('❌') && catboxUrl.match(/\.(jpeg|jpg|gif|png)$/i)) {
             thumbnailUrl = catboxUrl;
@@ -160,7 +151,6 @@ ${imgbbUrl}
             thumbnailUrl = imgbbUrl;
         }
 
-        // Fake Quote for Style
         const metaQuote = {
             key: { remoteJid: "status@broadcast", participant: "0@s.whatsapp.net", fromMe: false, id: "META_MEDIA" },
             message: { contactMessage: { displayName: "KAMRAN-MD", vcard: `BEGIN:VCARD\nVERSION:3.0\nFN:Upload Service\nORG:Catbox/ImgBB\nEND:VCARD` } }
@@ -184,7 +174,7 @@ ${imgbbUrl}
 
     } catch (e) {
         console.error("Tourl Error:", e);
-        await conn.sendMessage(from, { react: { text: "❌", key: reactKey } }).catch(() => {});
+        await conn.sendMessage(from, { react: { text: '❌', key: reactKey } }).catch(() => {});
         reply("❌ *Error uploading media.*");
     }
 });
