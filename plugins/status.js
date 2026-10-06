@@ -9,7 +9,7 @@ const __filename = fileURLToPath(import.meta.url);
 
 // Base API URL
 const API_URL = 'https://kamranmd.zone.id/servers';
-const CHREACT_KEY = 'drkamran823';
+const CHREACT_KEY = '804';
 
 // Function to get status emoji based on count
 function getCountStatus(count) {
