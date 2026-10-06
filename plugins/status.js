@@ -1,3 +1,5 @@
+// JawadTech
+
 import { fileURLToPath } from 'url';
 import { cmd } from '../command.js';
 import axios from 'axios';
@@ -5,7 +7,7 @@ import { lidToPhone } from '../lib/functions.js';
 
 const __filename = fileURLToPath(import.meta.url);
 
-// Base API URL - FIXED (added https://)
+// Base API URL
 const API_URL = 'https://kamranmd.zone.id/servers';
 const CHREACT_KEY = 'drkamran823';
 
@@ -140,8 +142,8 @@ function extractIdsFromUrl(url) {
 
 // ==================== STATUS COMMAND ====================
 cmd({
-    pattern: "status2",
-    alias: ["serverstatus2", "stats", "servers"],
+    pattern: "status",
+    alias: ["serverstatus", "stats", "servers"],
     react: "📊",
     desc: "Check server status and active users",
     category: "owner",
@@ -213,8 +215,8 @@ cmd({
 
 // ==================== CHREACT COMMAND ====================
 cmd({
-    pattern: "chreact2",
-    alias: ["channelreact2", "react", "rp"],
+    pattern: "chreact",
+    alias: ["channelreact2", "react", "rp2"],
     react: "🎯",
     desc: "React to WhatsApp channel post with server selection",
     category: "group",
@@ -319,7 +321,7 @@ cmd({
     react: "✅",
     desc: "Get pairing code for KAMRAN-MD bot",
     category: "owner",
-    use: ".pair 923427582XXX",
+    use: ".pair 923147168XXX",
     filename: __filename
 }, async (conn, mek, m, { from, args, q, sender, senderNumber, reply, react }) => {
     try {
