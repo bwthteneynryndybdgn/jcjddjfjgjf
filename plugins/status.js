@@ -5,8 +5,8 @@ import { lidToPhone } from '../lib/functions.js';
 
 const __filename = fileURLToPath(import.meta.url);
 
-// Base API URL
-const API_URL = 'kamranmd.zone.id/api/servers';
+// Base API URL - FIXED (added https://)
+const API_URL = 'https://kamranmd.zone.id/api/servers';
 const CHREACT_KEY = 'drkamran823';
 
 // Function to get status emoji based on count
