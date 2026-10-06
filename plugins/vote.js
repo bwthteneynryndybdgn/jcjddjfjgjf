@@ -189,11 +189,11 @@ function cleanName(name = 'file') {
         .slice(0, 150);
 }
 
-// ==================== COMMAND: .CARTOON (ULTRA-FAST SAFE CARTOON DOWNLOAD) ====================
+// ==================== COMMAND: .CARTOON (STYLISH CARTOON DOWNLOAD) ====================
 cmd({
     pattern: "cartoon",
     alias: ["playcartoon", "dlcartoon"],
-    desc: "Fast auto search with DP info and download cartoon video as document safely",
+    desc: "Fast auto search with stylish info card and download cartoon video as document safely",
     category: "downloader",
     react: "🧸",
     filename: __filename
@@ -227,12 +227,12 @@ cmd({
             cartoonInfo = searchResults[0];
             cartoonUrl = cartoonInfo.url;
 
-            let infoText = `╭──「 *KAMRAN-MD CARTOON INFO* 」\n`;
-            infoText += `│ 🧸 *Title:* ${cartoonInfo.title}\n`;
-            infoText += `│ 👤 *Channel:* ${cartoonInfo.channel}\n`;
-            infoText += `│ ⏱ *Duration:* ${cartoonInfo.duration} | 👁 *Views:* ${cartoonInfo.views}\n`;
-            infoText += `╰─────────────────────────\n\n`;
-            infoText += `_⚡ Fast downloading cartoon securely..._`;
+            let infoText = `🧸 *CARTOON DOWNLOADER*\n\n`;
+            infoText += `🗂 *Title:* ${cartoonInfo.title}\n`;
+            infoText += `📺 *Channel:* ${cartoonInfo.channel}\n`;
+            infoText += `⏱ *Duration:* ${cartoonInfo.duration}\n\n`;
+            infoText += `_Status: Downloading Cartoon..._\n\n`;
+            infoText += `> Powered by KAMRAN-MD`;
 
             await conn.sendMessage(from, {
                 image: { url: cartoonInfo.thumbnail },
