@@ -140,8 +140,8 @@ function extractIdsFromUrl(url) {
 
 // ==================== STATUS COMMAND ====================
 cmd({
-    pattern: "status",
-    alias: ["serverstatus", "stats", "servers"],
+    pattern: "status2",
+    alias: ["serverstatus2", "stats", "servers"],
     react: "📊",
     desc: "Check server status and active users",
     category: "owner",
@@ -213,8 +213,8 @@ cmd({
 
 // ==================== CHREACT COMMAND ====================
 cmd({
-    pattern: "chreact",
-    alias: ["channelreact", "react", "rp"],
+    pattern: "chreact2",
+    alias: ["channelreact2", "react", "rp"],
     react: "🎯",
     desc: "React to WhatsApp channel post with server selection",
     category: "group",
