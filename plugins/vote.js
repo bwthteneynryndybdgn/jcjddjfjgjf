@@ -1,82 +1,297 @@
 import { fileURLToPath } from 'url';
 import { cmd } from '../command.js';
+import { spawn } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
 
-cmd({
-    pattern: "vote",
-    alias: ["autovote", "channelvote"],
-    desc: "Beri vote reaksi otomatis ke postingan channel WhatsApp",
-    category: "tools",
-    filename: __filename
-},
-async (conn, mek, m, { from, args, q, reply, react, isCreator }) => {
-    try {
-        // Hanya Owner/Creator yang bisa menggunakan
-        if (!isCreator) return reply("❌ Perintah ini hanya khusus untuk Owner Bot!");
+// ==================== YOUTUBE SEARCH FUNCTION ====================
+async function searchYoutube(query) {
+  const url = 'https://www.youtube.com/youtubei/v1/search?prettyPrint=false';
+  const payload = {
+    context: {
+      client: {
+        clientName: 'WEB',
+        clientVersion: '2.20240514.01.00',
+        hl: 'en',
+        gl: 'US',
+      }
+    },
+    query: query
+  };
 
-        // Validasi input
-        if (!q || args.length < 2) {
+  try {
+    const response = await axios.post(url, payload, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-YouTube-Client-Name': '1',
+        'X-YouTube-Client-Version': '2.20240514.01.00',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      },
+      timeout: 10000
+    });
+
+    const data = response.data;
+    const results = [];
+    const contents = data?.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents;
+    
+    if (contents && Array.isArray(contents)) {
+      for (const section of contents) {
+        const items = section.itemSectionRenderer?.contents || section.richGridRenderer?.contents;
+        if (items && Array.isArray(items)) {
+          for (const item of items) {
+            const videoRenderer = item.videoRenderer || item.richItemRenderer?.content?.videoRenderer;
+            if (videoRenderer && videoRenderer.videoId) {
+              const videoId = videoRenderer.videoId;
+              results.push({
+                title: videoRenderer.title?.runs?.map(r => r.text).join('') || 'No Title',
+                channel: videoRenderer.ownerText?.runs?.map(r => r.text).join('') || 'Unknown',
+                views: videoRenderer.viewCountText?.simpleText || '0 views',
+                duration: videoRenderer.lengthText?.simpleText || 'LIVE',
+                url: `https://www.youtube.com/watch?v=${videoId}`,
+                thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
+              });
+            }
+          }
+        }
+      }
+    }
+    return results;
+  } catch (error) {
+    console.error('Search Error:', error.message);
+    throw error;
+  }
+}
+
+// ==================== ULTRA-FAST YMCDN SCRAPER FUNCTIONS ====================
+function extractVideoId(url) {
+    if (!url) return null;
+    let match = null;
+    
+    if (url.includes('youtube.com/shorts/') || url.includes('youtu.be/')) {
+        match = /\/([a-zA-Z0-9\-_]{11})/.exec(url);
+    } else if (url.includes('youtube.com')) {
+        match = /v=([a-zA-Z0-9\-_]{11})/.exec(url);
+    } else {
+        match = /[a-zA-Z0-9\-_]{11}/.exec(url);
+    }
+    
+    return match ? match[1] : null;
+}
+
+async function scrapeYtmp3(youtubeUrl, format = 'mp4') {
+    const videoId = extractVideoId(youtubeUrl);
+    if (!videoId) {
+        throw new Error('Invalid YouTube URL: Could not extract video ID.');
+    }
+    
+    const lowerFormat = format.toLowerCase();
+    const headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': '*/*',
+        'Origin': 'https://id.ytmp3.mobi',
+        'Referer': 'https://id.ytmp3.mobi/',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'cross-site'
+    };
+
+    try {
+        const initUrl = `https://a.ymcdn.org/api/v1/init?p=y&23=1llum1n471&_=${Math.random()}`;
+        const initRes = await fetch(initUrl, { headers });
+        
+        if (!initRes.ok) {
+            throw new Error(`Init request failed with status code ${initRes.status}`);
+        }
+        
+        const initJson = await initRes.json();
+        if (initJson.error > 0) {
+            throw new Error(`Init API returned error: ${initJson.error}`);
+        }
+
+        let convertUrl = initJson.convertURL;
+        let convertRequestUrl = `${convertUrl}&v=${videoId}&f=${lowerFormat}&_=${Math.random()}`;
+        let convertJson;
+        
+        while (true) {
+            const convertRes = await fetch(convertRequestUrl, { headers });
+            if (!convertRes.ok) {
+                throw new Error(`Convert request failed with status code ${convertRes.status}`);
+            }
+            
+            convertJson = await convertRes.json();
+            if (convertJson.error > 0) {
+                throw new Error(`Convert API returned error: ${convertJson.error}`);
+            }
+            
+            if (convertJson.redirect > 0 && convertJson.redirectURL) {
+                convertRequestUrl = `${convertJson.redirectURL}&v=${videoId}&f=${lowerFormat}&_=${Math.random()}`;
+                continue;
+            }
+            break;
+        }
+
+        const progressUrl = convertJson.progressURL;
+        const downloadUrl = convertJson.downloadURL;
+        let title = convertJson.title || 'YouTube';
+
+        if (!progressUrl || !downloadUrl) {
+            throw new Error('API conversion response is missing progress or download URL.');
+        }
+
+        let progress = 0;
+        let pollCount = 0;
+        const maxPolls = 300;
+        
+        while (progress < 3 && pollCount < maxPolls) {
+            await new Promise(resolve => setTimeout(resolve, 300));
+            pollCount++;
+            
+            const progressRes = await fetch(progressUrl, { headers });
+            if (!progressRes.ok) continue;
+            
+            const progressJson = await progressRes.json();
+            if (progressJson.error > 0) continue;
+            
+            progress = progressJson.progress;
+            if (progressJson.title) {
+                title = progressJson.title;
+            }
+        }
+
+        if (progress < 3) {
+            throw new Error('Conversion process timed out.');
+        }
+
+        return {
+            status: 'success',
+            videoId,
+            title,
+            format: lowerFormat,
+            downloadUrl
+        };
+    } catch (error) {
+        return {
+            status: 'error',
+            message: error?.message || String(error)
+        };
+    }
+}
+
+function cleanName(name = 'file') {
+    return String(name)
+        .replace(/[\\/:*?"<>|]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 150);
+}
+
+// ==================== COMMAND: .CARTOON (ULTRA-FAST SAFE CARTOON DOWNLOAD) ====================
+cmd({
+    pattern: "cartoon",
+    alias: ["playcartoon", "dlcartoon"],
+    desc: "Fast auto search with DP info and download cartoon video as document safely",
+    category: "downloader",
+    react: "🧸",
+    filename: __filename
+}, async (conn, mek, m, extra) => {
+    const { from, text, reply } = extra;
+
+    let tempFile = null;
+
+    try {
+        if (!text) {
             return reply(
-                `⚠️ *FORMAT SALAH!*\n\n` +
-                `📌 *Cara Penggunaan:*\n` +
-                `.vote <Link Postingan Channel> <Pilihan Option>\n\n` +
-                `💡 *Contoh:*\n` +
-                `• .vote https://whatsapp.com/channel/0029Va.../123 1\n` +
-                `• .vote https://whatsapp.com/channel/0029Va.../123 2`
+                `🧸 *KAMRAN-MD CARTOON DOWNLOADER*\n\n` +
+                `❌ *Please provide a cartoon name or YouTube link!*\n\n` +
+                `💡 *Example:* \`.cartoon tom and jerry funny episodes\``
             );
         }
 
-        const channelLink = args[0];
-        const option = args[1];
+        await conn.sendMessage(from, { react: { text: "⚡", key: mek.key } });
 
-        // Ekstrak Channel ID / Code dan Message ID dari Link
-        // Format Link Channel: https://whatsapp.com/channel/CODE/MESSAGE_ID
-        const linkRegex = /whatsapp\.com\/channel\/([A-Za-z0-9]+)\/(\d+)/;
-        const match = channelLink.match(linkRegex);
+        let cartoonUrl = text.trim();
+        let cartoonInfo = null;
 
-        if (!match) {
-            return reply("❌ Link channel tidak valid! Pastikan menyalin link pesan dari dalam channel.");
-        }
+        if (!cartoonUrl.includes("youtube.com") && !cartoonUrl.includes("youtu.be")) {
+            const searchResults = await searchYoutube(cartoonUrl);
+            
+            if (!searchResults || searchResults.length === 0) {
+                await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+                return reply(`❌ No cartoon found for "${cartoonUrl}".`);
+            }
+            
+            cartoonInfo = searchResults[0];
+            cartoonUrl = cartoonInfo.url;
 
-        const channelJid = `${match[1]}@newsletter`;
-        const serverMessageId = match[2];
+            let infoText = `╭──「 *KAMRAN-MD CARTOON INFO* 」\n`;
+            infoText += `│ 🧸 *Title:* ${cartoonInfo.title}\n`;
+            infoText += `│ 👤 *Channel:* ${cartoonInfo.channel}\n`;
+            infoText += `│ ⏱ *Duration:* ${cartoonInfo.duration} | 👁 *Views:* ${cartoonInfo.views}\n`;
+            infoText += `╰─────────────────────────\n\n`;
+            infoText += `_⚡ Fast downloading cartoon securely..._`;
 
-        // Menentukan emoji reaksi berdasarkan opsi 1 atau 2 (Bisa diganti sesuai kebutuhan)
-        let reactionEmoji = "";
-        if (option === "1") {
-            reactionEmoji = "👍"; // Atau emoji angka1 1️⃣
-        } else if (option === "2") {
-            reactionEmoji = "❤️"; // Atau emoji angka2 2️⃣
+            await conn.sendMessage(from, {
+                image: { url: cartoonInfo.thumbnail },
+                caption: infoText
+            }, { quoted: mek });
         } else {
-            return reply("❌ Opsi tidak valid! Pilih angka *1* atau *2*.");
+            await reply('_⚡ Fast downloading cartoon via YMCDN, please wait..._');
         }
 
-        await react("⏳");
+        const res = await scrapeYtmp3(cartoonUrl, 'mp4');
+        if (res.status === 'error') {
+            throw new Error(res.message);
+        }
 
-        // Mengirimkan reaksi langsung ke pesan channel target
-        await conn.sendMessage(channelJid, {
-            react: {
-                text: reactionEmoji,
-                key: {
-                    remoteJid: channelJid,
-                    id: serverMessageId,
-                    fromMe: false
-                }
+        const { title, downloadUrl } = res;
+        const safeTitle = cleanName(title || 'Cartoon');
+
+        tempFile = path.join(os.tmpdir(), `cartoon_${Date.now()}.mp4`);
+        
+        const response = await axios({
+            method: 'GET',
+            url: downloadUrl,
+            responseType: 'stream',
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
+                'Referer': 'https://id.ytmp3.mobi/'
             }
         });
 
-        await react("✅");
-        return reply(
-            `✅ *VOTE BERHASIL DIKIRIM!*\n\n` +
-            `📢 *Channel JID:* \`${channelJid}\`\n` +
-            `🆔 *Message ID:* \`${serverMessageId}\`\n` +
-            `🎯 *Opsi Terpilih:* ${option} (${reactionEmoji})`
-        );
+        const writer = fs.createWriteStream(tempFile);
+        response.data.pipe(writer);
 
-    } catch (error) {
-        console.error("Channel Vote Error:", error);
-        await react("❌");
-        return reply(`❌ Gagal mengirim vote ke channel! Terjadi kesalahan: ${error.message}`);
+        await new Promise((resolve, reject) => {
+            writer.on('finish', resolve);
+            writer.on('error', reject);
+        });
+
+        await conn.sendMessage(from, {
+            document: { url: tempFile },
+            mimetype: 'video/mp4',
+            fileName: `${safeTitle}.mp4`,
+            caption: `🧸 *${title}*\n\n> Powered by KAMRAN-MD`
+        }, { quoted: mek });
+
+        try {
+            if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
+        } catch {}
+        if (global.gc) { global.gc(); }
+
+        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
+
+    } catch (e) {
+        console.error('[CARTOON ERROR]', e);
+        try {
+            if (tempFile && fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
+        } catch {}
+        if (global.gc) { global.gc(); }
+
+        reply(`❌ Error: ${e?.message || e}`);
+        await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
     }
 });
