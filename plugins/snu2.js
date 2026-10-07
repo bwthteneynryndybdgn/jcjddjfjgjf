@@ -9,9 +9,9 @@ const __filename = fileURLToPath(import.meta.url);
 
 cmd({
     pattern: "song11",
-    alias: ["play11", "ytmp311", "audio11", "song10"],
+    alias: ["play10", "ytmp310", "audio10", "song10"],
     react: '🎵',
-    desc: "Download audio from YouTube as MP3 audio",
+    desc: "Download audio from YouTube with audio player and thumbnail preview",
     category: "downloader",
     filename: __filename
 }, async (client, message, m, { 
@@ -83,6 +83,7 @@ cmd({
         const songDuration = videoDetails?.timestamp || data.duration || "Unknown";
         const songViews = videoDetails?.views ? videoDetails.views.toLocaleString() : "Unknown";
         const channelName = videoDetails?.author?.name || data.channel || "Unknown";
+        const thumbnail = videoDetails?.thumbnail || data.thumbnail || "";
 
         // Message caption with full details
         let caption = `*🎵 YOUTUBE AUDIO DOWNLOADER* 🎵\n\n`;
@@ -92,12 +93,22 @@ cmd({
         caption += `*▪ Views:* ${songViews}\n\n`;
         caption += `> ${DESCRIPTION}`;
 
-        // Send as standard MP3 Audio
+        // Send audio with externalAdReply preview card (Thumbnail, Title & Channel)
         const options = {
             audio: { url: audioDownloadUrl },
             mimetype: 'audio/mp4',
-            ptt: false, // false matlab normal audio song ki tarah jayega, true karte toh voice note ban jata
-            caption: caption
+            ptt: false,
+            caption: caption,
+            contextInfo: {
+                externalAdReply: {
+                    title: songTitle,
+                    body: `Channel: ${channelName} | Duration: ${songDuration}`,
+                    mediaType: 2,
+                    thumbnailUrl: thumbnail,
+                    sourceUrl: targetUrl,
+                    renderLargerThumbnail: true
+                }
+            }
         };
 
         await client.sendMessage(from, options, { quoted: message });
