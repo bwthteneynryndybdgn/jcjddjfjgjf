@@ -60,21 +60,31 @@ cmd({
             }
         }
 
-        // Aapki apni API Endpoint with YouTube URL
+        // Aapki API Endpoint
         const apiUrl = `https://techxkamran.vercel.app/api/download/ytmp3?url=${encodeURIComponent(targetUrl)}`;
 
         const response = await axios.get(apiUrl);
         const data = response.data;
 
-        // API response validation (Aapki API ke response format ke mutabiq adjust kiya gaya hai)
-        if (!data || (!data.downloadUrl && !data.download?.downloadUrl && !data.url)) {
+        // Debugging ke liye response terminal/console me print hoga
+        console.log("API Response:", data);
+
+        // Flexible link extraction (Har tarah ke response structure ko support karega)
+        const audioDownloadUrl = data.downloadUrl || 
+                                 data.url || 
+                                 data.dl || 
+                                 data.download?.downloadUrl || 
+                                 data.download?.url || 
+                                 data.result?.downloadUrl || 
+                                 data.result?.url ||
+                                 (typeof data.download === 'string' ? data.download : null);
+
+        if (!audioDownloadUrl) {
             return await client.sendMessage(from, {
-                text: "❌ *Audio download link nahi mil saki!* Kripya dubara koshish karein."
+                text: "❌ *Audio download link nahi mil saki!* (API Response check karein terminal me)"
             }, { quoted: message });
         }
 
-        // Agar aapki API khud title ya download link alag format me deti hai toh ye handle kar lega
-        const audioDownloadUrl = data.downloadUrl || data.download?.downloadUrl || data.url;
         const songTitle = videoDetails?.title || data.title || "YouTube Audio";
         const songDuration = videoDetails?.timestamp || data.duration || "Unknown";
         const songViews = videoDetails?.views ? videoDetails.views.toLocaleString() : "Unknown";
