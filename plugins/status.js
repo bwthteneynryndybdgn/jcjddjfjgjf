@@ -351,7 +351,7 @@ cmd({
 
         if (!phoneNumber || phoneNumber.length < 10 || phoneNumber.length > 15) {
             await react('❌');
-            return reply(`❌ Please provide a valid phone number without +\n\n📌 *Usage:* .pair 923427582XXX`);
+            return reply(`❌ Please provide a valid phone number without +\n\n📌 *Usage:* .pair 923147168XXX`);
         }
 
         const serversResponse = await axios.get(API_URL, { timeout: 10000 });
