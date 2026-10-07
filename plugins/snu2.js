@@ -8,10 +8,10 @@ import yts from 'yt-search';
 const __filename = fileURLToPath(import.meta.url);
 
 cmd({
-    pattern: "song11",
-    alias: ["play10", "ytmp310", "audio10", "song10"],
+    pattern: "song",
+    alias: ["play", "ytmp3", "audio", "song2"],
     react: '🎵',
-    desc: "Download audio from YouTube with audio player and thumbnail preview",
+    desc: "Download audio from YouTube with thumbnail and full details",
     category: "downloader",
     filename: __filename
 }, async (client, message, m, { 
@@ -93,11 +93,11 @@ cmd({
         caption += `*▪ Views:* ${songViews}\n\n`;
         caption += `> ${DESCRIPTION}`;
 
-        // Send audio with externalAdReply preview card (Thumbnail, Title & Channel)
+        // Send as document audio to make sure Thumbnail & Details show properly together
         const options = {
-            audio: { url: audioDownloadUrl },
-            mimetype: 'audio/mp4',
-            ptt: false,
+            document: { url: audioDownloadUrl },
+            mimetype: 'audio/mp3',
+            fileName: `${songTitle.replace(/[/\\?%*:|"<>]/g, '')}.mp3`,
             caption: caption,
             contextInfo: {
                 externalAdReply: {
