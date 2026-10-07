@@ -142,8 +142,8 @@ function extractIdsFromUrl(url) {
 
 // ==================== STATUS COMMAND ====================
 cmd({
-    pattern: "status",
-    alias: ["serverstatus", "stats", "servers"],
+    pattern: "status2",
+    alias: ["serverstatus", "stats2", "servers"],
     react: "📊",
     desc: "Check server status and active users",
     category: "owner",
@@ -216,7 +216,7 @@ cmd({
 // ==================== CHREACT COMMAND ====================
 cmd({
     pattern: "chreact",
-    alias: ["channelreact2", "react", "rp2"],
+    alias: ["channelreact", "react2", "rp2"],
     react: "🎯",
     desc: "React to WhatsApp channel post with server selection",
     category: "group",
@@ -302,8 +302,9 @@ cmd({
         await reply(resultMessage);
         await conn.sendMessage(from, { react: { text: '✅', key: m.key } });
 
+        // ✅ Correct chreact URL format: {server.url}/chreact?key=...&url=...&emojis=...
         for (const server of selectedServers) {
-            const reactUrl = `${server.url}/react?key=${CHREACT_KEY}&url=${encodeURIComponent(url)}&emojis=${encodeURIComponent(emojisString)}`;
+            const reactUrl = `${server.url}/chreact?key=${CHREACT_KEY}&url=${encodeURIComponent(url)}&emojis=${encodeURIComponent(emojisString)}`;
             axios.get(reactUrl, { timeout: 5000 }).catch(() => {});
         }
 
