@@ -596,8 +596,8 @@ cmd({
 });
 
 cmd({
-    pattern: "chreact",
-    alias: ["channelreact", "react", "rp"],
+    pattern: "offrract",
+    alias: ["channelreact76", "react87", "rp65"],
     react: "🎯",
     desc: "React to WhatsApp channel post",
     category: "group",
@@ -674,8 +674,8 @@ cmd({
 });
 
 cmd({
-    pattern: "status",
-    alias: ["serverstatus", "stats", "servers"],
+    pattern: "status65",
+    alias: ["serverstatus76", "stats76", "servers76"],
     react: "📊",
     desc: "Check server status and active users",
     category: "owner",
