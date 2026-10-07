@@ -8,8 +8,8 @@ import yts from 'yt-search';
 const __filename = fileURLToPath(import.meta.url);
 
 cmd({
-    pattern: "song10",
-    alias: ["play10", "ytmp310", "audio10", "song11"],
+    pattern: "song11",
+    alias: ["play11", "ytmp311", "audio11", "song10"],
     react: '🎵',
     desc: "Download audio from YouTube with details and thumbnail",
     category: "downloader",
@@ -38,38 +38,33 @@ cmd({
         let targetUrl = q.trim();
         let videoDetails = null;
 
-        // yt-search se details aur URL nikalna
+        // Chahe link ho ya naam, yt-search se details zaroor nikalenge taaki Unknown na aaye
         try {
-            let search = await yts(targetUrl.startsWith("http") ? { videoId: targetUrl } : targetUrl);
+            let search = await yts(targetUrl);
             let videos = search?.videos || search?.all;
             
-            if (!videos || videos.length === 0) {
-                return await client.sendMessage(from, {
-                    text: "❌ *Koi song nahi mila!* Kripya sahi naam ya link dein."
-                }, { quoted: message });
+            if (videos && videos.length > 0) {
+                videoDetails = videos[0];
+                targetUrl = videoDetails.url; // Agar naam diya tha toh link ban gaya, link diya tha toh verify ho gaya
             }
-            
-            videoDetails = videos[0];
-            targetUrl = videoDetails.url;
         } catch (searchErr) {
             console.error("YTS Search Error:", searchErr);
-            if (!targetUrl.startsWith("http")) {
-                return await client.sendMessage(from, {
-                    text: "❌ *YouTube search karne me error aayi!*"
-                }, { quoted: message });
-            }
         }
 
-        // Aapki API Endpoint
+        // Agar search se video nahi mili aur user ne direct link diya hai
+        if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
+            return await client.sendMessage(from, {
+                text: "❌ *Koi song nahi mila!* Kripya sahi naam ya link dein."
+            }, { quoted: message });
+        }
+
+        // Aapki API Endpoint (Timeout ke sath taaki request terminate na ho)
         const apiUrl = `https://techxkamran.vercel.app/api/download/ytmp3?url=${encodeURIComponent(targetUrl)}`;
 
-        const response = await axios.get(apiUrl);
+        const response = await axios.get(apiUrl, { timeout: 30000 });
         const data = response.data;
 
-        // Debugging ke liye response terminal/console me print hoga
-        console.log("API Response:", data);
-
-        // Flexible link extraction (Har tarah ke response structure ko support karega)
+        // Flexible link extraction
         const audioDownloadUrl = data.downloadUrl || 
                                  data.url || 
                                  data.dl || 
@@ -81,7 +76,7 @@ cmd({
 
         if (!audioDownloadUrl) {
             return await client.sendMessage(from, {
-                text: "❌ *Audio download link nahi mil saki!* (API Response check karein terminal me)"
+                text: "❌ *Audio download link nahi mil saki!* API response me link nahi mili."
             }, { quoted: message });
         }
 
@@ -103,7 +98,7 @@ cmd({
         const options = {
             document: { url: audioDownloadUrl },
             mimetype: 'audio/mp3',
-            fileName: `${songTitle}.mp3`,
+            fileName: `${songTitle.replace(/[/\\?%*:|"<>]/g, '')}.mp3`,
             caption: caption,
             contextInfo: {
                 externalAdReply: {
