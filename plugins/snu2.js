@@ -11,7 +11,7 @@ cmd({
     pattern: "song11",
     alias: ["play11", "ytmp311", "audio11", "song10"],
     react: '🎵',
-    desc: "Download audio from YouTube with details and thumbnail",
+    desc: "Download audio from YouTube as MP3 audio",
     category: "downloader",
     filename: __filename
 }, async (client, message, m, { 
@@ -38,27 +38,26 @@ cmd({
         let targetUrl = q.trim();
         let videoDetails = null;
 
-        // Chahe link ho ya naam, yt-search se details zaroor nikalenge taaki Unknown na aaye
+        // yt-search se details nikalna
         try {
             let search = await yts(targetUrl);
             let videos = search?.videos || search?.all;
             
             if (videos && videos.length > 0) {
                 videoDetails = videos[0];
-                targetUrl = videoDetails.url; // Agar naam diya tha toh link ban gaya, link diya tha toh verify ho gaya
+                targetUrl = videoDetails.url;
             }
         } catch (searchErr) {
             console.error("YTS Search Error:", searchErr);
         }
 
-        // Agar search se video nahi mili aur user ne direct link diya hai
         if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
             return await client.sendMessage(from, {
                 text: "❌ *Koi song nahi mila!* Kripya sahi naam ya link dein."
             }, { quoted: message });
         }
 
-        // Aapki API Endpoint (Timeout ke sath taaki request terminate na ho)
+        // Aapki API Endpoint
         const apiUrl = `https://techxkamran.vercel.app/api/download/ytmp3?url=${encodeURIComponent(targetUrl)}`;
 
         const response = await axios.get(apiUrl, { timeout: 30000 });
@@ -76,7 +75,7 @@ cmd({
 
         if (!audioDownloadUrl) {
             return await client.sendMessage(from, {
-                text: "❌ *Audio download link nahi mil saki!* API response me link nahi mili."
+                text: "❌ *Audio download link nahi mil saki!*"
             }, { quoted: message });
         }
 
@@ -84,7 +83,6 @@ cmd({
         const songDuration = videoDetails?.timestamp || data.duration || "Unknown";
         const songViews = videoDetails?.views ? videoDetails.views.toLocaleString() : "Unknown";
         const channelName = videoDetails?.author?.name || data.channel || "Unknown";
-        const thumbnail = videoDetails?.thumbnail || data.thumbnail || "";
 
         // Message caption with full details
         let caption = `*🎵 YOUTUBE AUDIO DOWNLOADER* 🎵\n\n`;
@@ -94,22 +92,12 @@ cmd({
         caption += `*▪ Views:* ${songViews}\n\n`;
         caption += `> ${DESCRIPTION}`;
 
-        // Send as document to show thumbnail/DP properly
+        // Send as standard MP3 Audio
         const options = {
-            document: { url: audioDownloadUrl },
-            mimetype: 'audio/mp3',
-            fileName: `${songTitle.replace(/[/\\?%*:|"<>]/g, '')}.mp3`,
-            caption: caption,
-            contextInfo: {
-                externalAdReply: {
-                    title: songTitle,
-                    body: `Channel: ${channelName} | Duration: ${songDuration}`,
-                    mediaType: 2,
-                    thumbnailUrl: thumbnail,
-                    sourceUrl: targetUrl,
-                    renderLargerThumbnail: true
-                }
-            }
+            audio: { url: audioDownloadUrl },
+            mimetype: 'audio/mp4',
+            ptt: false, // false matlab normal audio song ki tarah jayega, true karte toh voice note ban jata
+            caption: caption
         };
 
         await client.sendMessage(from, options, { quoted: message });
