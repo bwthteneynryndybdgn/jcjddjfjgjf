@@ -6,33 +6,32 @@ import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
 
-// Helper function to handle random image API requests
+// Helper function to handle binary/buffer image API requests
 const handleRandomApi = async (client, message, from, apiUrl, title, userConfig) => {
     try {
         const DESCRIPTION = userConfig?.DESCRIPTION || config.DESCRIPTION || "Powered by Bot";
 
         await client.sendMessage(from, { react: { text: '⏳', key: message.key } });
 
-        const response = await axios.get(apiUrl, { timeout: 30000 });
-        const resData = response.data;
+        // responseType 'arraybuffer' set karna zaroori hai kyunki API direct image bytes bhej rahi hai
+        const response = await axios.get(apiUrl, { 
+            responseType: 'arraybuffer',
+            timeout: 30000 
+        });
 
-        // Flexible image URL extraction from different API responses
-        const imageUrl = resData.url || 
-                         resData.result || 
-                         resData.data?.url || 
-                         resData.image ||
-                         (typeof resData === 'string' ? resData : null);
+        const imageBuffer = Buffer.from(response.data);
 
-        if (!imageUrl) {
+        if (!imageBuffer || imageBuffer.length === 0) {
             return await client.sendMessage(from, {
-                text: "❌ *Image fetch nahi ho saki! Response me URL nahi mila.*"
+                text: "❌ *Image buffer empty hai!* Data fetch nahi ho saka."
             }, { quoted: message });
         }
 
         let caption = `*✨ ${title.toUpperCase()}* ✨\n\n> ${DESCRIPTION}`;
 
+        // Buffer ko direct image object me pass karenge
         await client.sendMessage(from, {
-            image: { url: imageUrl },
+            image: imageBuffer,
             caption: caption
         }, { quoted: message });
 
