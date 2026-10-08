@@ -1,172 +1,96 @@
+// plugins/insta.js - ESM Version
 import { fileURLToPath } from 'url';
-import axios from 'axios';
 import { cmd } from '../command.js';
+import config from '../config.js';
+import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
 
-// --- COMMAND 1: igdl ---
 cmd({
-    pattern: "igdl",
-    alias: ["instagram", "insta", "ig"],
-    react: "⬇️",
-    desc: "Download Instagram videos/reels",
-    category: "download",
-    use: ".igdl <Instagram URL>",
+    pattern: "insta",
+    alias: ["instagram", "ig", "igdl"],
+    react: '📥',
+    desc: "Download video or photo from Instagram using Link",
+    category: "downloader",
     filename: __filename
-}, async (conn, mek, m, { from, reply, args, q }) => {
+}, async (client, message, m, { 
+    from, 
+    prefix, 
+    command, 
+    args, 
+    q, 
+    isCreator,
+    userConfig
+}) => {
     try {
-        const url = q || m.quoted?.text;
-        if (!url || !url.includes("instagram.com")) {
-            return reply("❌ Please provide/reply to an Instagram link");
+        if (!q) {
+            return await client.sendMessage(from, {
+                text: `*🍁 Please provide an Instagram link!*\n\n*Example:* ${prefix + command} https://www.instagram.com/reel/...`
+            }, { quoted: message });
         }
 
-        // Show processing reaction
-        await conn.sendMessage(from, { react: { text: '⏳', key: m.key } });
+        const DESCRIPTION = userConfig?.DESCRIPTION || config.DESCRIPTION || "Powered by Bot";
 
-        // Fetch from API
-        const apiUrl = `https://api-aswin-sparky.koyeb.app/api/downloader/igdl?url=${encodeURIComponent(url)}`;
-        const response = await axios.get(apiUrl);
+        // Initial reaction
+        await client.sendMessage(from, { react: { text: '⏳', key: message.key } });
 
-        if (!response.data?.status || !response.data.data?.length) {
-            await conn.sendMessage(from, { react: { text: '❌', key: m.key } });
-            return reply("Failed to fetch media. Invalid link or private content.");
+        let targetUrl = q.trim();
+
+        if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
+            return await client.sendMessage(from, {
+                text: "❌ *Kripya ek valid Instagram link dein!*"
+            }, { quoted: message });
         }
 
-        // Send all media items
-        for (const item of response.data.data) {
-            await conn.sendMessage(from, {
-                [item.type === 'video' ? 'video' : 'image']: { url: item.url },
-                caption: `📶 *Instagram Downloader*\n\n` +
-        `- ❤‍🩹 *Quality*: HD\n\n` +
-        `> *© Powered by DR KAMRAN*`
-            }, { quoted: mek });
+        // Aapki Instagram API Endpoint
+        const apiUrl = `https://techxkamran.vercel.app/api/download/instagram?url=${encodeURIComponent(targetUrl)}`;
+
+        const response = await axios.get(apiUrl, { timeout: 30000 });
+        const resData = response.data;
+
+        // API response validation & correct path extraction based on your JSON format
+        if (!resData || resData.status !== 200 || !resData.result || !resData.result.items || resData.result.items.length === 0) {
+            return await client.sendMessage(from, {
+                text: "❌ *Instagram media ki download link nahi mil saki!*"
+            }, { quoted: message });
         }
 
-        // Success reaction
-        await conn.sendMessage(from, { react: { text: '✅', key: m.key } });
+        const mediaItem = resData.result.items[0];
+        const downloadUrl = mediaItem.download_url;
+
+        if (!downloadUrl) {
+            return await client.sendMessage(from, {
+                text: "❌ *Media download URL empty hai!*"
+            }, { quoted: message });
+        }
+
+        // Message caption
+        let caption = `*📥 INSTAGRAM DOWNLOADER* 📥\n\n`;
+        caption += `> ${DESCRIPTION}`;
+
+        // Send Media (Video or Image)
+        const isImage = mediaItem.media_type === "image" || (typeof downloadUrl === 'string' && (downloadUrl.includes('.jpg') || downloadUrl.includes('.png') || downloadUrl.includes('.jpeg')));
+
+        if (isImage) {
+            await client.sendMessage(from, {
+                image: { url: downloadUrl },
+                caption: caption
+            }, { quoted: message });
+        } else {
+            await client.sendMessage(from, {
+                video: { url: downloadUrl },
+                caption: caption,
+                mimetype: 'video/mp4'
+            }, { quoted: message });
+        }
+
+        await client.sendMessage(from, { react: { text: '✅', key: message.key } });
 
     } catch (error) {
-        console.error('IGDL Error:', error);
-        await conn.sendMessage(from, { react: { text: '❌', key: m.key } });
-        reply("❌ Download failed. Try again later.");
-    }
-});
-
-// --- COMMAND 2: igdl2 ---
-cmd({
-  pattern: "igdl2",
-  alias: ["instagram2", "ig2", "instadl2"],
-  react: '📥',
-  desc: "Download videos from Instagram (API v5)",
-  category: "download",
-  use: ".igdl5 <Instagram video URL>",
-  filename: __filename
-}, async (conn, mek, m, { from, reply, args }) => {
-  try {
-    const igUrl = args[0];
-    if (!igUrl || !igUrl.includes("instagram.com")) {
-      return reply('❌ Please provide a valid Instagram video URL.\n\nExample:\n.igdl5 https://instagram.com/reel/...');
-    }
-
-    await conn.sendMessage(from, { react: { text: '⏳', key: m.key } });
-
-    const apiUrl = `https://jawad-tech.vercel.app/downloader?url=${encodeURIComponent(igUrl)}`;
-    const response = await axios.get(apiUrl);
-
-    const data = response.data;
-
-    if (!data.status || !data.result || !Array.isArray(data.result)) {
-      return reply('❌ Unable to fetch the video. Please check the URL and try again.');
-    }
-
-    const videoUrl = data.result[0];
-    if (!videoUrl) return reply("❌ No video found in the response.");
-
-    const metadata = data.metadata || {};
-    const author = metadata.author || "Unknown";
-    const caption = metadata.caption ? metadata.caption.slice(0, 300) + "..." : "No caption provided.";
-    const likes = metadata.like || 0;
-    const comments = metadata.comment || 0;
-
-    await reply('Downloading Instagram video...Please wait.📥');
-
-    await conn.sendMessage(from, {
-      video: { url: videoUrl },
-      caption: `📥 *Instagram Reel Downloader*\n👤 *Author:* ${author}\n💬 *Caption:* ${caption}\n❤️ *Likes:* ${likes} | 💭 *Comments:* ${comments}\n\n> Powered By KAMRAN-MD 💜`
-    }, { quoted: mek });
-
-    await conn.sendMessage(from, { react: { text: '✅', key: m.key } });
-  } catch (error) {
-    console.error('IGDL5 Error:', error);
-    reply('❌ Failed to download the Instagram video. Please try again later.');
-    await conn.sendMessage(from, { react: { text: '❌', key: m.key } });
-  }
-});
-
-// --- COMMAND 3: igdl3 ---
-cmd({
-    pattern: "igdl3",
-    alias: ["instagram3", "insta3", "ig3"],
-    react: "⬇️",
-    desc: "Download Instagram posts, reels, and stories",
-    category: "download",
-    use: ".igdl <Instagram URL>",
-    filename: __filename
-}, async (conn, mek, m, { from, reply, args, q }) => {
-    try {
-        const url = q || m.quoted?.text;
-        if (!url || !url.includes("instagram.com")) {
-            return reply("❌ Please provide/reply to a valid Instagram link");
-        }
-
-        // Show processing reaction  
-        await conn.sendMessage(from, { react: { text: '⏳', key: m.key } });  
-
-        // Fetch from your API  
-        const apiUrl = `https://jawad-tech.vercel.app/igdl?url=${encodeURIComponent(url)}`;
-        const response = await axios.get(apiUrl);
-
-        if (!response.data?.status || !response.data.result?.length) {
-            await conn.sendMessage(from, { react: { text: '❌', key: m.key } });
-            return reply("❌ Failed to fetch media. Invalid link or private content.");
-        }
-
-        const mediaData = response.data.result;
-
-        // Send all media items
-        for (const item of mediaData) {
-            const isVideo = item.contentType?.includes('video') || item.format === 'mp4';
-            
-            if (isVideo) {
-                await conn.sendMessage(from, {
-                    video: { url: item.url },
-                    caption: `📱 *Instagram Downloader*\n\n` +
-                        `📹 *Type*: Video\n` +
-                        `💾 *Size*: ${(item.size / 1024 / 1024).toFixed(2)} MB\n` +
-                        `🎞️ *Format*: ${item.format}\n\n` +
-                        `> *© Powered by DR KAMRAN*`
-                }, { quoted: mek });
-            } else {
-                await conn.sendMessage(from, {
-                    image: { url: item.url },
-                    caption: `📱 *Instagram Downloader*\n\n` +
-                        `🖼️ *Type*: Image\n` +
-                        `💾 *Size*: ${(item.size / 1024).toFixed(2)} KB\n` +
-                        `🎨 *Format*: ${item.format}\n\n` +
-                        `> *© Powered by KAMRAN-MD*`
-                }, { quoted: mek });
-            }
-            
-            // Small delay between sends to avoid rate limiting
-            await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-
-        // Success reaction
-        await conn.sendMessage(from, { react: { text: '✅', key: m.key } });
-
-    } catch (error) {
-        console.error('IGDL Error:', error);
-        await conn.sendMessage(from, { react: { text: '❌', key: m.key } });
-        reply("❌ Download failed. Please check the link and try again.");
+        console.error("Instagram Download Error:", error);
+        let errorMsg = error?.message || error;
+        await client.sendMessage(from, {
+            text: "❌ Error downloading Instagram media:\n" + errorMsg
+        }, { quoted: message });
     }
 });
