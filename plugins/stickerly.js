@@ -25,7 +25,7 @@ cmd({
     try {
         if (!q) {
             return await client.sendMessage(from, {
-                text: `*🍁 Please provide a search query for stickers!*\n\n*Example:* ${prefix + command} cute love`
+                text: `*🍁 Please provide a search query for stickers!*\n\n*Example:* ${prefix + command} cat`
             }, { quoted: message });
         }
 
@@ -34,36 +34,30 @@ cmd({
         // Initial reaction
         await client.sendMessage(from, { react: { text: '⏳', key: message.key } });
 
-        // Stickerly Search API Endpoint
+        // Aapki Stickerly Search API Endpoint
         const apiUrl = `https://techxkamran.vercel.app/api/sticker/stickerly-search?query=${encodeURIComponent(q.trim())}`;
 
         const response = await axios.get(apiUrl, { timeout: 30000 });
         const resData = response.data;
 
-        // API response validation
-        if (!resData || (!resData.result && !resData.data && !Array.isArray(resData))) {
+        // API response validation based on your JSON format (resData.data)
+        if (!resData || !resData.status || !resData.data || !Array.isArray(resData.data) || resData.data.length === 0) {
             return await client.sendMessage(from, {
                 text: "❌ *Koi sticker pack nahi mila!* Kripya dusra naam try karein."
             }, { quoted: message });
         }
 
-        const stickerPacks = resData.result || resData.data || resData;
+        const stickerPacks = resData.data;
 
-        if (!Array.isArray(stickerPacks) || stickerPacks.length === 0) {
-            return await client.sendMessage(from, {
-                text: "❌ *Is query par koi stickers available nahi hain!*"
-            }, { quoted: message });
-        }
-
-        // Format search results
+        // Format search results (Top 5 packs)
         let textMessage = `*✨ STICKERLY SEARCH RESULTS* ✨\n\n`;
         textMessage += `*Query:* ${q}\n\n`;
 
         stickerPacks.slice(0, 5).forEach((pack, index) => {
-            textMessage += `*${index + 1}.* ${pack.title || pack.name || "Sticker Pack"}\n`;
-            if (pack.author) textMessage += `   *Author:* ${pack.author}\n`;
-            if (pack.link || pack.url) textMessage += `   *Link:* ${pack.link || pack.url}\n`;
-            textMessage += `\n`;
+            textMessage += `*${index + 1}.* ${pack.name}\n`;
+            textMessage += `   *Author:* ${pack.author}\n`;
+            textMessage += `   *Stickers:* ${pack.stickerCount} | *Views:* ${pack.viewCount?.toLocaleString() || 0}\n`;
+            textMessage += `   *Link:* ${pack.url}\n\n`;
         });
 
         textMessage += `> ${DESCRIPTION}`;
