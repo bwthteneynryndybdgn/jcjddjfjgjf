@@ -1,4 +1,4 @@
-// plugins/stickerly.js - ESM Version
+// plugins/random.js - ESM Version
 import { fileURLToPath } from 'url';
 import { cmd } from '../command.js';
 import config from '../config.js';
@@ -6,70 +6,114 @@ import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
 
-cmd({
-    pattern: "stickerly",
-    alias: ["stickersearch", "ssearch", "searchsticker"],
-    react: '✨',
-    desc: "Search sticker packs from Stickerly",
-    category: "search",
-    filename: __filename
-}, async (client, message, m, { 
-    from, 
-    prefix, 
-    command, 
-    args, 
-    q, 
-    isCreator,
-    userConfig
-}) => {
+// Helper function to handle random image API requests
+const handleRandomApi = async (client, message, from, apiUrl, title, userConfig) => {
     try {
-        if (!q) {
-            return await client.sendMessage(from, {
-                text: `*🍁 Please provide a search query for stickers!*\n\n*Example:* ${prefix + command} cat`
-            }, { quoted: message });
-        }
-
         const DESCRIPTION = userConfig?.DESCRIPTION || config.DESCRIPTION || "Powered by Bot";
 
-        // Initial reaction
         await client.sendMessage(from, { react: { text: '⏳', key: message.key } });
-
-        // Aapki Stickerly Search API Endpoint
-        const apiUrl = `https://techxkamran.vercel.app/api/sticker/stickerly-search?query=${encodeURIComponent(q.trim())}`;
 
         const response = await axios.get(apiUrl, { timeout: 30000 });
         const resData = response.data;
 
-        // API response validation based on your JSON format (resData.data)
-        if (!resData || !resData.status || !resData.data || !Array.isArray(resData.data) || resData.data.length === 0) {
+        // Flexible image URL extraction from different API responses
+        const imageUrl = resData.url || 
+                         resData.result || 
+                         resData.data?.url || 
+                         resData.image ||
+                         (typeof resData === 'string' ? resData : null);
+
+        if (!imageUrl) {
             return await client.sendMessage(from, {
-                text: "❌ *Koi sticker pack nahi mila!* Kripya dusra naam try karein."
+                text: "❌ *Image fetch nahi ho saki! Response me URL nahi mila.*"
             }, { quoted: message });
         }
 
-        const stickerPacks = resData.data;
+        let caption = `*✨ ${title.toUpperCase()}* ✨\n\n> ${DESCRIPTION}`;
 
-        // Format search results (Top 5 packs)
-        let textMessage = `*✨ STICKERLY SEARCH RESULTS* ✨\n\n`;
-        textMessage += `*Query:* ${q}\n\n`;
+        await client.sendMessage(from, {
+            image: { url: imageUrl },
+            caption: caption
+        }, { quoted: message });
 
-        stickerPacks.slice(0, 5).forEach((pack, index) => {
-            textMessage += `*${index + 1}.* ${pack.name}\n`;
-            textMessage += `   *Author:* ${pack.author}\n`;
-            textMessage += `   *Stickers:* ${pack.stickerCount} | *Views:* ${pack.viewCount?.toLocaleString() || 0}\n`;
-            textMessage += `   *Link:* ${pack.url}\n\n`;
-        });
-
-        textMessage += `> ${DESCRIPTION}`;
-
-        await client.sendMessage(from, { text: textMessage }, { quoted: message });
         await client.sendMessage(from, { react: { text: '✅', key: message.key } });
 
     } catch (error) {
-        console.error("Stickerly Search Error:", error);
-        let errorMsg = error?.message || error;
+        console.error(`${title} Error:`, error);
         await client.sendMessage(from, {
-            text: "❌ Error searching stickers:\n" + errorMsg
+            text: "❌ Error fetching image:\n" + (error?.message || error)
         }, { quoted: message });
     }
+};
+
+// 1. Cecan Indo
+cmd({
+    pattern: "indo",
+    alias: ["cecanindo"],
+    react: '📸',
+    desc: "Get random Indo Cecan image",
+    category: "random",
+    filename: __filename
+}, async (client, message, m, { from, userConfig }) => {
+    await handleRandomApi(client, message, from, "https://techxkamran.onrender.com/api/random/cecan_indo", "Indo Cecan", userConfig);
+});
+
+// 2. Cecan Thailand
+cmd({
+    pattern: "thailand",
+    alias: ["cecanthailand", "thai"],
+    react: '📸',
+    desc: "Get random Thailand Cecan image",
+    category: "random",
+    filename: __filename
+}, async (client, message, m, { from, userConfig }) => {
+    await handleRandomApi(client, message, from, "https://techxkamran.onrender.com/api/random/cecan_thailand", "Thailand Cecan", userConfig);
+});
+
+// 3. Cecan China
+cmd({
+    pattern: "china",
+    alias: ["cecanchina"],
+    react: '📸',
+    desc: "Get random China Cecan image",
+    category: "random",
+    filename: __filename
+}, async (client, message, m, { from, userConfig }) => {
+    await handleRandomApi(client, message, from, "https://techxkamran.onrender.com/api/random/cecan_china", "China Cecan", userConfig);
+});
+
+// 4. Cecan Jepang
+cmd({
+    pattern: "japan",
+    alias: ["cecanjepang", "jepang"],
+    react: '📸',
+    desc: "Get random Japan Cecan image",
+    category: "random",
+    filename: __filename
+}, async (client, message, m, { from, userConfig }) => {
+    await handleRandomApi(client, message, from, "https://techxkamran.onrender.com/api/random/cecan_jepang", "Japan Cecan", userConfig);
+});
+
+// 5. Blue Archive
+cmd({
+    pattern: "bluearchive",
+    alias: ["ba", "blue-archive"],
+    react: '🎨',
+    desc: "Get random Blue Archive wallpaper/image",
+    category: "anime",
+    filename: __filename
+}, async (client, message, m, { from, userConfig }) => {
+    await handleRandomApi(client, message, from, "https://techxkamran.onrender.com/api/r/blue-archive", "Blue Archive", userConfig);
+});
+
+// 6. Cats
+cmd({
+    pattern: "randomcat",
+    alias: ["rcats", "catpic"],
+    react: '🐱',
+    desc: "Get random cat image",
+    category: "random",
+    filename: __filename
+}, async (client, message, m, { from, userConfig }) => {
+    await handleRandomApi(client, message, from, "https://techxkamran.onrender.com/api/r/cats", "Random Cat", userConfig);
 });
