@@ -30,13 +30,12 @@ async function tryRequest(getter, attempts = 3) {
     throw lastError;
 }
 
-// Rebix API Integration (Primary Source)
+// Rebix API Integration
 async function getRebixVideoByUrl(youtubeUrl) {
     const apiUrl = `https://api-rebix.vercel.app/api/ytv?url=${encodeURIComponent(youtubeUrl)}`;
     const res = await tryRequest(() => axios.get(apiUrl, AXIOS_DEFAULTS));
     const data = res?.data;
     
-    // Response validation based on your JSON structure
     const downloadUrl = data?.results?.downloadUrl || data?.results?.[0]?.downloadUrl;
     
     if (data?.status && downloadUrl) {
@@ -52,7 +51,7 @@ cmd({
     pattern: "video",
     alias: ["ytmp4", "vids", "ytv"],
     react: '📥',
-    desc: "Download YouTube videos via Rebix API as document (1GB+ support)",
+    desc: "Download YouTube videos via Rebix API as direct video message",
     category: "downloader",
     filename: __filename
 }, async (client, message, m, { 
@@ -120,11 +119,10 @@ cmd({
 
         const finalTitle = videoData.title || videoTitle;
 
-        // Send as Document to support large files safely (1GB+)
+        // Send as Direct Video Message
         await client.sendMessage(from, {
-            document: { url: videoData.download },
+            video: { url: videoData.download },
             mimetype: 'video/mp4',
-            fileName: `${finalTitle.replace(/[^\w\s-]/g, '').substring(0, 100)}.mp4`,
             caption: `*${finalTitle}*\n\n> *${DESCRIPTION}*`,
             contextInfo: {
                 externalAdReply: {
