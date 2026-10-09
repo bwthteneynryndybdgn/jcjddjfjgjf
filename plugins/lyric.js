@@ -3,6 +3,7 @@ import { fileURLToPath } from 'url';
 import { cmd } from '../command.js';
 import config from '../config.js';
 import axios from 'axios';
+import yts from 'yt-search';
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -39,20 +40,19 @@ cmd({
         });
 
         // =========================
-        // 🔎 SEARCH API
+        // 🔎 SEARCH VIA YT-SEARCH (Reliable)
         // =========================
-        const searchApi = `https://www.movanest.xyz/v2/ytsearch?query=${encodeURIComponent(text)}`;
-        const searchRes = await axios.get(searchApi);
+        const searchResults = await yts(text);
+        const videos = searchResults?.videos || searchResults?.all;
 
-        const video = searchRes.data?.result?.[0];
-
-        if (!video) {
+        if (!videos || videos.length === 0) {
             return await client.sendMessage(from, {
                 text: "❌ Song not found!"
             }, { quoted: message });
         }
 
-        const videoUrl = video.url || video.link;
+        const video = videos[0];
+        const videoUrl = video.url;
 
         // =========================
         // UI MESSAGE
@@ -61,7 +61,7 @@ cmd({
 ╭───「 🎧 ${BOT_NAME} 」───◆
 │
 │ 🎵 Title : ${video.title}
-│ ⏱️ Duration : ${video.duration}
+│ ⏱️ Duration : ${video.timestamp}
 │ 👁️ Views : ${video.views}
 │
 ╰────────────────────◆
