@@ -7,10 +7,10 @@ import axios from 'axios';
 const __filename = fileURLToPath(import.meta.url);
 
 cmd({
-    pattern: "song",
-    alias: ["play", "ytmp3", "audio", "song2"],
+    pattern: "song1",
+    alias: ["play1", "ytmp31", "audio1", "song2"],
     react: '🎵',
-    desc: "Download lightweight audio from YouTube using Nexray API",
+    desc: "Download lightweight audio from YouTube using",
     category: "downloader",
     filename: __filename
 }, async (client, message, m, { 
