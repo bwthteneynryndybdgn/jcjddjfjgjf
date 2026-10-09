@@ -7,8 +7,8 @@ import axios from 'axios';
 const __filename = fileURLToPath(import.meta.url);
 
 cmd({
-    pattern: "song1",
-    alias: ["play1", "ytmp31", "audio1", "song2"],
+    pattern: "song",
+    alias: ["play", "ytmp3", "audio", "song2"],
     react: '🎵',
     desc: "Download lightweight audio from YouTube using Nexray API",
     category: "downloader",
@@ -42,7 +42,7 @@ cmd({
         const response = await axios.get(apiUrl, { timeout: 30000 });
         const resData = response.data;
 
-        // API response validation & correct path extraction
+        // API response validation
         if (!resData || !resData.status || !resData.result || !resData.result.download_url) {
             return await client.sendMessage(from, {
                 text: "❌ *Koi song nahi mila!* Kripya dusra naam try karein."
@@ -66,9 +66,20 @@ cmd({
         caption += `*▪ Views:* ${songViews}\n\n`;
         caption += `> ${DESCRIPTION}`;
 
-        // Send as standard lightweight MP3 audio message with preview card
+        // Stream error fix: Audio ko pehle buffer me download karenge
+        const audioBufferRes = await axios.get(audioDownloadUrl, { 
+            responseType: 'arraybuffer',
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+            },
+            timeout: 60000 
+        });
+
+        const audioBuffer = Buffer.from(audioBufferRes.data);
+
+        // Send audio buffer directly
         const options = {
-            audio: { url: audioDownloadUrl },
+            audio: audioBuffer,
             mimetype: 'audio/mp4',
             ptt: false,
             caption: caption,
