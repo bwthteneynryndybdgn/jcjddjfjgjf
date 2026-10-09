@@ -7,8 +7,8 @@ const __filename = fileURLToPath(import.meta.url);
 
 cmd({
     pattern: "play1",
-    alias: ["ytplay1", "song1", "plays", "song2"],
-    desc: "Search and download songs from YouTube via Nexray API",
+    alias: ["ytplay1", "song1", "plays1", "song2"],
+    desc: "Search and download songs from YouTube via Nexray API (Buffer Fix)",
     category: "downloader",
     react: "🎵",
     filename: __filename
@@ -39,7 +39,7 @@ cmd({
         }
 
         const info = resData.result;
-        const audioUrl = info.download_url; // Nexray API key
+        const audioUrl = info.download_url;
         const title = info.title || text;
         const thumbnail = info.thumbnail || '';
         const duration = info.duration || '';
@@ -54,7 +54,7 @@ cmd({
         let caption = `🎶 *Title:* ${title}\n`;
         if (author) caption += `👤 *Artist/Channel:* ${author}\n`;
         if (duration) caption += `⏱️ *Duration:* ${duration}\n`;
-        caption += `📁 *Status:* Downloading audio...`;
+        caption += `📁 *Status:* Downloading audio buffer...`;
 
         // Send thumbnail and details first
         if (thumbnail) {
@@ -66,9 +66,20 @@ cmd({
             await reply(caption);
         }
 
-        // Send the audio file using direct mp3 link
+        // Stream error fix: Audio file ko pehle buffer me download karenge
+        const audioBufferRes = await axios.get(audioUrl, {
+            responseType: 'arraybuffer',
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+            },
+            timeout: 60000
+        });
+
+        const audioBuffer = Buffer.from(audioBufferRes.data);
+
+        // Send the audio file using Buffer
         await conn.sendMessage(from, {
-            audio: { url: audioUrl },
+            audio: audioBuffer,
             mimetype: 'audio/mp4',
             ptt: false
         }, { quoted: mek });
