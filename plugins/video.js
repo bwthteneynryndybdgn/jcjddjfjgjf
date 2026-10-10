@@ -98,12 +98,12 @@ cmd({
     }
 });
 
-// 2. Drama Command (As Document)
+// 2. Drama Command (As Document with Thumbnail & Details)
 cmd({
     pattern: "drama",
     alias: ["pakdrama", "serial", "episodes"],
     react: '📁',
-    desc: "Download Dramas and Episodes as Document File",
+    desc: "Download Dramas and Episodes as Document File with details",
     category: "downloader",
     filename: __filename
 }, async (client, message, m, { from, prefix, command, q, userConfig }) => {
@@ -141,6 +141,14 @@ cmd({
             dramaThumbnail = videos[0].thumbnail;
         }
 
+        // Pehle thumbnail aur detail wala message bheje ga
+        if (dramaThumbnail) {
+            await client.sendMessage(from, {
+                image: { url: dramaThumbnail },
+                caption: `📁 Preparing Drama Document:\n*${dramaTitle}*`
+            }, { quoted: message });
+        }
+
         const apiUrl = `https://api-rebix.vercel.app/api/ytv?url=${encodeURIComponent(dramaUrl)}`;
         const res = await tryRequest(() => axios.get(apiUrl, AXIOS_DEFAULTS));
         const data = res?.data;
@@ -152,6 +160,7 @@ cmd({
 
         const finalTitle = data?.results?.title || dramaTitle;
 
+        // Phir document file bhejega
         await client.sendMessage(from, {
             document: { url: downloadUrl },
             mimetype: 'video/mp4',
