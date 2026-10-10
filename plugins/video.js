@@ -1,1 +1,220 @@
-const _0x376f84=_0x54b7;(function(_0x17a266,_0x5207ef){const _0x1a577c=_0x54b7,_0x268864=_0x17a266();while(!![]){try{const _0x4f302c=parseInt(_0x1a577c(0x1da))/0x1*(parseInt(_0x1a577c(0x205))/0x2)+-parseInt(_0x1a577c(0x1ff))/0x3*(-parseInt(_0x1a577c(0x1dc))/0x4)+parseInt(_0x1a577c(0x1ca))/0x5+-parseInt(_0x1a577c(0x211))/0x6+-parseInt(_0x1a577c(0x20f))/0x7+parseInt(_0x1a577c(0x1ec))/0x8+-parseInt(_0x1a577c(0x1e4))/0x9;if(_0x4f302c===_0x5207ef)break;else _0x268864['push'](_0x268864['shift']());}catch(_0x5ac5ac){_0x268864['push'](_0x268864['shift']());}}}(_0x1de5,0x3ab6c));import{fileURLToPath}from'\x75\x72\x6c';import{cmd}from'\x2e\x2e\x2f\x63\x6f\x6d\x6d\x61\x6e\x64\x2e\x6a\x73';import _0x5ed106 from'\x2e\x2e\x2f\x63\x6f\x6e\x66\x69\x67\x2e\x6a\x73';import _0x3281ff from'\x61\x78\x69\x6f\x73';import _0x2b25a5 from'\x79\x74\x2d\x73\x65\x61\x72\x63\x68';const __filename=fileURLToPath(import.meta.url),AXIOS_DEFAULTS={'\x74\x69\x6d\x65\x6f\x75\x74':0xea60,'\x68\x65\x61\x64\x65\x72\x73':{'\x55\x73\x65\x72\x2d\x41\x67\x65\x6e\x74':_0x376f84(0x1f5)+'\x30','\x41\x63\x63\x65\x70\x74':_0x376f84(0x1d6)+_0x376f84(0x1f3)+'\x78\x74\x2f\x70\x6c\x61\x69\x6e\x2c\x20'+_0x376f84(0x1cd)}};function _0x54b7(_0x135d7d,_0x22ff1f){_0x135d7d=_0x135d7d-0x1ae;const _0x1de53f=_0x1de5();let _0x54b7bd=_0x1de53f[_0x135d7d];if(_0x54b7['\x4d\x55\x58\x5a\x45\x50']===undefined){var _0x2a6380=function(_0x5ccb38){const _0x339948='\x61\x62\x63\x64\x65\x66\x67\x68\x69\x6a\x6b\x6c\x6d\x6e\x6f\x70\x71\x72\x73\x74\x75\x76\x77\x78\x79\x7a\x41\x42\x43\x44\x45\x46\x47\x48\x49\x4a\x4b\x4c\x4d\x4e\x4f\x50\x51\x52\x53\x54\x55\x56\x57\x58\x59\x5a\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x2b\x2f\x3d';let _0x401dde='',_0x239a58='';for(let _0x2e043b=0x0,_0x1a9a9d,_0xd41766,_0x5d9512=0x0;_0xd41766=_0x5ccb38['\x63\x68\x61\x72\x41\x74'](_0x5d9512++);~_0xd41766&&(_0x1a9a9d=_0x2e043b%0x4?_0x1a9a9d*0x40+_0xd41766:_0xd41766,_0x2e043b++%0x4)?_0x401dde+=String['\x66\x72\x6f\x6d\x43\x68\x61\x72\x43\x6f\x64\x65'](0xff&_0x1a9a9d>>(-0x2*_0x2e043b&0x6)):0x0){_0xd41766=_0x339948['\x69\x6e\x64\x65\x78\x4f\x66'](_0xd41766);}for(let _0x29a3cf=0x0,_0x46529f=_0x401dde['\x6c\x65\x6e\x67\x74\x68'];_0x29a3cf<_0x46529f;_0x29a3cf++){_0x239a58+='\x25'+('\x30\x30'+_0x401dde['\x63\x68\x61\x72\x43\x6f\x64\x65\x41\x74'](_0x29a3cf)['\x74\x6f\x53\x74\x72\x69\x6e\x67'](0x10))['\x73\x6c\x69\x63\x65'](-0x2);}return decodeURIComponent(_0x239a58);};_0x54b7['\x5a\x6f\x45\x53\x4a\x75']=_0x2a6380,_0x54b7['\x51\x6e\x62\x6a\x59\x6f']={},_0x54b7['\x4d\x55\x58\x5a\x45\x50']=!![];}const _0x270437=_0x1de53f[0x0];_0x54b7['\x79\x59\x53\x6a\x4c\x43']!==_0x270437&&(_0x54b7['\x51\x6e\x62\x6a\x59\x6f']={},_0x54b7['\x79\x59\x53\x6a\x4c\x43']=_0x270437);const _0x44c64c=_0x54b7['\x51\x6e\x62\x6a\x59\x6f'][_0x135d7d];return _0x44c64c===undefined?(_0x54b7bd=_0x54b7['\x5a\x6f\x45\x53\x4a\x75'](_0x54b7bd),_0x54b7['\x51\x6e\x62\x6a\x59\x6f'][_0x135d7d]=_0x54b7bd):_0x54b7bd=_0x44c64c,_0x54b7bd;}async function tryRequest(_0x1f1864,_0x60a983=0x3){const _0x16e341=_0x376f84,_0x5ca34c={'\x6e\x4f\x46\x70\x41':function(_0xc091f1){return _0xc091f1();},'\x44\x77\x68\x47\x49':function(_0x52590e,_0x404e8b){return _0x52590e<_0x404e8b;}};let _0x44ad38;for(let _0x30fc30=0x1;_0x30fc30<=_0x60a983;_0x30fc30++){try{return await _0x5ca34c[_0x16e341(0x1fd)](_0x1f1864);}catch(_0x2b5cff){_0x44ad38=_0x2b5cff,_0x5ca34c[_0x16e341(0x20e)](_0x30fc30,_0x60a983)&&await new Promise(_0x3a2005=>setTimeout(_0x3a2005,0x3e8*_0x30fc30));}}throw _0x44ad38;}function _0x1de5(){const _0x161481=['\x6d\x74\x4b\x57\x6e\x74\x43\x32\x6f\x68\x7a\x35\x7a\x75\x76\x66\x75\x61','\x45\x77\x39\x31\x44\x68\x76\x49\x7a\x73\x35\x4a\x42\x57','\x69\x73\x4f\x6b\x63\x49\x50\x66\x45\x67\x66\x54\x43\x61','\x72\x68\x6a\x48\x42\x77\x65\x47\x7a\x78\x6a\x59\x42\x57','\x44\x67\x48\x31\x42\x77\x6a\x55\x79\x77\x4c\x53','\x42\x59\x62\x55\x79\x77\x31\x4c\x69\x73\x4f\x6b\x63\x47','\x41\x68\x72\x30\x43\x68\x6d\x36\x6c\x59\x39\x48\x43\x61','\x44\x33\x48\x4e\x72\x77\x34','\x74\x4c\x6e\x4f\x75\x31\x61','\x41\x67\x75\x47\x7a\x68\x6a\x48\x42\x77\x65\x55','\x41\x77\x35\x4a\x42\x68\x76\x4b\x7a\x78\x6d','\x42\x4d\x53\x47\x42\x33\x69\x47\x44\x4d\x4c\x4b\x7a\x71','\x6b\x56\x63\x46\x4a\x79\x65\x47\x75\x67\x58\x4c\x79\x78\x6e\x4c\x69\x61','\x41\x32\x76\x35','\x7a\x73\x61\x58','\x42\x32\x72\x4c','\x72\x65\x76\x74\x71\x31\x6a\x6a\x75\x66\x72\x6a\x74\x57','\x38\x6a\x2b\x74\x47\x73\x62\x71\x43\x4d\x76\x57\x79\x78\x6a\x50\x42\x47','\x7a\x78\x6a\x59\x42\x33\x69','\x41\x73\x31\x59\x7a\x77\x6a\x50\x45\x63\x35\x32\x7a\x71','\x79\x33\x6a\x69\x77\x65\x6d','\x69\x68\x72\x48\x42\x77\x66\x52\x42\x59\x62\x54\x79\x71','\x42\x67\x75\x36\x6b\x49\x61','\x7a\x66\x44\x6b\x7a\x32\x34','\x72\x68\x6a\x48\x42\x77\x65\x47\x72\x78\x62\x50\x43\x57','\x71\x76\x44\x62\x73\x76\x6d\x47\x71\x31\x4c\x63\x72\x71','\x69\x67\x39\x59\x69\x65\x76\x57\x41\x78\x6e\x56\x7a\x61','\x7a\x67\x39\x33\x42\x4d\x58\x56\x79\x77\x71','\x42\x78\x48\x6d\x73\x30\x47','\x43\x59\x62\x4d\x42\x33\x76\x55\x7a\x63\x65','\x42\x33\x76\x75\x44\x77\x6a\x4c\x69\x68\x7a\x50\x7a\x61','\x7a\x32\x76\x30','\x44\x4d\x4c\x4b\x7a\x77\x38','\x6d\x4a\x6d\x33\x6d\x5a\x4b\x5a\x6e\x78\x72\x71\x79\x78\x4c\x4b\x41\x47','\x44\x4d\x48\x52\x44\x30\x75','\x7a\x73\x62\x53\x41\x77\x35\x52\x69\x68\x72\x56\x69\x61','\x6b\x49\x38\x51','\x7a\x67\x39\x33\x42\x4d\x58\x56\x79\x77\x71\x47\x44\x61','\x79\x4d\x4c\x34\x69\x65\x66\x71\x73\x73\x62\x48\x43\x57','\x43\x30\x6e\x73\x45\x66\x4f','\x43\x67\x4b\x56\x45\x78\x72\x32\x70\x33\x76\x59\x42\x61','\x7a\x78\x62\x50\x43\x32\x39\x4b\x7a\x78\x6d','\x43\x4e\x50\x52\x72\x65\x71','\x43\x4d\x39\x59\x6f\x49\x61','\x41\x30\x66\x62\x41\x4b\x79','\x79\x78\x62\x57\x42\x67\x4c\x4a\x79\x78\x72\x50\x42\x57','\x69\x67\x7a\x48\x41\x77\x58\x4c\x7a\x63\x34','\x38\x6a\x2b\x74\x47\x73\x61\x51','\x72\x67\x39\x33\x42\x4d\x58\x56\x79\x77\x71\x47\x77\x71','\x6e\x5a\x43\x35\x6f\x74\x44\x68\x75\x66\x62\x68\x74\x31\x69','\x43\x68\x6a\x56\x44\x4d\x4c\x4b\x7a\x73\x62\x48\x69\x61','\x6f\x67\x54\x75\x43\x4d\x7a\x6d\x44\x61','\x44\x67\x4c\x30\x42\x67\x75','\x45\x78\x72\x32','\x43\x32\x76\x55\x7a\x65\x31\x4c\x43\x33\x6e\x48\x7a\x57','\x34\x50\x32\x6d\x69\x65\x35\x56\x69\x68\x7a\x50\x7a\x67\x76\x56','\x44\x4d\x4c\x4b\x7a\x77\x39\x5a','\x45\x65\x44\x68\x74\x32\x69','\x69\x65\x7a\x50\x42\x67\x75','\x6d\x74\x47\x57\x6d\x4a\x4b\x31\x6d\x4e\x4c\x76\x72\x66\x7a\x6d\x44\x57','\x42\x67\x76\x55\x7a\x33\x72\x4f','\x44\x4d\x4c\x4b\x43\x57','\x7a\x68\x6a\x48\x42\x77\x65','\x75\x4d\x76\x49\x41\x78\x47\x47\x71\x76\x62\x6a\x69\x61','\x44\x4d\x4c\x4b\x7a\x77\x38\x56\x42\x78\x61\x30','\x7a\x67\x39\x33\x42\x4d\x58\x56\x79\x77\x72\x76\x43\x47','\x43\x4d\x54\x4c\x44\x63\x62\x48\x42\x78\x79','\x6d\x74\x4b\x31\x6e\x74\x47\x32\x6e\x67\x72\x68\x44\x76\x72\x76\x44\x57','\x79\x77\x72\x4c\x43\x47','\x72\x68\x6a\x48\x42\x77\x65\x47\x42\x4d\x66\x54\x7a\x71','\x7a\x67\x76\x56\x69\x67\x31\x4c\x43\x33\x6e\x48\x7a\x57','\x42\x77\x76\x5a\x43\x32\x66\x4e\x7a\x71','\x7a\x67\x76\x56\x69\x65\x72\x56\x44\x32\x35\x53\x42\x57','\x77\x77\x39\x31\x76\x68\x76\x49\x7a\x73\x62\x77\x41\x71','\x42\x49\x39\x51\x43\x32\x39\x55\x6c\x63\x62\x30\x7a\x71','\x45\x77\x39\x31\x44\x68\x75\x55\x79\x4d\x75','\x74\x77\x39\x36\x41\x77\x58\x53\x79\x73\x38\x31\x6c\x47','\x72\x4d\x66\x50\x42\x67\x76\x4b\x69\x68\x72\x56\x69\x61','\x43\x4d\x66\x54\x79\x78\x6d\x47\x79\x77\x35\x4b\x69\x61','\x71\x77\x58\x53\x69\x67\x72\x56\x44\x32\x35\x53\x42\x57','\x6b\x47\x4f\x6b\x70\x49\x61\x51','\x7a\x67\x39\x33\x42\x4d\x58\x56\x79\x77\x71\x47\x79\x71','\x77\x4e\x4c\x57\x74\x75\x38','\x43\x4d\x76\x5a\x44\x77\x58\x30\x43\x57','\x42\x4b\x39\x67\x43\x65\x65','\x7a\x4d\x66\x50\x42\x67\x76\x4b','\x6e\x4a\x71\x5a\x6e\x64\x44\x4f\x71\x75\x31\x53\x44\x4d\x75','\x34\x50\x32\x6d\x69\x65\x72\x59\x79\x77\x31\x48\x69\x67\x35\x56','\x44\x78\x6a\x53','\x43\x33\x72\x48\x44\x68\x76\x5a','\x6b\x4b\x76\x34\x79\x77\x31\x57\x42\x67\x75\x36\x6b\x47','\x69\x67\x72\x50\x43\x4d\x76\x4a\x44\x63\x62\x32\x41\x71','\x6d\x74\x62\x33\x43\x4c\x7a\x72\x75\x75\x65','\x41\x4d\x31\x74\x72\x30\x53','\x44\x63\x62\x4d\x42\x33\x76\x55\x7a\x63\x65','\x7a\x67\x66\x30\x79\x71','\x79\x77\x58\x53','\x72\x67\x76\x75\x76\x33\x4b','\x43\x59\x62\x65\x42\x32\x6e\x31\x42\x77\x76\x55\x44\x61','\x43\x67\x66\x52\x7a\x68\x6a\x48\x42\x77\x65','\x34\x50\x32\x6d\x69\x65\x76\x59\x43\x4d\x39\x59\x6f\x49\x61','\x72\x68\x44\x4f\x72\x30\x4b','\x6d\x4a\x43\x31\x6e\x74\x4b\x5a\x6e\x75\x76\x6e\x44\x77\x6a\x4d\x43\x71','\x72\x68\x7a\x35\x72\x77\x79'];_0x1de5=function(){return _0x161481;};return _0x1de5();}async function getRebixVideoByUrl(_0x3a88a1){const _0x19790b=_0x376f84,_0x235886={'\x77\x78\x67\x45\x6e':function(_0x6c6ef1,_0x185a42){return _0x6c6ef1(_0x185a42);},'\x5a\x79\x70\x4d\x4f':_0x19790b(0x1e8)+_0x19790b(0x1fe)},_0x3cd74f=_0x19790b(0x1af)+_0x19790b(0x1bc)+'\x72\x63\x65\x6c\x2e\x61\x70\x70\x2f\x61'+_0x19790b(0x1d1)+'\x3d'+_0x235886[_0x19790b(0x1b0)](encodeURIComponent,_0x3a88a1),_0x2daae2=await _0x235886[_0x19790b(0x1b0)](tryRequest,()=>_0x3281ff[_0x19790b(0x1c8)](_0x3cd74f,AXIOS_DEFAULTS)),_0x57f2e6=_0x2daae2?.[_0x19790b(0x208)],_0x146d20=_0x57f2e6?.[_0x19790b(0x1fc)]?.[_0x19790b(0x1ea)+'\x6c']||_0x57f2e6?.[_0x19790b(0x1fc)]?.[0x0]?.[_0x19790b(0x1ea)+'\x6c'];if(_0x57f2e6?.[_0x19790b(0x202)]&&_0x146d20)return{'\x64\x6f\x77\x6e\x6c\x6f\x61\x64':_0x146d20,'\x74\x69\x74\x6c\x65':_0x57f2e6?.['\x72\x65\x73\x75\x6c\x74\x73']?.[_0x19790b(0x1dd)]||'\x44\x72\x61\x6d\x61\x20\x56\x69\x64\x65'+'\x6f'};throw new Error(_0x235886[_0x19790b(0x1fb)]);}cmd({'\x70\x61\x74\x74\x65\x72\x6e':_0x376f84(0x1c9),'\x61\x6c\x69\x61\x73':['\x79\x74\x6d\x70\x34',_0x376f84(0x1e6),_0x376f84(0x1de)],'\x72\x65\x61\x63\x74':'\ud83d\udce5','\x64\x65\x73\x63':_0x376f84(0x1d9)+_0x376f84(0x1c7)+'\x65\x6f\x73\x20\x76\x69\x61\x20\x52\x65'+_0x376f84(0x1cf)+_0x376f84(0x204)+_0x376f84(0x1ef)+'\x65','\x63\x61\x74\x65\x67\x6f\x72\x79':'\x64\x6f\x77\x6e\x6c\x6f\x61\x64\x65\x72','\x66\x69\x6c\x65\x6e\x61\x6d\x65':__filename},async(_0x51f330,_0x2685ec,_0x27b647,{from:_0x1e6ed4,prefix:_0x5e563c,command:_0x27b35e,args:_0x495e22,q:_0xf6c113,isCreator:_0x42e5f7,userConfig:_0x14b3e9})=>{const _0x2b3319=_0x376f84,_0x161ff2={'\x6b\x41\x41\x6a\x46':function(_0xb96ee0,_0x1ddb15){return _0xb96ee0+_0x1ddb15;},'\x44\x76\x79\x45\x66':_0x2b3319(0x1c2)+'\x52','\x6d\x78\x4c\x4b\x48':'\x59\x6f\x75\x54\x75\x62\x65\x20\x56\x69'+'\x64\x65\x6f','\x64\x57\x4a\x67\x6e':_0x2b3319(0x212)+'\x6d','\x44\x65\x54\x57\x79':_0x2b3319(0x1f4),'\x4e\x53\x68\x53\x50':function(_0x12e6a9,_0x3d0f1a){return _0x12e6a9(_0x3d0f1a);},'\x76\x68\x6b\x77\x45':function(_0x12870e,_0x1b7282){return _0x12870e===_0x1b7282;},'\x63\x72\x48\x58\x43':_0x2b3319(0x1f8)+'\x61\x64\x20\x73\x6f\x75\x72\x63\x65\x73'+_0x2b3319(0x1d7)};try{if(!_0xf6c113)return await _0x51f330['\x73\x65\x6e\x64\x4d\x65\x73\x73\x61\x67'+'\x65'](_0x1e6ed4,{'\x74\x65\x78\x74':_0x2b3319(0x1b5)+_0x2b3319(0x1db)+'\x59\x6f\x75\x54\x75\x62\x65\x20\x6c\x69'+_0x2b3319(0x1b4)+_0x2b3319(0x1ae)+_0x2b3319(0x203)+'\x20'+_0x161ff2[_0x2b3319(0x1d5)](_0x5e563c,_0x27b35e)+(_0x2b3319(0x1be)+_0x2b3319(0x1eb))},{'\x71\x75\x6f\x74\x65\x64':_0x2685ec});const _0xa2bc48=_0x14b3e9?.[_0x2b3319(0x1b9)+'\x4e']||_0x5ed106[_0x2b3319(0x1b9)+'\x4e']||_0x161ff2[_0x2b3319(0x210)],_0x3b5e36=['\ud83d\udce5','\u23f3','\ud83c\udfa5'];for(const _0xdef161 of _0x3b5e36){await _0x51f330[_0x2b3319(0x1df)+'\x65'](_0x1e6ed4,{'\x72\x65\x61\x63\x74':{'\x74\x65\x78\x74':_0xdef161,'\x6b\x65\x79':_0x2685ec['\x6b\x65\x79']}});}let _0xdb3e8a='',_0x50e17e=_0x161ff2[_0x2b3319(0x1c5)],_0x46f91b='';if(_0xf6c113['\x69\x6e\x63\x6c\x75\x64\x65\x73'](_0x161ff2[_0x2b3319(0x1c0)])||_0xf6c113['\x69\x6e\x63\x6c\x75\x64\x65\x73'](_0x161ff2[_0x2b3319(0x20a)])){_0xdb3e8a=_0xf6c113;try{let _0x4217c6=await _0x161ff2[_0x2b3319(0x1b1)](_0x2b25a5,{'\x76\x69\x64\x65\x6f\x49\x64':_0xf6c113});_0x4217c6&&(_0x50e17e=_0x4217c6[_0x2b3319(0x1dd)]||_0x50e17e,_0x46f91b=_0x4217c6[_0x2b3319(0x215)]||'');}catch(_0xd9182){}}else{const _0x5df856=await _0x2b25a5(_0xf6c113),_0x206f26=_0x5df856?.[_0x2b3319(0x1e1)]||_0x5df856?.['\x61\x6c\x6c'];if(!_0x206f26||_0x161ff2[_0x2b3319(0x1cb)](_0x206f26[_0x2b3319(0x1e5)],0x0))return await _0x51f330[_0x2b3319(0x1df)+'\x65'](_0x1e6ed4,{'\x74\x65\x78\x74':_0x2b3319(0x1e0)+_0x2b3319(0x1c6)},{'\x71\x75\x6f\x74\x65\x64':_0x2685ec});_0xdb3e8a=_0x206f26[0x0][_0x2b3319(0x201)],_0x50e17e=_0x206f26[0x0][_0x2b3319(0x1dd)],_0x46f91b=_0x206f26[0x0][_0x2b3319(0x215)];}_0x46f91b&&await _0x51f330['\x73\x65\x6e\x64\x4d\x65\x73\x73\x61\x67'+'\x65'](_0x1e6ed4,{'\x69\x6d\x61\x67\x65':{'\x75\x72\x6c':_0x46f91b},'\x63\x61\x70\x74\x69\x6f\x6e':'\ud83c\udfa5\x20\x44\x6f\x77\x6e\x6c\x6f\x61\x64'+'\x69\x6e\x67\x3a\x20\x2a'+_0x50e17e+'\x2a'},{'\x71\x75\x6f\x74\x65\x64':_0x2685ec});let _0x304adc;try{_0x304adc=await _0x161ff2[_0x2b3319(0x1b1)](getRebixVideoByUrl,_0xdb3e8a);}catch(_0x19f7cb){throw new Error(_0x161ff2[_0x2b3319(0x1bd)]);}const _0x50e196=_0x304adc[_0x2b3319(0x1dd)]||_0x50e17e;await _0x51f330[_0x2b3319(0x1df)+'\x65'](_0x1e6ed4,{'\x76\x69\x64\x65\x6f':{'\x75\x72\x6c':_0x304adc['\x64\x6f\x77\x6e\x6c\x6f\x61\x64']},'\x6d\x69\x6d\x65\x74\x79\x70\x65':_0x2b3319(0x1e9),'\x63\x61\x70\x74\x69\x6f\x6e':'\x2a'+_0x50e196+_0x2b3319(0x1f9)+_0xa2bc48+'\x2a','\x63\x6f\x6e\x74\x65\x78\x74\x49\x6e\x66\x6f':{'\x65\x78\x74\x65\x72\x6e\x61\x6c\x41\x64\x52\x65\x70\x6c\x79':{'\x74\x69\x74\x6c\x65':_0x50e196,'\x62\x6f\x64\x79':_0x2b3319(0x1f2)+_0x2b3319(0x1f1)+_0x2b3319(0x1ed),'\x6d\x65\x64\x69\x61\x54\x79\x70\x65':0x2,'\x74\x68\x75\x6d\x62\x6e\x61\x69\x6c\x55\x72\x6c':_0x46f91b,'\x73\x6f\x75\x72\x63\x65\x55\x72\x6c':_0xdb3e8a,'\x72\x65\x6e\x64\x65\x72\x4c\x61\x72\x67\x65\x72\x54\x68\x75\x6d\x62\x6e\x61\x69\x6c':!![]}}},{'\x71\x75\x6f\x74\x65\x64':_0x2685ec}),await _0x51f330[_0x2b3319(0x1df)+'\x65'](_0x1e6ed4,{'\x72\x65\x61\x63\x74':{'\x74\x65\x78\x74':'\u2705','\x6b\x65\x79':_0x2685ec['\x6b\x65\x79']}});}catch(_0x5948d3){console[_0x2b3319(0x1bb)]('\x56\x69\x64\x65\x6f\x20\x65\x72\x72\x6f'+'\x72\x3a',_0x5948d3),await _0x51f330[_0x2b3319(0x1df)+'\x65'](_0x1e6ed4,{'\x74\x65\x78\x74':_0x2b3319(0x20d)+_0x5948d3[_0x2b3319(0x1f0)]},{'\x71\x75\x6f\x74\x65\x64':_0x2685ec});}}),cmd({'\x70\x61\x74\x74\x65\x72\x6e':_0x376f84(0x1e7),'\x61\x6c\x69\x61\x73':[_0x376f84(0x20c),'\x73\x65\x72\x69\x61\x6c',_0x376f84(0x1d2)],'\x72\x65\x61\x63\x74':'\ud83d\udcc1','\x64\x65\x73\x63':'\x44\x6f\x77\x6e\x6c\x6f\x61\x64\x20\x44'+_0x376f84(0x1f7)+'\x45\x70\x69\x73\x6f\x64\x65\x73\x20\x61'+_0x376f84(0x20b)+_0x376f84(0x1e3),'\x63\x61\x74\x65\x67\x6f\x72\x79':'\x64\x6f\x77\x6e\x6c\x6f\x61\x64\x65\x72','\x66\x69\x6c\x65\x6e\x61\x6d\x65':__filename},async(_0x26ddfd,_0x122833,_0x205f88,{from:_0x105bc0,prefix:_0x419157,command:_0x2cdd34,args:_0x7a1d11,q:_0x1cd74f,isCreator:_0x478c7b,userConfig:_0x3ee134})=>{const _0x3ba003=_0x376f84,_0x586c57={'\x48\x54\x46\x76\x6a':_0x3ba003(0x1c2)+'\x52','\x72\x7a\x6b\x44\x44':_0x3ba003(0x1f4),'\x6a\x6d\x53\x47\x4b':function(_0x5b7a33,_0x383b7c){return _0x5b7a33(_0x383b7c);},'\x78\x47\x47\x4f\x62':function(_0x3dfc44,_0x5121b9){return _0x3dfc44===_0x5121b9;},'\x73\x43\x52\x78\x5a':_0x3ba003(0x200)+_0x3ba003(0x207),'\x71\x74\x46\x6a\x55':_0x3ba003(0x1f6)+_0x3ba003(0x1ce)+_0x3ba003(0x1b2),'\x56\x65\x42\x53\x52':_0x3ba003(0x214)+'\x72\x3a'};try{if(!_0x1cd74f)return await _0x26ddfd[_0x3ba003(0x1df)+'\x65'](_0x105bc0,{'\x74\x65\x78\x74':'\x2a\ud83d\udcc1\x20\x50\x6c\x65\x61\x73\x65\x20'+_0x3ba003(0x1db)+_0x3ba003(0x1ee)+_0x3ba003(0x1c3)+_0x3ba003(0x1cc)+_0x3ba003(0x1fa)+_0x3ba003(0x20b)+_0x3ba003(0x213)+_0x3ba003(0x1bf)+(_0x419157+_0x2cdd34)+('\x20\x49\x73\x68\x71\x20\x4d\x75\x72\x73'+'\x68\x69\x64\x20\x65\x70\x69\x73\x6f\x64'+_0x3ba003(0x1b7))},{'\x71\x75\x6f\x74\x65\x64':_0x122833});const _0x120a20=_0x3ee134?.[_0x3ba003(0x1b9)+'\x4e']||_0x5ed106[_0x3ba003(0x1b9)+'\x4e']||_0x586c57['\x48\x54\x46\x76\x6a'],_0x430ae0=['\ud83d\udcc1','\u23f3','\ud83d\udce5'];for(const _0x307649 of _0x430ae0){await _0x26ddfd[_0x3ba003(0x1df)+'\x65'](_0x105bc0,{'\x72\x65\x61\x63\x74':{'\x74\x65\x78\x74':_0x307649,'\x6b\x65\x79':_0x122833[_0x3ba003(0x1b6)]}});}let _0x4ec837='',_0x4d04cc=_0x3ba003(0x1c1)+_0x3ba003(0x1b8),_0x5bd745='';if(_0x1cd74f[_0x3ba003(0x1b3)](_0x3ba003(0x212)+'\x6d')||_0x1cd74f[_0x3ba003(0x1b3)](_0x586c57[_0x3ba003(0x1d3)])){_0x4ec837=_0x1cd74f;try{let _0x289584=await _0x586c57[_0x3ba003(0x206)](_0x2b25a5,{'\x76\x69\x64\x65\x6f\x49\x64':_0x1cd74f});_0x289584&&(_0x4d04cc=_0x289584[_0x3ba003(0x1dd)]||_0x4d04cc,_0x5bd745=_0x289584[_0x3ba003(0x215)]||'');}catch(_0x45db91){}}else{const _0x44fa71=await _0x586c57['\x6a\x6d\x53\x47\x4b'](_0x2b25a5,_0x1cd74f),_0x151516=_0x44fa71?.['\x76\x69\x64\x65\x6f\x73']||_0x44fa71?.[_0x3ba003(0x209)];if(!_0x151516||_0x586c57[_0x3ba003(0x1e2)](_0x151516['\x6c\x65\x6e\x67\x74\x68'],0x0))return await _0x26ddfd[_0x3ba003(0x1df)+'\x65'](_0x105bc0,{'\x74\x65\x78\x74':_0x586c57[_0x3ba003(0x1d0)]},{'\x71\x75\x6f\x74\x65\x64':_0x122833});_0x4ec837=_0x151516[0x0][_0x3ba003(0x201)],_0x4d04cc=_0x151516[0x0][_0x3ba003(0x1dd)],_0x5bd745=_0x151516[0x0][_0x3ba003(0x215)];}_0x5bd745&&await _0x26ddfd[_0x3ba003(0x1df)+'\x65'](_0x105bc0,{'\x69\x6d\x61\x67\x65':{'\x75\x72\x6c':_0x5bd745},'\x63\x61\x70\x74\x69\x6f\x6e':_0x3ba003(0x1ba)+'\x67\x20\x44\x72\x61\x6d\x61\x20\x44\x6f'+'\x63\x75\x6d\x65\x6e\x74\x3a\x20\x2a'+_0x4d04cc+'\x2a'},{'\x71\x75\x6f\x74\x65\x64':_0x122833});let _0xd8cf22;try{_0xd8cf22=await _0x586c57[_0x3ba003(0x206)](getRebixVideoByUrl,_0x4ec837);}catch(_0x2306c7){throw new Error(_0x586c57['\x71\x74\x46\x6a\x55']);}const _0x77be5b=_0xd8cf22[_0x3ba003(0x1dd)]||_0x4d04cc;await _0x26ddfd['\x73\x65\x6e\x64\x4d\x65\x73\x73\x61\x67'+'\x65'](_0x105bc0,{'\x64\x6f\x63\x75\x6d\x65\x6e\x74':{'\x75\x72\x6c':_0xd8cf22[_0x3ba003(0x1c4)]},'\x6d\x69\x6d\x65\x74\x79\x70\x65':_0x3ba003(0x1e9),'\x66\x69\x6c\x65\x4e\x61\x6d\x65':_0x77be5b+'\x2e\x6d\x70\x34','\x63\x61\x70\x74\x69\x6f\x6e':_0x3ba003(0x1d8)+_0x77be5b+'\x2a\x0a\x0a\x3e\x20\x2a'+_0x120a20+'\x2a'},{'\x71\x75\x6f\x74\x65\x64':_0x122833}),await _0x26ddfd['\x73\x65\x6e\x64\x4d\x65\x73\x73\x61\x67'+'\x65'](_0x105bc0,{'\x72\x65\x61\x63\x74':{'\x74\x65\x78\x74':'\u2705','\x6b\x65\x79':_0x122833[_0x3ba003(0x1b6)]}});}catch(_0x4591c5){console[_0x3ba003(0x1bb)](_0x586c57['\x56\x65\x42\x53\x52'],_0x4591c5),await _0x26ddfd[_0x3ba003(0x1df)+'\x65'](_0x105bc0,{'\x74\x65\x78\x74':'\u274c\x20\x44\x72\x61\x6d\x61\x20\x45\x72'+_0x3ba003(0x1d4)+_0x4591c5[_0x3ba003(0x1f0)]},{'\x71\x75\x6f\x74\x65\x64':_0x122833});}});
+// plugins/drama.js - ESM Version
+import { fileURLToPath } from 'url';
+import { cmd } from '../command.js';
+import config from '../config.js';
+import axios from 'axios';
+import yts from 'yt-search';
+
+const __filename = fileURLToPath(import.meta.url);
+
+const AXIOS_DEFAULTS = {
+    timeout: 60000,
+    headers: {
+        'User-Agent': 'Mozilla/5.0',
+        'Accept': 'application/json, text/plain, */*'
+    }
+};
+
+async function tryRequest(getter, attempts = 3) {
+    let lastError;
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+        try {
+            return await getter();
+        } catch (err) {
+            lastError = err;
+            if (attempt < attempts) {
+                await new Promise(r => setTimeout(r, 1000 * attempt));
+            }
+        }
+    }
+    throw lastError;
+}
+
+// Updated Rebix API with low quality/format control for fast working & low MBs
+async function getRebixDramaByUrl(youtubeUrl) {
+    // Quality 360p rakhi hai taake MBs kam hon aur fast download ho
+    const apiUrl = `https://api-rebix.vercel.app/api/ytdl?format=360&url=${encodeURIComponent(youtubeUrl)}`;
+    const res = await tryRequest(() => axios.get(apiUrl, AXIOS_DEFAULTS));
+    const data = res?.data;
+    
+    // Check new structure or fallback structures
+    const downloadUrl = data?.result?.download || data?.results?.downloadUrl;
+    
+    if (data?.status && downloadUrl) {
+        return { 
+            download: downloadUrl, 
+            title: data?.result?.title || data?.results?.title || "Drama Video",
+            quality: data?.result?.quality || "360p"
+        };
+    }
+    throw new Error('Rebix API failed to fetch download link');
+}
+
+// 1. Existing Video Command
+cmd({
+    pattern: "video",
+    alias: ["ytmp4", "vids", "ytv"],
+    react: '📥',
+    desc: "Download YouTube videos via Rebix API as direct video message",
+    category: "downloader",
+    filename: __filename
+}, async (client, message, m, { 
+    from, prefix, command, args, q, isCreator, userConfig 
+}) => {
+    try {
+        if (!q) {
+            return await client.sendMessage(from, {
+                text: `*🍁 Please provide a YouTube link or video name!*\n\n*Example:* ${prefix + command} tamako market amv`
+            }, { quoted: message });
+        }
+
+        const DESCRIPTION = userConfig?.DESCRIPTION || config.DESCRIPTION || "AWAIS CYBER";
+        const loadEmojis = ['📥', '⏳', '🎥'];
+        for (const emoji of loadEmojis) {
+            await client.sendMessage(from, { react: { text: emoji, key: message.key } });
+        }
+
+        let videoUrl = '';
+        let videoTitle = 'YouTube Video';
+        let videoThumbnail = '';
+        
+        if (q.includes('youtube.com') || q.includes('youtu.be')) {
+            videoUrl = q;
+            try {
+                let search = await yts({ videoId: q });
+                if (search) {
+                    videoTitle = search.title || videoTitle;
+                    videoThumbnail = search.thumbnail || '';
+                }
+            } catch (e) {}
+        } else {
+            const search = await yts(q);
+            const videos = search?.videos || search?.all;
+            if (!videos || videos.length === 0) {
+                return await client.sendMessage(from, { text: '❌ No videos found!' }, { quoted: message });
+            }
+            videoUrl = videos[0].url;
+            videoTitle = videos[0].title;
+            videoThumbnail = videos[0].thumbnail;
+        }
+
+        if (videoThumbnail) {
+            await client.sendMessage(from, {
+                image: { url: videoThumbnail },
+                caption: `🎥 Downloading: *${videoTitle}*`
+            }, { quoted: message });
+        }
+
+        let videoData;
+        try {
+            videoData = await getRebixDramaByUrl(videoUrl);
+        } catch (err) {
+            throw new Error('All download sources failed.');
+        }
+
+        const finalTitle = videoData.title || videoTitle;
+
+        await client.sendMessage(from, {
+            video: { url: videoData.download },
+            mimetype: 'video/mp4',
+            caption: `*${finalTitle}*\n\n> *${DESCRIPTION}*`,
+            contextInfo: {
+                externalAdReply: {
+                    title: finalTitle,
+                    body: `YouTube Video Downloader`,
+                    mediaType: 2,
+                    thumbnailUrl: videoThumbnail,
+                    sourceUrl: videoUrl,
+                    renderLargerThumbnail: true
+                }
+            }
+        }, { quoted: message });
+
+        await client.sendMessage(from, { react: { text: '✅', key: message.key } });
+
+    } catch (error) {
+        console.error('Video error:', error);
+        await client.sendMessage(from, { text: `❌ Error: ${error.message}` }, { quoted: message });
+    }
+});
+
+
+// 2. Dedicated Drama Command (Fast Working & Low MBs as Document)
+cmd({
+    pattern: "drama",
+    alias: ["pakdrama", "serial", "episodes"],
+    react: '⚡',
+    desc: "Download Dramas in low MBs fast as Document File",
+    category: "downloader",
+    filename: __filename
+}, async (client, message, m, { 
+    from, prefix, command, args, q, isCreator, userConfig 
+}) => {
+    try {
+        if (!q) {
+            return await client.sendMessage(from, {
+                text: `*⚡ Please provide a Drama name or Episode link for fast low-MB download!*\n\n*Example:* ${prefix + command} Mahnoor episode 57`
+            }, { quoted: message });
+        }
+
+        const DESCRIPTION = userConfig?.DESCRIPTION || config.DESCRIPTION || "AWAIS CYBER";
+        const loadEmojis = ['⚡', '⏳', '📥'];
+        for (const emoji of loadEmojis) {
+            await client.sendMessage(from, { react: { text: emoji, key: message.key } });
+        }
+
+        let dramaUrl = '';
+        let dramaTitle = 'Drama Episode';
+        let dramaThumbnail = '';
+        
+        if (q.includes('youtube.com') || q.includes('youtu.be')) {
+            dramaUrl = q;
+            try {
+                let search = await yts({ videoId: q });
+                if (search) {
+                    dramaTitle = search.title || dramaTitle;
+                    dramaThumbnail = search.thumbnail || '';
+                }
+            } catch (e) {}
+        } else {
+            const search = await yts(q);
+            const videos = search?.videos || search?.all;
+            if (!videos || videos.length === 0) {
+                return await client.sendMessage(from, { text: '❌ Drama not found!' }, { quoted: message });
+            }
+            dramaUrl = videos[0].url;
+            dramaTitle = videos[0].title;
+            dramaThumbnail = videos[0].thumbnail;
+        }
+
+        if (dramaThumbnail) {
+            await client.sendMessage(from, {
+                image: { url: dramaThumbnail },
+                caption: `⚡ Fast Fetching Low-MB Drama: *${dramaTitle}*`
+            }, { quoted: message });
+        }
+
+        let dramaData;
+        try {
+            dramaData = await getRebixDramaByUrl(dramaUrl);
+        } catch (err) {
+            throw new Error('Failed to download the drama.');
+        }
+
+        const finalTitle = dramaData.title || dramaTitle;
+
+        // Send as Document File with optimized low-MB link
+        await client.sendMessage(from, {
+            document: { url: dramaData.download },
+            mimetype: 'video/mp4',
+            fileName: `${finalTitle}.mp4`,
+            caption: `⚡ *${finalTitle}* (Fast Low-MB)\n\n> *${DESCRIPTION}*`
+        }, { quoted: message });
+
+        await client.sendMessage(from, { react: { text: '✅', key: message.key } });
+
+    } catch (error) {
+        console.error('Drama error:', error);
+        await client.sendMessage(from, { text: `❌ Drama Error: ${error.message}` }, { quoted: message });
+    }
+});
