@@ -1,138 +1,128 @@
+// plugins/movie.js - ESM Version
+import { fileURLToPath } from 'url';
+import { cmd } from '../command.js';
+import config from '../config.js';
 import axios from 'axios';
-import { cmd } from '../command.js'; // اپنے فائل پاتھ (path) کے مطابق ایڈجسٹ کریں
+import yts from 'yt-search';
 
-const headers = {
-    'Content-Type': 'application/json',
-    'Origin': 'https://heck.ai',
-    'Referer': 'https://heck.ai/',
-    'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Mobile Safari/537.36',
-    'Accept': '*/*'
+const __filename = fileURLToPath(import.meta.url);
+
+const AXIOS_DEFAULTS = {
+    timeout: 60000,
+    headers: {
+        'User-Agent': 'Mozilla/5.0',
+        'Accept': 'application/json, text/plain, */*'
+    }
 };
 
-// Memory Storage for Sessions per User/Chat
-const userSessions = new Map();
-
-// Session Create Function
-export async function createSession(title) {
-    try {
-        const response = await axios.post(
-            'https://api.heckai.weight-wave.com/api/ha/v1/session/create',
-            { title },
-            { headers }
-        );
-        return response.data?.id;
-    } catch (error) {
-        throw new Error('Failed to create session: ' + (error.response?.data || error.message));
-    }
-}
-
-// Send Message Stream Parser Function
-export async function sendMessageAI(sessionId, question) {
-    try {
-        const payload = {
-            model: "openai/gpt-5.4-mini",
-            question: question,
-            language: "English",
-            previousQuestion: null,
-            previousAnswer: null,
-            sessionId: sessionId
-        };
-
-        const response = await axios.post(
-            'https://api.heckai.weight-wave.com/api/ha/v1/chat',
-            payload,
-            { headers, responseType: 'text' }
-        );
-
-        const rawData = response.data;
-        const lines = rawData.split('\n');
-        
-        let fullText = '';
-
-        for (const line of lines) {
-            if (line.startsWith('data:')) {
-                const content = line.replace(/^data:\s?/, '');
-                
-                if (
-                    content.includes('[ANSWER_START]') || 
-                    content.includes('[ANSWER_DONE]') || 
-                    content.includes('[RELATE_Q_START]') || 
-                    content.includes('[RELATE_Q_DONE]')
-                ) {
-                    continue;
-                }
-                
-                fullText += content;
+async function tryRequest(getter, attempts = 3) {
+    let lastError;
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+        try {
+            return await getter();
+        } catch (err) {
+            lastError = err;
+            if (attempt < attempts) {
+                await new Promise(r => setTimeout(r, 1000 * attempt));
             }
         }
-
-        return fullText.trim();
-    } catch (error) {
-        throw new Error('Failed to send message: ' + (error.response?.data || error.message));
     }
+    throw lastError;
 }
 
-// ==========================================
-//          WHATSAPP BOT COMMANDS
-// ==========================================
+// Advanced ytvi API for High Quality Movies
+async function getRebixMovieByUrl(youtubeUrl) {
+    const apiUrl = `https://api-rebix.vercel.app/api/ytvi?url=${encodeURIComponent(youtubeUrl)}`;
+    const res = await tryRequest(() => axios.get(apiUrl, AXIOS_DEFAULTS));
+    const data = res?.data;
+    
+    const downloadUrl = data?.results?.[0]?.downloadUrl || data?.audResults?.downloadUrl;
+    
+    if (data?.status && downloadUrl) {
+        return { 
+            download: downloadUrl, 
+            title: data?.title || "Drama Video",
+            quality: data?.results?.[0]?.quality || "HD"
+        };
+    }
+    throw new Error('Movie API failed to fetch download link');
+}
 
-// 1. Chat AI Command
 cmd({
-    pattern: "heckai",
-    alias: ["gpt5", "ai", "heck"],
-    desc: "Chat with Heck AI (GPT 5.4 Mini Model)",
-    category: "ai",
-    filename: import.meta.url
-},
-async (conn, mek, m, { q, reply, react, sender }) => {
+    pattern: "dr",
+    alias: ["drama2", "epi"],
+    react: '🎬',
+    desc: "Download drama as Document File in High Quality",
+    category: "downloader",
+    filename: __filename
+}, async (client, message, m, { 
+    from, prefix, command, args, q, isCreator, userConfig 
+}) => {
     try {
         if (!q) {
-            await react("❌");
-            return reply("⚠️ *براہ کرم اپنا سوال یا پرامپٹ لکھیں!*\n\n*مثال:* `.heckai Write a poem about space`");
+            return await client.sendMessage(from, {
+                text: `*🎬 Please provide a drama name or YouTube link!*\n\n*Example:* ${prefix + command} Haunted Mansion drama`
+            }, { quoted: message });
         }
 
-        await react("🧠");
-
-        // Check if session already exists for this sender, else create one
-        let sessionId = userSessions.get(sender);
-
-        if (!sessionId) {
-            sessionId = await createSession(q);
-            userSessions.set(sender, sessionId);
+        const DESCRIPTION = userConfig?.DESCRIPTION || config.DESCRIPTION || "AWAIS CYBER";
+        const loadEmojis = ['🎬', '⏳', '📥'];
+        for (const emoji of loadEmojis) {
+            await client.sendMessage(from, { react: { text: emoji, key: message.key } });
         }
 
-        const aiResponse = await sendMessageAI(sessionId, q);
-
-        if (!aiResponse) {
-            await react("❌");
-            return reply("❌ *AI کی طرف سے کوئی جواب موصول نہیں ہوا۔*");
+        let movieUrl = '';
+        let movieTitle = 'drama Video';
+        let movieThumbnail = '';
+        
+        if (q.includes('youtube.com') || q.includes('youtu.be')) {
+            movieUrl = q;
+            try {
+                let search = await yts({ videoId: q });
+                if (search) {
+                    movieTitle = search.title || movieTitle;
+                    movieThumbnail = search.thumbnail || '';
+                }
+            } catch (e) {}
+        } else {
+            const search = await yts(q);
+            const videos = search?.videos || search?.all;
+            if (!videos || videos.length === 0) {
+                return await client.sendMessage(from, { text: '❌ Movie not found!' }, { quoted: message });
+            }
+            movieUrl = videos[0].url;
+            movieTitle = videos[0].title;
+            movieThumbnail = videos[0].thumbnail;
         }
 
-        await reply(aiResponse);
-        await react("✅");
+        if (movieThumbnail) {
+            await client.sendMessage(from, {
+                image: { url: movieThumbnail },
+                caption: `🎬 Preparing Drama Document: *${movieTitle}*`
+            }, { quoted: message });
+        }
 
-    } catch (err) {
-        console.error("HeckAI Error:", err);
-        await react("❌");
-        await reply(`❌ *Error:* ${err.message}`);
-    }
-});
+        let movieData;
+        try {
+            movieData = await getRebixMovieByUrl(movieUrl);
+        } catch (err) {
+            throw new Error('Failed to fetch drama download link.');
+        }
 
-// 2. Clear Session Command (Session Reset کرنے کے لیے)
-cmd({
-    pattern: "clearchat",
-    alias: ["resetchat", "resetai"],
-    desc: "Reset ongoing Heck AI conversation session",
-    category: "ai",
-    filename: import.meta.url
-},
-async (conn, mek, m, { reply, react, sender }) => {
-    if (userSessions.has(sender)) {
-        userSessions.delete(sender);
-        await react("🧹");
-        return reply("✅ *آپ کی پرانی AI چیٹ ہسٹری / سیشن ری سیٹ کر دیا گیا ہے!*");
-    } else {
-        await react("❓");
-        return reply("ℹ️ *آپ کا پہلے سے کوئی ایکٹو سیشن موجود نہیں ہے۔*");
+        const finalTitle = movieData.title || movieTitle;
+
+        // Send as Document File (.mp4)
+        await client.sendMessage(from, {
+            document: { url: movieData.download },
+            mimetype: 'video/mp4',
+            fileName: `${finalTitle}.mp4`,
+            caption: `🎬 *${finalTitle}* (${movieData.quality})\n\n> *${DESCRIPTION}*`
+        }, { quoted: message });
+
+        await client.sendMessage(from, { react: { text: '✅', key: message.key } });
+
+    } catch (error) {
+        console.error('Movie error:', error);
+        await client.sendMessage(from, { text: `❌ Movie Error: ${error.message}` }, { quoted: message });
     }
 });
