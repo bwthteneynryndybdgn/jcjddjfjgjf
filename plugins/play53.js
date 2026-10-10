@@ -37,7 +37,7 @@ async function getThumbJpegBuffer(url) {
 
 cmd({
     pattern: "play53",
-    alias: ["ytmp53", "ytplay54"],
+    alias: ["ytmp343", "ytplay65"],
     react: '🎵',
     desc: "Download YouTube audio via API",
     category: "downloader",
@@ -71,7 +71,8 @@ cmd({
 		let views = 'N/A';
 
 		if (!isUrl) {
-			const searchApi = global.API('kyzz', '/api/search/yts', { q: targetQuery }, 'apikey');
+            // Direct API endpoint without global.API error
+			const searchApi = `https://kyzz.biz.id/api/search/yts?q=${encodeURIComponent(targetQuery)}`;
 			const searchRes = await axios.get(searchApi, { timeout: 12000 });
 			const searchData = searchRes.data;
 
@@ -89,7 +90,7 @@ cmd({
 			views = first.view_count ? Number(first.view_count).toLocaleString() : (first.views || 'N/A');
 		}
 
-		const dlApi = global.API('kyzz', '/api/download/ytmp3', { url: targetUrl }, 'apikey');
+		const dlApi = `https://kyzz.biz.id/api/download/ytmp3?url=${encodeURIComponent(targetUrl)}`;
 		const [dlRes, thumbBuffer] = await Promise.all([
 			axios.get(dlApi, { timeout: 35000 }),
 			thumbnail ? getThumbJpegBuffer(thumbnail) : Promise.resolve(null)
