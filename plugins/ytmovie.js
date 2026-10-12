@@ -6,7 +6,7 @@ const __filename = fileURLToPath(import.meta.url);
 
 cmd({
     pattern: "movie1",
-    alias: ["ytmovie2", "video2", "playvid2"],
+    alias: ["ytmovie", "video43", "playvid"],
     desc: "Search and download movies/videos from YouTube via FAA API",
     category: "downloader",
     react: "🎬",
@@ -24,21 +24,26 @@ cmd({
         // Loading reaction
         await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
-        // Call the API endpoint for video playback
+        // Call the API endpoint with headers to avoid 403/blocking
         const encodedQuery = encodeURIComponent(text.trim());
         const apiUrl = `https://api-faa.my.id/faa/ytplayvid?q=${encodedQuery}`;
         
-        const response = await axios.get(apiUrl, { timeout: 60000 });
+        const response = await axios.get(apiUrl, { 
+            timeout: 60000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+        });
+        
         const resData = response.data;
 
-        // Check if API returned success and result object
         if (!resData || !resData.status || !resData.result) {
             await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
             return reply("❌ Could not find any video/movie results for that query.");
         }
 
         const info = resData.result;
-        const videoUrl = info.download_url; // Exact key from API response
+        const videoUrl = info.download_url;
         const title = info.searched_title || text;
         const sourceUrl = info.searched_url || '';
 
@@ -54,7 +59,8 @@ cmd({
 
         await reply(caption);
 
-        // Send the video file as a document
+        // Send the video file as a document with headers/options if supported, 
+        // passing the url directly. WhatsApp's internal downloader will fetch it.
         await conn.sendMessage(from, {
             document: { url: videoUrl },
             mimetype: 'video/mp4',
