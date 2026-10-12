@@ -5,28 +5,28 @@ import axios from 'axios';
 const __filename = fileURLToPath(import.meta.url);
 
 cmd({
-    pattern: "movie1",
-    alias: ["ytmovie", "video43", "playvid"],
-    desc: "Search and download movies/videos from YouTube via FAA API",
+    pattern: "play13",
+    alias: ["ytplay13", "song13", "plays15"],
+    desc: "Search and download songs from YouTube via",
     category: "downloader",
-    react: "🎬",
+    react: "🎵",
     filename: __filename
 }, async (conn, mek, m, { from, text, reply }) => {
     try {
         if (!text) {
             return reply(
-                `⚠️ Please provide a movie name or search query!\n\n` +
+                `⚠️ Please provide a song name or search query!\n\n` +
                 `Example:\n` +
-                `• .movie DJ Hindi`
+                `• .play song pal`
             );
         }
 
         // Loading reaction
         await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
-        // Call the API endpoint with headers to avoid 403/blocking
+        // Call the API endpoint
         const encodedQuery = encodeURIComponent(text.trim());
-        const apiUrl = `https://api-faa.my.id/faa/ytplayvid?q=${encodedQuery}`;
+        const apiUrl = `https://api-faa.my.id/faa/ytplay?query=${encodedQuery}`;
         
         const response = await axios.get(apiUrl, { 
             timeout: 60000,
@@ -37,42 +37,54 @@ cmd({
         
         const resData = response.data;
 
+        // Check if API returned success and result object
         if (!resData || !resData.status || !resData.result) {
             await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return reply("❌ Could not find any video/movie results for that query.");
+            return reply("❌ Could not find any results for that song.");
         }
 
         const info = resData.result;
-        const videoUrl = info.download_url;
-        const title = info.searched_title || text;
-        const sourceUrl = info.searched_url || '';
+        const audioUrl = info.mp3; // API response ke mutabiq 'mp3' key
+        const title = info.title || text;
+        const thumbnail = info.thumbnail || '';
+        const duration = info.duration_timestamp || '';
+        const author = info.author || '';
+        const youtubeUrl = info.url || '';
 
-        if (!videoUrl) {
+        if (!audioUrl) {
             await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return reply("❌ Failed to retrieve the video download link from the API response.");
+            return reply("❌ Failed to retrieve the MP3 download link from the API response.");
         }
 
         // Prepare info caption
-        let caption = `🎥 *Title:* ${title}\n`;
-        if (sourceUrl) caption += `🔗 *YouTube Link:* ${sourceUrl}\n`;
-        caption += `📁 *Status:* Sending movie/video as document...`;
+        let caption = `🎶 *Title:* ${title}\n`;
+        if (author) caption += `👤 *Artist/Channel:* ${author}\n`;
+        if (duration) caption += `⏱️ *Duration:* ${duration}\n`;
+        if (youtubeUrl) caption += `🔗 *YouTube Link:* ${youtubeUrl}\n`;
+        caption += `📁 *Status:* Sending audio...`;
 
-        await reply(caption);
+        // Send thumbnail and details first (if available)
+        if (thumbnail) {
+            await conn.sendMessage(from, { 
+                image: { url: thumbnail }, 
+                caption: caption 
+            }, { quoted: mek });
+        } else {
+            await reply(caption);
+        }
 
-        // Send the video file as a document with headers/options if supported, 
-        // passing the url directly. WhatsApp's internal downloader will fetch it.
+        // Send the audio file using direct mp3 link
         await conn.sendMessage(from, {
-            document: { url: videoUrl },
-            mimetype: 'video/mp4',
-            fileName: `${title.replace(/[^a-zA-Z0-9]/g, '_')}.mp4`,
-            caption: `🎬 Here is your movie/video: *${title}*`
+            audio: { url: audioUrl },
+            mimetype: 'audio/mp4',
+            ptt: false // Set true if you want voice note style
         }, { quoted: mek });
 
         // Success reaction
         await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
 
     } catch (error) {
-        console.error("YTMovie Error:", error);
+        console.error("YTPlay Error:", error);
         reply(`❌ Error: ${error.message}`);
         await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
     }
