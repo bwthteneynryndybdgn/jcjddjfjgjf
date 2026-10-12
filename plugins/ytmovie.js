@@ -7,7 +7,7 @@ const __filename = fileURLToPath(import.meta.url);
 cmd({
     pattern: "play13",
     alias: ["ytplay13", "song13", "plays15"],
-    desc: "Search and download songs from YouTube via",
+    desc: "Search and download songs from YouTube via FAA API",
     category: "downloader",
     react: "🎵",
     filename: __filename
@@ -37,14 +37,13 @@ cmd({
         
         const resData = response.data;
 
-        // Check if API returned success and result object
         if (!resData || !resData.status || !resData.result) {
             await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
             return reply("❌ Could not find any results for that song.");
         }
 
         const info = resData.result;
-        const audioUrl = info.mp3; // API response ke mutabiq 'mp3' key
+        const audioUrl = info.mp3;
         const title = info.title || text;
         const thumbnail = info.thumbnail || '';
         const duration = info.duration_timestamp || '';
@@ -61,9 +60,9 @@ cmd({
         if (author) caption += `👤 *Artist/Channel:* ${author}\n`;
         if (duration) caption += `⏱️ *Duration:* ${duration}\n`;
         if (youtubeUrl) caption += `🔗 *YouTube Link:* ${youtubeUrl}\n`;
-        caption += `📁 *Status:* Sending audio...`;
+        caption += `📁 *Status:* Downloading audio buffer...`;
 
-        // Send thumbnail and details first (if available)
+        // Send thumbnail and details first
         if (thumbnail) {
             await conn.sendMessage(from, { 
                 image: { url: thumbnail }, 
@@ -73,11 +72,20 @@ cmd({
             await reply(caption);
         }
 
-        // Send the audio file using direct mp3 link
+        // Download audio as buffer using proper headers to bypass 403
+        const audioBufferRes = await axios.get(audioUrl, {
+            responseType: 'arraybuffer',
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Referer': 'https://api-faa.my.id/'
+            }
+        });
+
+        // Send the audio file using the buffer data
         await conn.sendMessage(from, {
-            audio: { url: audioUrl },
+            audio: Buffer.from(audioBufferRes.data),
             mimetype: 'audio/mp4',
-            ptt: false // Set true if you want voice note style
+            ptt: false
         }, { quoted: mek });
 
         // Success reaction
