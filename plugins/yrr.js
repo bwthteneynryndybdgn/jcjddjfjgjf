@@ -82,14 +82,16 @@ async function handleVideo(input, client, message, from) {
       if (info) videoInfo = info;
     } catch {}
   } else {
+    // Text search ko mazeed behtar kiya gaya hai
     const search = await yts(input);
-    if (!search?.videos?.length) throw new Error("YouTube par koi result nahi mila.");
-    videoInfo = search.videos[0];
+    const videos = search?.videos || search?.all;
+    if (!videos || !videos.length) throw new Error("YouTube par koi result nahi mila.");
+    videoInfo = videos[0];
     url = videoInfo.url;
   }
 
   const title = videoInfo?.title || "Unknown Video";
-  const duration = videoInfo?.duration?.timestamp || "";
+  const duration = videoInfo?.duration?.timestamp || videoInfo?.timestamp || "";
 
   const videoUrl = await resolveVideoUrl(url);
   if (!videoUrl) throw new Error("Filhal video URL extract nahi ho saka. Baraye meharbaani thori der baad koshish karein.");
