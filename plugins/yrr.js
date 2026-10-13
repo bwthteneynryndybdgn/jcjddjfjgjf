@@ -19,8 +19,7 @@ function extractVideoId(input) {
 const VIDEO_APIS = (url) => [
   `https://api.siputzx.my.id/api/d/ytmp4?url=${encodeURIComponent(url)}`,
   `https://api.nexray.eu.cc/downloader/v1/ytmp4?url=${encodeURIComponent(url)}`,
-  `https://jerrycoder.oggyapi.workers.dev/down/ytmp4-v1?url=${encodeURIComponent(url)}`,
-  `https://deliriussapi-oficial.vercel.app/download/ytmp4?url=${encodeURIComponent(url)}`
+  `https://jerrycoder.oggyapi.workers.dev/down/ytmp4-v1?url=${encodeURIComponent(url)}`
 ];
 
 async function resolveVideoUrl(youtubeUrl) {
@@ -82,12 +81,12 @@ async function handleVideo(input, client, message, from) {
       if (info) videoInfo = info;
     } catch {}
   } else {
-    // Text search ko mazeed behtar kiya gaya hai
+    // Text search ko mazeed behtar kiya gaya hai taake direct link ban jaye
     const search = await yts(input);
     const videos = search?.videos || search?.all;
     if (!videos || !videos.length) throw new Error("YouTube par koi result nahi mila.");
     videoInfo = videos[0];
-    url = videoInfo.url;
+    url = videoInfo.url || `https://www.youtube.com/watch?v=${videoInfo.videoId}`;
   }
 
   const title = videoInfo?.title || "Unknown Video";
