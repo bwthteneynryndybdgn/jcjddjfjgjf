@@ -113,14 +113,14 @@ async function handleVideo(input, client, message, from) {
 }
 
 for (const [commandName, description] of [
-  ["video5", "YouTube se video search aur download karein"],
+  ["video6", "YouTube se video search aur download karein"],
   ["ytmp4", "YouTube MP4 downloader"],
   ["ytv", "YouTube video downloader"],
   ["mv", "YouTube se music video download karein"],
 ]) {
   cmd({
     pattern: commandName,
-    alias: commandName === "video5" ? ["ytvideo", "mp4"] : [],
+    alias: commandName === "video6" ? ["ytvideo", "mp4"] : [],
     react: '🎥',
     desc: description,
     category: "downloader",
