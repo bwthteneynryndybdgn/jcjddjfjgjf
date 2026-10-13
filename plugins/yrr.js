@@ -81,8 +81,9 @@ async function handleVideo(input, client, message, from) {
       if (info) videoInfo = info;
     } catch {}
   } else {
-    // Text search ko yahan fix kiya gaya hai taake exact videoId ya url mil jaye
-    const search = await yts(input);
+    // Yahan query ko saaf kiya gaya hai taake lambi text likhne par bhi search bilkul thek chale
+    const cleanQuery = input.replace(/^[a-zA-Z0-9]+\s+/, "").trim() || input;
+    const search = await yts(cleanQuery);
     const videos = search?.videos || search?.all || [];
     if (!videos.length) throw new Error("YouTube par koi result nahi mila.");
     
@@ -113,14 +114,14 @@ async function handleVideo(input, client, message, from) {
 }
 
 for (const [commandName, description] of [
-  ["video6", "YouTube se video search aur download karein"],
+  ["video5", "YouTube se video search aur download karein"],
   ["ytmp4", "YouTube MP4 downloader"],
   ["ytv", "YouTube video downloader"],
   ["mv", "YouTube se music video download karein"],
 ]) {
   cmd({
     pattern: commandName,
-    alias: commandName === "video6" ? ["ytvideo", "mp4"] : [],
+    alias: commandName === "video5" ? ["ytvideo", "mp4"] : [],
     react: '🎥',
     desc: description,
     category: "downloader",
