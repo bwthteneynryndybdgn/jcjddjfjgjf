@@ -1,423 +1,451 @@
-// plugins/yt.js - ESM Version
+// plugins/downloader.js - ESM Version
 import { fileURLToPath } from 'url';
 import { cmd } from '../command.js';
 import config from '../config.js';
 import axios from 'axios';
-import { prepareWAMessageMedia } from '@whiskeysockets/baileys';
+import yts from 'yt-search';
+import { File } from 'megajs';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
 
 const __filename = fileURLToPath(import.meta.url);
 
-// Global temporary memory cache (Database fallback)
-if (!global.ytCache) global.ytCache = {};
+// ─── YouTube Shared Helpers ──────────────────────────────────────────────────
 
-const CLOUDINARY_IMAGE = 'https://res.cloudinary.com/di2a9lenz/image/upload/v1786909227/omegatech_ai_media/upload-1786909226872.jpg';
+function extractVideoId(input) {
+  const shortMatch = input.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
+  if (shortMatch) return shortMatch[1];
 
-async function getYTData(url) {
-    const apiUrl = `https://api.omegatech.app/api/download/ytultra?action=download&url=${encodeURIComponent(url)}`;
-    const { data } = await axios.get(apiUrl, { timeout: 30000 });
-    if (!data.success) throw new Error('Failed to fetch YouTube data');
-    return data.data;
+  const watchMatch = input.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
+  if (watchMatch) return watchMatch[1];
+
+  return null;
 }
 
-async function showTypeSelector(conn, chatId, data, url, usedPrefix, command, taggedUsers = []) {
+// ─── YouTube Song Helpers ────────────────────────────────────────────────────
+
+const APIS = (url) => [
+  `https://api.nexray.eu.cc/downloader/v1/ytmp3?url=${encodeURIComponent(url)}`,
+  `https://kiraxmd-api.vercel.app/api/play?query=${encodeURIComponent(url)}`,
+  `https://xenoytdl-2.vercel.app/api/youtube?url=${encodeURIComponent(url)}`,
+  `https://jerrycoder.oggyapi.workers.dev/down/ytmp3-v1?url=${encodeURIComponent(url)}`,
+  `https://api.siputzx.my.id/api/d/ytmp3?url=${encodeURIComponent(url)}`,
+];
+
+async function resolveAudioUrl(youtubeUrl) {
+  for (const api of APIS(youtubeUrl)) {
     try {
-        let imageMessage;
-        try {
-            if (data.thumbnail) {
-                const imgResp = await axios.get(data.thumbnail, { responseType: 'arraybuffer' });
-                const buffer = Buffer.from(imgResp.data);
-                const media = await prepareWAMessageMedia({ image: buffer }, { upload: conn.waUploadToServer });
-                imageMessage = media.imageMessage;
-            } else {
-                const imgResp = await axios.get(CLOUDINARY_IMAGE, { responseType: 'arraybuffer' });
-                const buffer = Buffer.from(imgResp.data);
-                const media = await prepareWAMessageMedia({ image: buffer }, { upload: conn.waUploadToServer });
-                imageMessage = media.imageMessage;
-            }
-        } catch (e) {}
+      const res = await axios.get(api, { timeout: 40_000, validateStatus: () => true });
+      const data = res.data;
 
-        global.ytCache[chatId] = {
-            data: data,
-            url: url,
-            timestamp: Date.now()
-        };
+      const candidate =
+        data?.result?.url ||
+        data?.result?.mp3 ||
+        data?.data?.dl ||
+        data?.data?.download ||
+        data?.download ||
+        data?.url ||
+        data?.result?.download_url ||
+        data?.result?.audio ||
+        (typeof data?.result === "string" ? data.result : null);
 
-        const buttons = [
-            {
-                name: "single_select",
-                buttonParamsJson: JSON.stringify({
-                    title: "🎬 Video (MP4)",
-                    sections: [{
-                        title: "Download Video",
-                        highlight_label: "📹",
-                        rows: [{ id: `${usedPrefix}ytmp4 ${url}`, title: "Download as Video", description: "Choose quality after" }]
-                    }]
-                })
-            },
-            {
-                name: "single_select",
-                buttonParamsJson: JSON.stringify({
-                    title: "🎵 Audio (MP3)",
-                    sections: [{
-                        title: "Download Audio",
-                        highlight_label: "🎧",
-                        rows: [{ id: `${usedPrefix}ytmp3 ${url}`, title: "Download as Audio", description: "Choose bitrate after" }]
-                    }]
-                })
-            },
-            {
-                name: "cta_url",
-                buttonParamsJson: JSON.stringify({
-                    display_text: "❌ Cancel",
-                    url: "https://wa.me/23288461957",
-                    webview_interaction: true,
-                    icon: "default"
-                })
-            }
-        ];
+      if (!candidate || typeof candidate !== "string" || !candidate.startsWith("http")) continue;
 
-        const interactiveMsg = {
-            interactiveMessage: {
-                header: {
-                    title: `📥 ${data.title.substring(0, 40)}${data.title.length > 40 ? '...' : ''}`,
-                    hasMediaAttachment: !!imageMessage
-                },
-                body: {
-                    text: `🎬 *${data.title}*\n\n📊 *Available:*\n🎬 Video: ${(data.mp4 || []).length} qualities\n🎵 Audio: ${(data.mp3 || []).length} qualities\n\n📌 *Choose download type:*`
-                },
-                footer: {
-                    text: "🔹 Powered by Omegatech • YouTube"
-                },
-                contextInfo: {
-                    mentionedJid: taggedUsers,
-                    forwardingScore: 999,
-                    isForwarded: true,
-                    forwardedNewsletterMessageInfo: {
-                        newsletterJid: '120363403299118246@newsletter',
-                        serverMessageId: 142,
-                        newsletterName: 'Lady-Trish Channel'
-                    }
-                },
-                nativeFlowMessage: {
-                    buttons: buttons
-                }
-            }
-        };
-
-        if (imageMessage) {
-            interactiveMsg.interactiveMessage.header.imageMessage = imageMessage;
-        }
-
-        await conn.relayMessage(
-            chatId,
-            interactiveMsg,
-            {
-                additionalNodes: [
-                    {
-                        tag: "biz",
-                        attrs: {},
-                        content: [
-                            {
-                                tag: "interactive",
-                                attrs: { type: "native_flow", v: "1" },
-                                content: [{
-                                    tag: "native_flow",
-                                    attrs: { v: "9", name: "mixed" }
-                                }]
-                            }
-                        ]
-                    }
-                ]
-            }
-        );
-        return true;
-    } catch (e) {
-        console.error('Type selector error:', e);
-        return false;
-    }
-}
-
-async function showQualitySelector(conn, chatId, data, type, url, usedPrefix, taggedUsers = []) {
-    try {
-        const mediaList = type === 'video' ? (data.mp4 || []) : (data.mp3 || []);
-        if (mediaList.length === 0) {
-            await conn.sendMessage(chatId, { text: `⚠️ No ${type} qualities available.` });
-            return false;
-        }
-
-        let imageMessage;
-        try {
-            if (data.thumbnail) {
-                const imgResp = await axios.get(data.thumbnail, { responseType: 'arraybuffer' });
-                const buffer = Buffer.from(imgResp.data);
-                const media = await prepareWAMessageMedia({ image: buffer }, { upload: conn.waUploadToServer });
-                imageMessage = media.imageMessage;
-            } else {
-                const imgResp = await axios.get(CLOUDINARY_IMAGE, { responseType: 'arraybuffer' });
-                const buffer = Buffer.from(imgResp.data);
-                const media = await prepareWAMessageMedia({ image: buffer }, { upload: conn.waUploadToServer });
-                imageMessage = media.imageMessage;
-            }
-        } catch (e) {}
-
-        const qualityRows = mediaList.map((q, idx) => {
-            const cmdName = type === 'video' ? 'ytmp4' : 'ytmp3';
-            return {
-                id: `${usedPrefix}${cmdName} ${url} --quality ${idx}`,
-                title: type === 'video' ? `🎬 ${q.quality}` : `🎵 ${q.quality}`,
-                description: `${q.format.toUpperCase()}`
-            };
+      try {
+        const test = await axios.get(candidate, {
+          responseType: "stream",
+          timeout: 15_000,
+          maxRedirects: 10,
+          validateStatus: () => true,
+          headers: { "User-Agent": "Mozilla/5.0" },
         });
 
-        const qualityButton = {
-            name: "single_select",
-            buttonParamsJson: JSON.stringify({
-                title: `📥 Select ${type === 'video' ? 'Video Quality' : 'Audio Quality'}`,
-                sections: [{
-                    title: `${type === 'video' ? 'Video' : 'Audio'} Options (${mediaList.length})`,
-                    highlight_label: type === 'video' ? "📹" : "🎧",
-                    rows: qualityRows
-                }]
-            })
-        };
-
-        const cancelButton = {
-            name: "cta_url",
-            buttonParamsJson: JSON.stringify({
-                display_text: "❌ Cancel",
-                url: "https://wa.me/23288461957",
-                webview_interaction: true,
-                icon: "default"
-            })
-        };
-
-        const interactiveMsg = {
-            interactiveMessage: {
-                header: {
-                    title: `${type === 'video' ? '🎬' : '🎵'} ${data.title.substring(0, 35)}${data.title.length > 35 ? '...' : ''}`,
-                    hasMediaAttachment: !!imageMessage
-                },
-                body: {
-                    text: `📌 *Select ${type === 'video' ? 'video' : 'audio'} quality:*\n\n🎬 ${data.title}\n📊 ${mediaList.length} qualities available`
-                },
-                footer: {
-                    text: "🔹 Powered by Omegatech • YouTube"
-                },
-                contextInfo: {
-                    mentionedJid: taggedUsers,
-                    forwardingScore: 999,
-                    isForwarded: true,
-                    forwardedNewsletterMessageInfo: {
-                        newsletterJid: '120363418144382782@newsletter',
-                        serverMessageId: 142,
-                        newsletterName: 'KAMI-MD'
-                    }
-                },
-                nativeFlowMessage: {
-                    buttons: [qualityButton, cancelButton]
-                }
-            }
-        };
-
-        if (imageMessage) {
-            interactiveMsg.interactiveMessage.header.imageMessage = imageMessage;
+        if (test.status === 200 || test.status === 206) {
+          try { test.data.destroy(); } catch {}
+          return candidate;
         }
-
-        await conn.relayMessage(
-            chatId,
-            interactiveMsg,
-            {
-                additionalNodes: [
-                    {
-                        tag: "biz",
-                        attrs: {},
-                        content: [
-                            {
-                                tag: "interactive",
-                                attrs: { type: "native_flow", v: "1" },
-                                content: [{
-                                    tag: "native_flow",
-                                    attrs: { v: "9", name: "mixed" }
-                                }]
-                            }
-                        ]
-                    }
-                ]
-            }
-        );
-        return true;
-    } catch (e) {
-        console.error('Quality selector error:', e);
-        return false;
-    }
+        try { test.data.destroy(); } catch {}
+      } catch {}
+    } catch {}
+  }
+  return null;
 }
 
-async function downloadAndSend(conn, chatId, data, type, qualityIndex, message, client) {
+async function handleSong(input, client, message, from) {
+  await client.sendMessage(from, { react: { text: "⬇️", key: message.key } });
+  let url = input;
+  let songInfo = null;
+
+  const id = extractVideoId(input);
+  if (id) {
+    url = `https://www.youtube.com/watch?v=${id}`;
     try {
-        const mediaList = type === 'video' ? (data.mp4 || []) : (data.mp3 || []);
-        const selected = mediaList[qualityIndex];
+      const info = await yts({ videoId: id });
+      if (info) songInfo = info;
+    } catch {}
+  } else {
+    const search = await yts(input);
+    if (!search?.videos?.length) throw new Error("No results found on YouTube.");
+    songInfo = search.videos[0];
+    url = songInfo.url;
+  }
 
-        if (!selected) {
-            await client.sendMessage(chatId, { react: { text: '❌', key: message.key } });
-            return await client.sendMessage(chatId, { text: '❌ Invalid quality selection.' }, { quoted: message });
-        }
+  const title = songInfo?.title || "Unknown Song";
+  const author = songInfo?.author?.name || "Unknown Artist";
+  const thumbnail = songInfo?.thumbnail || songInfo?.image || "";
 
-        await client.sendMessage(chatId, { text: `⬇️ Downloading ${type} in ${selected.quality}...` }, { quoted: message });
-        await client.sendMessage(chatId, { react: { text: '⏳', key: message.key } });
+  const audioUrl = await resolveAudioUrl(url);
+  if (!audioUrl) throw new Error("Could not extract audio URL right now. Please try again later.");
 
-        if (type === 'video') {
-            await conn.sendMessage(chatId, {
-                video: { url: selected.url },
-                caption: `🎬 *${data.title}*\n📹 Quality: ${selected.quality}\n📁 Format: ${selected.format.toUpperCase()}\n🔹 Source: YouTube\n\n📢 @Lady-Trish Channel`,
-                mimetype: 'video/mp4',
-                fileName: selected.filename || `${data.title}.mp4`,
-                contextInfo: {
-                    forwardingScore: 999,
-                    isForwarded: true,
-                    forwardedNewsletterMessageInfo: {
-                        newsletterJid: '120363418144382782@newsletter',
-                        serverMessageId: 142,
-                        newsletterName: 'KAMI-MD'
-                    }
-                }
-            }, { quoted: message });
-        } else {
-            await conn.sendMessage(chatId, {
-                audio: { url: selected.url },
-                mimetype: 'audio/mpeg',
-                ptt: false,
-                fileName: selected.filename || `${data.title}.mp3`,
-                contextInfo: {
-                    forwardingScore: 999,
-                    isForwarded: true,
-                    forwardedNewsletterMessageInfo: {
-                        newsletterJid: '120363403299118246@newsletter',
-                        serverMessageId: 142,
-                        newsletterName: 'Lady-Trish Channel'
-                    }
-                }
-            }, { quoted: message });
-        }
-
-        await client.sendMessage(chatId, { react: { text: '✅', key: message.key } });
-        await client.sendMessage(chatId, { text: `✅ *Download Complete!*\n\n🎬 ${data.title}\n📥 ${selected.quality}\n🔹 Enjoy!` }, { quoted: message });
-
-    } catch (e) {
-        console.error('Download error:', e);
-        await client.sendMessage(chatId, { react: { text: '❌', key: message.key } });
-        await client.sendMessage(chatId, { text: `❌ Failed to download: ${e.message || 'Unknown error'}` }, { quoted: message });
-    }
+  // Send Audio with externalAdReply preview card
+  await client.sendMessage(
+    from,
+    {
+      audio: { url: audioUrl },
+      mimetype: "audio/mpeg",
+      ptt: false,
+      fileName: `${title.replace(/[^\w\s-]/g, '')}.mp3`,
+      contextInfo: {
+        externalAdReply: {
+          title,
+          body: author,
+          mediaType: 2,
+          thumbnailUrl: thumbnail,
+          sourceUrl: url,
+          renderLargerThumbnail: true,
+          showAdAttribution: false,
+        },
+      },
+    },
+    { quoted: message }
+  );
+  await client.sendMessage(from, { react: { text: "🎵", key: message.key } });
 }
 
-cmd({
-    pattern: "yta16",
-    alias: ["ytmp412", "ytmp312"],
-    react: '📥',
-    desc: "Download YouTube videos and audio with quality selection",
+// ─── YouTube Video Helpers ──────────────────────────────────────────────────
+
+const VIDEO_APIS = (url) => [
+  `https://api.nexray.eu.cc/downloader/v1/ytmp4?url=${encodeURIComponent(url)}`,
+  `https://kiraxmd-api.vercel.app/api/video?query=${encodeURIComponent(url)}`,
+  `https://xenoytdl-2.vercel.app/api/youtube?url=${encodeURIComponent(url)}`,
+  `https://api.siputzx.my.id/api/d/ytmp4?url=${encodeURIComponent(url)}`,
+];
+
+async function resolveVideoUrl(youtubeUrl) {
+  for (const api of VIDEO_APIS(youtubeUrl)) {
+    try {
+      const res = await axios.get(api, { timeout: 40_000, validateStatus: () => true });
+      const data = res.data;
+
+      const candidate =
+        data?.result?.url ||
+        data?.result?.mp4 ||
+        data?.data?.dl ||
+        data?.data?.download ||
+        data?.download ||
+        data?.url ||
+        data?.result?.download_url ||
+        data?.result?.video ||
+        (typeof data?.result === "string" ? data.result : null);
+
+      if (!candidate || typeof candidate !== "string" || !candidate.startsWith("http")) continue;
+
+      try {
+        const test = await axios.get(candidate, {
+          responseType: "stream",
+          timeout: 15_000,
+          maxRedirects: 10,
+          validateStatus: () => true,
+          headers: { "User-Agent": "Mozilla/5.0" },
+        });
+
+        if (test.status === 200 || test.status === 206) {
+          try { test.data.destroy(); } catch {}
+          return candidate;
+        }
+        try { test.data.destroy(); } catch {}
+      } catch {}
+    } catch {}
+  }
+  return null;
+}
+
+async function handleVideo(input, client, message, from) {
+  await client.sendMessage(from, { react: { text: "⬇️", key: message.key } });
+  let url = input;
+  let videoInfo = null;
+
+  const id = extractVideoId(input);
+  if (id) {
+    url = `https://www.youtube.com/watch?v=${id}`;
+    try {
+      const info = await yts({ videoId: id });
+      if (info) videoInfo = info;
+    } catch {}
+  } else {
+    const search = await yts(input);
+    if (!search?.videos?.length) throw new Error("No results found on YouTube.");
+    videoInfo = search.videos[0];
+    url = videoInfo.url;
+  }
+
+  const title = videoInfo?.title || "Unknown Video";
+  const duration = videoInfo?.duration?.timestamp || "";
+
+  const videoUrl = await resolveVideoUrl(url);
+  if (!videoUrl) throw new Error("Could not extract video URL right now. Please try again later.");
+
+  // Send Video
+  await client.sendMessage(
+    from,
+    {
+      video: { url: videoUrl },
+      mimetype: "video/mp4",
+      fileName: `${title.replace(/[^\w\s-]/g, '')}.mp4`,
+      caption: `*🎬 YouTube Video Downloader*\n\n*Title:* ${title}\n*Duration:* ${duration}\n*Link:* ${url}`,
+    },
+    { quoted: message }
+  );
+  await client.sendMessage(from, { react: { text: "✅", key: message.key } });
+}
+
+// ─── 1. YouTube Song Commands ───────────────────────────────────────────────
+
+for (const [commandName, description] of [
+  ["song16", "Search & download audio from YouTube"],
+  ["play16", "Search & play audio from YouTube"],
+  ["yta16", "YouTube audio downloader"],
+  ["ytmp316", "YouTube MP3 downloader"],
+]) {
+  cmd({
+    pattern: commandName,
+    alias: commandName === "song16" ? ["ytplay16", "audio16", "plays16"] : [],
+    react: '🎵',
+    desc: description,
     category: "downloader",
     filename: __filename
-}, async (client, message, m, { 
-    from, 
-    prefix, 
-    command, 
-    args, 
-    q, 
-    isCreator,
-    userConfig
-}) => {
-    try {
-        if (!q) {
-            return await client.sendMessage(from, {
-                text: `📥 *YouTube Downloader*\n\nDownload YouTube videos and audio.\n\n📝 *Usage:*\n${prefix}yt <url> - Choose type\n${prefix}ytmp4 <url> - Download video\n${prefix}ytmp3 <url> - Download audio\n\n📌 *Examples:*\n${prefix}yt https://youtu.be/xxxxx\n${prefix}ytmp4 https://youtu.be/xxxxx\n${prefix}ytmp3 https://youtu.be/xxxxx\n\n⚡ *Powered by Omegatech*`
-            }, { quoted: message });
-        }
-
-        const fullText = q;
-
-        // Check for quality selection
-        const qualityMatch = fullText.match(/^(https?:\/\/[^\s]+)\s*--quality\s+(\d+)/i);
-        if (qualityMatch) {
-            const url = qualityMatch[1];
-            const qualityIndex = parseInt(qualityMatch[2]);
-
-            const cache = global.ytCache[from];
-            let data;
-
-            if (cache && cache.url === url) {
-                data = cache.data;
-            } else {
-                await client.sendMessage(from, { text: '⏳ Fetching data...' }, { quoted: message });
-                data = await getYTData(url);
-            }
-
-            const cmdType = command.toLowerCase();
-            const type = (cmdType === 'ytmp3') ? 'audio' : 'video';
-
-            await downloadAndSend(client, from, data, type, qualityIndex, message, client);
-            return;
-        }
-
-        // Extract URL
-        const urlMatch = fullText.match(/(https?:\/\/[^\s]+)/i);
-        if (!urlMatch) {
-            return await client.sendMessage(from, { text: '❌ Please provide a valid YouTube URL.' }, { quoted: message });
-        }
-
-        const url = urlMatch[0];
-
-        if (!/youtube\.com|youtu\.be/i.test(url)) {
-            return await client.sendMessage(from, { text: '❌ Please provide a valid YouTube URL.' }, { quoted: message });
-        }
-
-        const cmdLower = command.toLowerCase();
-
-        // ytmp4 or ytmp3 - show quality selector directly
-        if (cmdLower === 'ytmp4' || cmdLower === 'ytmp3') {
-            await client.sendMessage(from, { text: '⏳ Fetching download data...' }, { quoted: message });
-            const data = await getYTData(url);
-
-            global.ytCache[from] = {
-                data: data,
-                url: url,
-                timestamp: Date.now()
-            };
-
-            const type = (cmdLower === 'ytmp3') ? 'audio' : 'video';
-            const sent = await showQualitySelector(client, from, data, type, url, prefix, [message.sender]);
-
-            if (!sent) {
-                const mediaList = type === 'video' ? (data.mp4 || []) : (data.mp3 || []);
-                let msg = `📥 *${data.title}*\n━━━━━━━━━━━━━━━━━━━━━\n\n`;
-                msg += `*Available ${type === 'video' ? 'Video' : 'Audio'} Qualities:*\n`;
-                mediaList.forEach((qItem, i) => {
-                    msg += `${i+1}. ${qItem.quality} (${qItem.format})\n`;
-                });
-                msg += `\n💡 Reply with: ${prefix}${cmdLower} ${url} --quality <number>`;
-                await client.sendMessage(from, { text: msg }, { quoted: message });
-            }
-            return;
-        }
-
-        // yt - show type selector
-        if (cmdLower === 'yt') {
-            await client.sendMessage(from, { text: '⏳ Fetching YouTube data...' }, { quoted: message });
-            const data = await getYTData(url);
-
-            const sent = await showTypeSelector(client, from, data, url, prefix, command, [message.sender]);
-            if (!sent) {
-                let msg = `📥 *${data.title}*\n━━━━━━━━━━━━━━━━━━━━━\n\n`;
-                msg += `🎬 Video: ${(data.mp4 || []).length} qualities\n`;
-                msg += `🎵 Audio: ${(data.mp3 || []).length} qualities\n\n`;
-                msg += `💡 Choose type:\n`;
-                msg += `  ${prefix}ytmp4 ${url}\n`;
-                msg += `  ${prefix}ytmp3 ${url}`;
-                await client.sendMessage(from, { text: msg }, { quoted: message });
-            }
-            return;
-        }
-
-    } catch (e) {
-        console.error('YouTube error:', e);
-        await client.sendMessage(from, { text: `❌ Error: ${e.message || 'Unknown error'}` }, { quoted: message });
+  }, async (client, message, m, { from, q, prefix, command }) => {
+    if (!q) {
+      return await client.sendMessage(from, { text: `_Usage: .${command} <song name or YouTube URL>_` }, { quoted: message });
     }
+
+    try {
+      await handleSong(q.trim(), client, message, from);
+    } catch (err) {
+      console.error(`[${command.toUpperCase()}]`, err?.message || err);
+      await client.sendMessage(from, { text: `❌ _*Download Failed*_ : \n\n⚠️ ${err?.message || "An unexpected error occurred."}` }, { quoted: message });
+    }
+  });
+}
+
+// ─── 2. YouTube Video Commands ─────────────────────────────────────────────
+
+for (const [commandName, description] of [
+  ["video5", "Search & download video from YouTube"],
+  ["ytmp45", "YouTube MP4 downloader"],
+  ["ytv", "YouTube video downloader"],
+  ["mv", "Download music video from YouTube"],
+]) {
+  cmd({
+    pattern: commandName,
+    alias: commandName === "video5" ? ["ytvideo5", "mp45"] : [],
+    react: '🎥',
+    desc: description,
+    category: "downloader",
+    filename: __filename
+  }, async (client, message, m, { from, q, prefix, command }) => {
+    if (!q) {
+      return await client.sendMessage(from, { text: `_Usage: .${command} <video name or YouTube URL>_` }, { quoted: message });
+    }
+
+    try {
+      await handleVideo(q.trim(), client, message, from);
+    } catch (err) {
+      console.error(`[${command.toUpperCase()}]`, err?.message || err);
+      await client.sendMessage(from, { text: `❌ _*Download Failed*_ : \n\n⚠️ ${err?.message || "An unexpected error occurred."}` }, { quoted: message });
+    }
+  });
+}
+
+// ─── 3. YouTube Search Command (.yts) ───────────────────────────────────────
+
+cmd({
+  pattern: "yts3",
+  alias: ["ytsearch3"],
+  react: '🔍',
+  desc: "Search YouTube videos",
+  category: "search",
+  filename: __filename
+}, async (client, message, m, { from, q }) => {
+  if (!q) return await client.sendMessage(from, { text: "Please provide a search query" }, { quoted: message });
+  
+  try {
+    const res = await yts(q, { pages: 1 });
+    const results = res && res.videos
+      ? res.videos.map((v) => ({
+          id: v.videoId,
+          title: v.title,
+          url: v.url,
+          thumbnail: v.thumbnail,
+          channel: v.author && v.author.name,
+          publishedAt: v.ago,
+        }))
+      : [];
+
+    if (!results.length) return await client.sendMessage(from, { text: "❌ No results found" }, { quoted: message });
+    
+    let replyText = `*YouTube results for "${q}":*\n\n`;
+    results.forEach((v, i) => {
+      replyText += `⬢ ${i + 1}. ${v.title}\n   Channel: ${v.channel || ""}\n   Published: ${v.publishedAt || ""}\n   Link: ${v.url}\n\n`;
+    });
+
+    await client.sendMessage(from, { image: { url: results[0].thumbnail }, caption: replyText }, { quoted: message });
+  } catch (e) {
+    await client.sendMessage(from, { text: "❌ Search failed." }, { quoted: message });
+  }
+});
+
+// ─── 4. GitClone Command ────────────────────────────────────────────────────
+
+cmd({
+  pattern: "gitclone2",
+  alias: ["githubdl2"],
+  react: '📦',
+  desc: "Download GitHub repository as zip",
+  category: "downloader",
+  filename: __filename
+}, async (client, message, m, { from, q }) => {
+  if (!q) return await client.sendMessage(from, { text: "❌ Provide a GitHub link.\n\nExample:\n.gitclone https://github.com/username/repository" }, { quoted: message });
+  
+  try {
+    const link = q.split(/\s+/)[0];
+    const regex = /github\.com\/([^\/]+)\/([^\/]+)(?:\.git)?/i;
+    const match = link.match(regex);
+    if (!match) return await client.sendMessage(from, { text: "⚠️ Invalid GitHub repository format." }, { quoted: message });
+    
+    const [, username, repo] = match;
+    const zipUrl = `https://api.github.com/repos/${username}/${repo}/zipball`;
+    
+    const head = await fetch(zipUrl, { method: "HEAD" });
+    if (!head.ok) return await client.sendMessage(from, { text: "Repository not found or private." }, { quoted: message });
+    
+    const filename = `${repo}.zip`;
+    await client.sendMessage(
+      from,
+      {
+        document: { url: zipUrl },
+        fileName: filename,
+        mimetype: "application/zip",
+        caption: `GitHub: ${username}/${repo}`,
+      },
+      { quoted: message }
+    );
+    await client.sendMessage(from, { react: { text: "✅", key: message.key } });
+  } catch (err) {
+    console.error("GitClone Error:", err);
+    await client.sendMessage(from, { react: { text: "❌", key: message.key } });
+    await client.sendMessage(from, { text: "❌ Failed to download repository. Please try again later." }, { quoted: message });
+  }
+});
+
+// ─── 5. APK Downloader Command ──────────────────────────────────────────────
+
+cmd({
+  pattern: "apk2",
+  alias: ["appdl2"],
+  react: '📱',
+  desc: "Download APK files using NexOracle API",
+  category: "downloader",
+  filename: __filename
+}, async (client, message, m, { from, q }) => {
+  if (!q) return await client.sendMessage(from, { text: "*🏷️ Please provide an app name.*" }, { quoted: message });
+  
+  try {
+    await client.sendMessage(from, { react: { text: "⏳", key: message.key } });
+    const apiUrl = `https://api.nexoracle.com/downloader/apk`;
+    const params = { apikey: "free_key@maher_apis", q };
+    const res = await axios.get(apiUrl, { params }).catch(() => null);
+    
+    if (!res || !res.data || res.data.status !== 200 || !res.data.result) {
+      await client.sendMessage(from, { react: { text: "❌", key: message.key } });
+      return await client.sendMessage(from, { text: "❌ Unable to find the APK. Please try again later." }, { quoted: message });
+    }
+    
+    const { name, lastup, package: pkg, size, icon, dllink } = res.data.result;
+    
+    await client.sendMessage(
+      from,
+      {
+        image: { url: icon },
+        caption: `\`「 APK DOWNLOADED 」\`\nName: ${name}\nUpdated: ${lastup}\nPackage: ${pkg}\nSize: ${size}\nSending APK...`,
+      },
+      { quoted: message }
+    );
+    
+    const apkRes = await axios.get(dllink, { responseType: "arraybuffer" }).catch(() => null);
+    if (!apkRes || !apkRes.data) {
+      await client.sendMessage(from, { react: { text: "❌", key: message.key } });
+      return await client.sendMessage(from, { text: "❌ Failed to download the APK." }, { quoted: message });
+    }
+    
+    await client.sendMessage(
+      from,
+      {
+        document: Buffer.from(apkRes.data),
+        mimetype: "application/vnd.android.package-archive",
+        fileName: `${name}.apk`,
+        caption: "APK file",
+      },
+      { quoted: message }
+    );
+    await client.sendMessage(from, { react: { text: "✅", key: message.key } });
+  } catch (err) {
+    console.error("APK Error:", err);
+    await client.sendMessage(from, { react: { text: "❌", key: message.key } });
+    await client.sendMessage(from, { text: "❌ Unable to fetch APK details." }, { quoted: message });
+  }
+});
+
+// ─── 6. Mega.nz Downloader Command ──────────────────────────────────────────
+
+cmd({
+  pattern: "mega2",
+  alias: ["megadl2"],
+  react: '☁️',
+  desc: "Download files from Mega.nz",
+  category: "downloader",
+  filename: __filename
+}, async (client, message, m, { from, q }) => {
+  if (!q) return await client.sendMessage(from, { text: "❌ Please provide a Mega.nz link!" }, { quoted: message });
+  
+  try {
+    await client.sendMessage(from, { react: { text: "⏳", key: message.key } });
+    const file = File.fromURL(q);
+    const data = await new Promise((resolve, reject) =>
+      file.download((err, data) => (err ? reject(err) : resolve(data)))
+    );
+    
+    const fileName = file.name || `mega_file_${Date.now()}`;
+    const savePath = path.join(os.tmpdir(), fileName);
+    fs.writeFileSync(savePath, data);
+    
+    await client.sendMessage(
+      from,
+      {
+        document: fs.readFileSync(savePath),
+        fileName,
+        mimetype: "application/octet-stream",
+        caption: `Downloaded from Mega.nz: ${fileName}`,
+      },
+      { quoted: message }
+    );
+    
+    fs.unlinkSync(savePath);
+    await client.sendMessage(from, { react: { text: "✅", key: message.key } });
+  } catch (err) {
+    console.error("MegaDL Error:", err);
+    await client.sendMessage(from, { react: { text: "❌", key: message.key } });
+    await client.sendMessage(from, { text: "❌ Failed to download from Mega.nz." }, { quoted: message });
+  }
 });
