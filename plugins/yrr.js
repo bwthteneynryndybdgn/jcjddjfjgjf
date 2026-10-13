@@ -81,12 +81,16 @@ async function handleVideo(input, client, message, from) {
       if (info) videoInfo = info;
     } catch {}
   } else {
-    // Text search ko mazeed behtar kiya gaya hai taake direct link ban jaye
+    // Text search ko yahan fix kiya gaya hai taake exact videoId ya url mil jaye
     const search = await yts(input);
-    const videos = search?.videos || search?.all;
-    if (!videos || !videos.length) throw new Error("YouTube par koi result nahi mila.");
+    const videos = search?.videos || search?.all || [];
+    if (!videos.length) throw new Error("YouTube par koi result nahi mila.");
+    
     videoInfo = videos[0];
-    url = videoInfo.url || `https://www.youtube.com/watch?v=${videoInfo.videoId}`;
+    const vid = videoInfo.videoId || extractVideoId(videoInfo.url);
+    if (!vid) throw new Error("Video ID extract nahi ho saki.");
+    
+    url = `https://www.youtube.com/watch?v=${vid}`;
   }
 
   const title = videoInfo?.title || "Unknown Video";
