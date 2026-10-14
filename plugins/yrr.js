@@ -6,14 +6,15 @@ const __filename = fileURLToPath(import.meta.url);
 
 cmd({
     pattern: "play111",
-    alias: ["ytplay", "song11", "plays111"],
+    alias: ["ytplay111", "song111", "plays111"],
     desc: "Search and download songs from YouTube via Xrina API",
     category: "downloader",
     react: "🎵",
     filename: __filename
-}, async (conn, mek, m, { from, text, reply }) => {
+}, async (client, message, m, { from, q, text, reply }) => {
     try {
-        if (!text) {
+        const query = text || q;
+        if (!query) {
             return reply(
                 `⚠️ Please provide a song name or search query!\n\n` +
                 `Example:\n` +
@@ -22,10 +23,10 @@ cmd({
         }
 
         // Loading reaction
-        await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
+        await client.sendMessage(from, { react: { text: '⏳', key: message.key } });
 
-        // Call the new API endpoint
-        const encodedQuery = encodeURIComponent(text.trim());
+        // Call the API endpoint
+        const encodedQuery = encodeURIComponent(query.trim());
         const apiUrl = `https://apiii-xrina.my.id/download/play?q=${encodedQuery}`;
         
         const response = await axios.get(apiUrl, { timeout: 30000 });
@@ -33,20 +34,20 @@ cmd({
 
         // Check if API returned success and data object
         if (!resData || !resData.status || !resData.data) {
-            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return reply("❌ Could not find any results for that song.");
+            await client.sendMessage(from, { react: { text: '❌', key: message.key } });
+            return client.sendMessage(from, { text: "❌ Could not find any results for that song." }, { quoted: message });
         }
 
         const info = resData.data;
-        const audioUrl = info.music; // Updated property key from the response JSON
-        const title = info.title || text;
-        const thumbnail = info.cover || ''; // Updated property key for thumbnail/cover
-        const duration = info.duration || ''; // Updated property key for duration
-        const author = info.author?.nickname || ''; // Extracted from nested author object
+        const audioUrl = info.music; 
+        const title = info.title || query;
+        const thumbnail = info.cover || ''; 
+        const duration = info.duration || ''; 
+        const author = info.author?.nickname || ''; 
 
         if (!audioUrl) {
-            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return reply("❌ Failed to retrieve the MP3 download link from the API response.");
+            await client.sendMessage(from, { react: { text: '❌', key: message.key } });
+            return client.sendMessage(from, { text: "❌ Failed to retrieve the MP3 download link from the API response." }, { quoted: message });
         }
 
         // Prepare info caption
@@ -57,27 +58,27 @@ cmd({
 
         // Send thumbnail and details first
         if (thumbnail) {
-            await conn.sendMessage(from, { 
+            await client.sendMessage(from, { 
                 image: { url: thumbnail }, 
                 caption: caption 
-            }, { quoted: mek });
+            }, { quoted: message });
         } else {
-            await reply(caption);
+            await client.sendMessage(from, { text: caption }, { quoted: message });
         }
 
         // Send the audio file using direct mp3 link
-        await conn.sendMessage(from, {
+        await client.sendMessage(from, {
             audio: { url: audioUrl },
             mimetype: 'audio/mp4',
-            ptt: false // Set true if you want voice note style
-        }, { quoted: mek });
+            ptt: false 
+        }, { quoted: message });
 
         // Success reaction
-        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
+        await client.sendMessage(from, { react: { text: '✅', key: message.key } });
 
-    } catch (error) {
+    }caught (error) {
         console.error("YTPlay Error:", error);
-        reply(`❌ Error: ${error.message}`);
-        await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+        await client.sendMessage(from, { react: { text: '❌', key: message.key } });
+        return client.sendMessage(from, { text: `❌ Error: ${error.message}` }, { quoted: message });
     }
 });
