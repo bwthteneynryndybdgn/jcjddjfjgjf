@@ -13,7 +13,7 @@ cmd({
         const rawText = body.trim();
         const lowerText = rawText.toLowerCase();
         
-        if (lowerText.startsWith('movie ') || lowerText.startsWith('searchmovie ')) {
+        if (lowerText.startsWith('movie ') || lowerText.startsWith('searchmovie ') || lowerText.startsWith('movsearch ')) {
             const query = rawText.split(' ').slice(1).join(' ').trim();
             if (query) {
                 await executeMovieSearch(conn, mek, from, query);
@@ -78,7 +78,7 @@ async function executeMovieSearch(conn, mek, from, keyword) {
     try {
         await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
-        const apiUrl = `https://api.omegatech.app/api/movie/MovieBox-pro?action=search&keyword=${encodeURIComponent(keyword)}`;
+        const apiUrl = `[https://api.omegatech.app/api/movie/MovieBox-pro?action=search&keyword=$](https://api.omegatech.app/api/movie/MovieBox-pro?action=search&keyword=$){encodeURIComponent(keyword)}`;
         const response = await axios.get(apiUrl, { timeout: 30000 });
         const resData = response.data;
 
@@ -92,14 +92,11 @@ async function executeMovieSearch(conn, mek, from, keyword) {
         msg += `🔍 *Keyword:* ${keyword}\n\n`;
 
         movies.forEach((movie, index) => {
-            msg.format ? null : null;
             msg += `*${index + 1}. ${movie.title}* (${movie.releaseDate || 'N/A'})\n`;
             msg += `🎭 Genre: ${movie.genre || 'N/A'}\n`;
             msg += `⭐ IMDb: ${movie.imdbRatingValue || 'N/A'}\n`;
-            msg += `👉 *Get Detail:* \`.moviedetail ${movie.detailPath}\`\n\n`;
+            msg += `👉 Copy command:\n\`\`\`.moviedetail ${movie.detailPath}\`\`\`\n\n`;
         });
-
-        msg += `_Copy the detail command above and send it to get the download & stream links!_`;
 
         await conn.sendMessage(from, { text: msg }, { quoted: mek });
         await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
@@ -116,8 +113,7 @@ async function executeMovieDetail(conn, mek, from, detailPath) {
     try {
         await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
-        // 1. Fetch Detail API
-        const detailUrl = `https://api.omegatech.app/api/movie/MovieBox-pro?action=detail&detailPath=${encodeURIComponent(detailPath)}`;
+        const detailUrl = `[https://api.omegatech.app/api/movie/MovieBox-pro?action=detail&detailPath=$](https://api.omegatech.app/api/movie/MovieBox-pro?action=detail&detailPath=$){encodeURIComponent(detailPath)}`;
         const detailRes = await axios.get(detailUrl, { timeout: 30000 });
         const detailData = detailRes.data;
 
@@ -134,12 +130,11 @@ async function executeMovieDetail(conn, mek, from, detailPath) {
         const cover = info.cover?.url || info.cover || "";
         const subjectId = info.subjectId || "";
 
-        // 2. Fetch Download/Stream links using action=download or proxy links
         let downloadLink = info.proxyDownload || "";
         let streamLink = info.proxyStream || "";
 
         if (!downloadLink && subjectId) {
-            const dlApi = `https://api.omegatech.app/api/movie/MovieBox-pro?action=download&subjectId=${subjectId}&detailPath=${encodeURIComponent(detailPath)}`;
+            const dlApi = `[https://api.omegatech.app/api/movie/MovieBox-pro?action=download&subjectId=$](https://api.omegatech.app/api/movie/MovieBox-pro?action=download&subjectId=$){subjectId}&detailPath=${encodeURIComponent(detailPath)}`;
             try {
                 const dlRes = await axios.get(dlApi, { timeout: 30000 });
                 if (dlRes.data && dlRes.data.success) {
