@@ -14,9 +14,7 @@ cmd({
         const rawText = body.trim();
         const lowerText = rawText.toLowerCase();
         
-        // Allowed triggers for auto body video download
         const triggers = ['video ', 'ytmp4 ', 'movie ', 'mp4 '];
-        
         const matchedTrigger = triggers.find(t => lowerText.startsWith(t));
 
         if (matchedTrigger) {
@@ -33,7 +31,7 @@ cmd({
 // ==================== VIDEO COMMAND (Prefix Version) ====================
 cmd({
     pattern: "video3",
-    alias: ["ytmp43", "mp43", "movie3", "ytvideo3"],
+    alias: ["ytmp43", "mp43", "movie4", "ytvideo"],
     use: '.video <youtube url>',
     desc: "Download videos from YouTube via API",
     category: "downloader",
@@ -63,44 +61,45 @@ async function executeVideo(conn, mek, from, videoUrl) {
         // Loading reaction
         await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
-        // Call the API endpoint
+        // Call the API endpoint with browser headers
         const encodedUrl = encodeURIComponent(videoUrl);
         const apiUrl = `https://apiii-xrina.my.id/download/ytmp4?url=${encodedUrl}&quality=360`;
         
-        const response = await axios.get(apiUrl, { timeout: 30000 });
+        const response = await axios.get(apiUrl, { 
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'application/json, text/plain, */*'
+            },
+            timeout: 30000 
+        });
+        
         const resData = response.data;
 
-        // Check if API returned success and data object
         if (!resData || !resData.status || !resData.data || !resData.data.download_url) {
             await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
             return await conn.sendMessage(from, { text: "❌ Could not retrieve the video download link from the API." }, { quoted: mek });
         }
 
         const info = resData.data;
-        
         const downloadUrl = info.download_url;
         const title = info.title || "YouTube Video";
         const quality = info.quality || "360p";
         const creator = resData.creator || "Rin imup";
 
-        // Prepare info caption
         let caption = `> *KAMRAN-MD VIDEO PLAYER* 🎬\n\n`;
         caption += `📌 *Title:* ${title}\n`;
         caption += `⚙️ *Quality:* ${quality}\n`;
         caption += `🛠️ *Creator:* ${creator}\n\n`;
         caption += `📁 *Status:* Video downloading...`;
 
-        // Send details first
         await conn.sendMessage(from, { text: caption }, { quoted: mek });
 
-        // Send the video file using direct download link
         await conn.sendMessage(from, {
             video: { url: downloadUrl },
             mimetype: 'video/mp4',
             caption: title
         }, { quoted: mek });
 
-        // Success reaction
         await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
 
     } catch (error) {
