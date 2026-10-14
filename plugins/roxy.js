@@ -26,6 +26,7 @@ cmd({
             return;
         }
 
+        // Selection handler when user replies with a number (1-5)
         if (searchSessions.has(from) && /^[1-5]$/.test(rawText)) {
             const session = searchSessions.get(from);
             if (Date.now() - session.timestamp < 120000) {
@@ -58,7 +59,7 @@ cmd({
 async (conn, mek, m, { from, text, reply }) => {
     try {
         if (!text) {
-            return reply(`⚠️ Please provide a movie name to search!\n\nExample:\n• .movie Spider-Man`);
+            return reply(`⚠️ Please provide a movie name to search!\n\nExample:\n• .movie Ghamasaan`);
         }
         await executeMovieSearch(conn, mek, from, text.trim());
     } catch (e) {
@@ -117,14 +118,40 @@ async function executeMovieDetailAndDownload(conn, mek, from, movie, quotedMek) 
 
         const title = movie.title || "Movie";
         const cover = movie.cover?.url || "";
-        let downloadUrl = movie.proxyDownload || "";
+        let downloadUrl = "";
+
+        // 1. Properly fetch download link using action=download endpoint with subjectId and detailPath
+        if (movie.subjectId && movie.detailPath) {
+            try {
+                const dlApi = `https://api.omegatech.app/api/movie/MovieBox-pro?action=download&subjectId=${movie.subjectId}&detailPath=${encodeURIComponent(movie.detailPath)}`;
+                const dlRes = await axios.get(dlApi, { timeout: 30000 });
+                const dlData = dlRes.data;
+                
+                if (dlData && dlData.success) {
+                    const dlInfo = dlData.data || dlData;
+                    downloadUrl = dlInfo.downloadUrl || dlInfo.proxyDownload || dlInfo.url || "";
+                }
+            } catch (err) {
+                console.log("Download fetch error:", err.message);
+            }
+        }
+
+        // Fallback to proxyDownload if direct download action fails
+        if (!downloadUrl) {
+            downloadUrl = movie.proxyDownload || "";
+        }
+
+        if (!downloadUrl) {
+            await conn.sendMessage(from, { react: { text: "❌", key: quotedMek.key } });
+            return await conn.sendMessage(from, { text: `❌ Could not retrieve download link for this movie.` }, { quoted: quotedMek });
+        }
 
         let caption = `> *KAMRAN-MD MOVIE DOWNLOADER* 🎬\n\n`;
         caption += `📌 *Title:* ${title}\n`;
         caption += `📅 *Release:* ${movie.releaseDate || 'N/A'}\n`;
         caption += `🎭 *Genre:* ${movie.genre || 'N/A'}\n`;
         caption += `⭐ *IMDb:* ${movie.imdbRatingValue || 'N/A'}\n\n`;
-        caption += `📁 *Status:* Preparing document file...`;
+        caption += `📁 *Status:* Sending movie document file...`;
 
         if (cover) {
             await conn.sendMessage(from, { 
@@ -134,28 +161,6 @@ async function executeMovieDetailAndDownload(conn, mek, from, movie, quotedMek) 
         } else {
             await conn.sendMessage(from, { text: caption }, { quoted: quotedMek });
         }
-
-        // Agar proxyDownload nahi hai to action=download se fetch karein
-        if (!downloadUrl && movie.subjectId && movie.detailPath) {
-            try {
-                const dlApi = `https://api.omegatech.app/api/movie/MovieBox-pro?action=download&subjectId=${movie.subjectId}&detailPath=${encodeURIComponent(movie.detailPath)}`;
-                const dlRes = await axios.get(dlApi, { timeout: 30000 });
-                const dlData = dlRes.data;
-                if (dlData && dlData.success) {
-                    const dlInfo = dlData.data || dlData;
-                    downloadUrl = dlInfo.downloadUrl || dlInfo.proxyDownload || dlInfo.url || "";
-                }
-            } catch (err) {
-                console.log("Download fetch fallback error:", err.message);
-            }
-        }
-
-        if (!downloadUrl) {
-            await conn.sendMessage(from, { react: { text: "❌", key: quotedMek.key } });
-            return await conn.sendMessage(from, { text: `❌ Could not retrieve download link for this movie.` }, { quoted: quotedMek });
-        }
-
-        await conn.sendMessage(from, { text: `📥 *Downloading document file, please wait...*` }, { quoted: quotedMek });
 
         await conn.sendMessage(from, {
             document: { url: downloadUrl },
