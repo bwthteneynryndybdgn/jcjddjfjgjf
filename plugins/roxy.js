@@ -4,37 +4,36 @@ import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
 
-// ==================== 1. SEARCH MOVIE LISTENER ====================
+// ==================== AUTO BODY MOVIE SEARCH LISTENER ====================
 cmd({
     on: "body"
 }, async (conn, mek, m, { from, body }) => {
     try {
         if (!body) return;
+
         const rawText = body.trim();
         const lowerText = rawText.toLowerCase();
         
-        if (lowerText.startsWith('movie ') || lowerText.startsWith('searchmovie ') || lowerText.startsWith('movsearch ')) {
-            const query = rawText.split(' ').slice(1).join(' ').trim();
+        const triggers = ['movie ', 'searchmovie ', 'movsearch ', 'film '];
+        const matchedTrigger = triggers.find(t => lowerText.startsWith(t));
+
+        if (matchedTrigger) {
+            const query = rawText.slice(matchedTrigger.length).trim();
             if (query) {
                 await executeMovieSearch(conn, mek, from, query);
             }
-        } else if (lowerText.startsWith('moviedetail ') || lowerText.startsWith('detail ')) {
-            const detailPath = rawText.split(' ').slice(1).join(' ').trim();
-            if (detailPath) {
-                await executeMovieDetail(conn, mek, from, detailPath);
-            }
         }
     } catch (error) {
-        console.error("Auto-Body Movie Error:", error);
+        console.error("Auto-Body Movie Search Error:", error);
     }
 });
 
-// ==================== SEARCH COMMAND (Prefix Version) ====================
+// ==================== MOVIE SEARCH COMMAND (Prefix Version) ====================
 cmd({
-    pattern: "movie7",
-    alias: ["searchmovie", "movsearch", "films"],
+    pattern: "movie",
+    alias: ["searchmovie", "movsearch", "film", "movies"],
     use: '.movie <movie name>',
-    desc: "Search movies list using MovieBox API",
+    desc: "Search movies and get streaming/download links using MovieBox API",
     category: "downloader",
     react: "🎬",
     filename: __filename
@@ -42,8 +41,13 @@ cmd({
 async (conn, mek, m, { from, text, reply }) => {
     try {
         if (!text) {
-            return reply(`⚠️ Please provide a movie name to search!\nExample: .movie Spider-Man`);
+            return reply(
+                `⚠️ Please provide a movie name to search!\n\n` +
+                `Example:\n` +
+                `• .movie Spider-Man`
+            );
         }
+
         await executeMovieSearch(conn, mek, from, text.trim());
     } catch (e) {
         console.error("Error in movie command:", e);
@@ -51,34 +55,15 @@ async (conn, mek, m, { from, text, reply }) => {
     }
 });
 
-// ==================== DETAIL COMMAND (Prefix Version) ====================
-cmd({
-    pattern: "moviedetail",
-    alias: ["detail", "movdetail"],
-    use: '.moviedetail <detailPath>',
-    desc: "Get full details and download links of a selected movie",
-    category: "downloader",
-    react: "🔍",
-    filename: __filename
-},
-async (conn, mek, m, { from, text, reply }) => {
-    try {
-        if (!text) {
-            return reply(`⚠️ Please provide the detailPath of the movie!\nExample: .moviedetail my-cousin-is-an-escort-kMTF1yOqqV9`);
-        }
-        await executeMovieDetail(conn, mek, from, text.trim());
-    } catch (e) {
-        console.error("Error in moviedetail command:", e);
-        reply(`An error occurred: ${e.message}`);
-    }
-});
-
-// ==================== CORE SEARCH LOGIC ====================
+// ==================== CORE MOVIE SEARCH LOGIC ====================
 async function executeMovieSearch(conn, mek, from, keyword) {
     try {
+        // Loading reaction
         await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
-        const apiUrl = `[https://api.omegatech.app/api/movie/MovieBox-pro?action=search&keyword=$](https://api.omegatech.app/api/movie/MovieBox-pro?action=search&keyword=$){encodeURIComponent(keyword)}`;
+        const encodedKeyword = encodeURIComponent(keyword);
+        const apiUrl = `https://api.omegatech.app/api/movie/MovieBox-pro?action=search&keyword=${encodedKeyword}`;
+        
         const response = await axios.get(apiUrl, { timeout: 30000 });
         const resData = response.data;
 
@@ -87,85 +72,41 @@ async function executeMovieSearch(conn, mek, from, keyword) {
             return await conn.sendMessage(from, { text: `❌ No movies found for "${keyword}".` }, { quoted: mek });
         }
 
-        const movies = resData.data.results.slice(0, 5); // Top 5 results
-        let msg = `> *KAMRAN-MD MOVIE SEARCH RESULTS* 🍿\n\n`;
-        msg += `🔍 *Keyword:* ${keyword}\n\n`;
+        const movies = resData.data.results.slice(0, 5); // Top 5 results bhejega taake spam na ho
 
-        movies.forEach((movie, index) => {
-            msg += `*${index + 1}. ${movie.title}* (${movie.releaseDate || 'N/A'})\n`;
-            msg += `🎭 Genre: ${movie.genre || 'N/A'}\n`;
-            msg += `⭐ IMDb: ${movie.imdbRatingValue || 'N/A'}\n`;
-            msg += `👉 Copy command:\n\`\`\`.moviedetail ${movie.detailPath}\`\`\`\n\n`;
-        });
+        for (const movie of movies) {
+            const title = movie.title || "Unknown Title";
+            const releaseDate = movie.releaseDate || "N/A";
+            const genre = movie.genre || "N/A";
+            const country = movie.countryName || "N/A";
+            const imdb = movie.imdbRatingValue || "N/A";
+            const coverUrl = movie.cover?.url || "";
+            const downloadUrl = movie.proxyDownload || "";
+            const streamUrl = movie.proxyStream || "";
 
-        await conn.sendMessage(from, { text: msg }, { quoted: mek });
+            let caption = `> *KAMRAN-MD MOVIE FINDER* 🍿\n\n`;
+            caption += `📌 *Title:* ${title}\n`;
+            caption += `📅 *Release:* ${releaseDate}\n`;
+            caption += `🎭 *Genre:* ${genre}\n`;
+            caption += `🌍 *Country:* ${country}\n`;
+            caption += `⭐ *IMDb:* ${imdb}\n\n`;
+            if (downloadUrl) caption += `📥 *Download Link:* ${downloadUrl}\n`;
+            if (streamUrl) caption += `▶️ *Stream Link:* ${streamUrl}`;
+
+            if (coverUrl) {
+                await conn.sendMessage(from, { 
+                    image: { url: coverUrl }, 
+                    caption: caption 
+                }, { quoted: mek });
+            } else {
+                await conn.sendMessage(from, { text: caption }, { quoted: mek });
+            }
+        }
+
         await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
 
     } catch (error) {
         console.error("Movie Search Error:", error);
-        await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-        await conn.sendMessage(from, { text: `❌ Error: ${error.message}` }, { quoted: mek });
-    }
-}
-
-// ==================== CORE DETAIL & DOWNLOAD LOGIC ====================
-async function executeMovieDetail(conn, mek, from, detailPath) {
-    try {
-        await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
-
-        const detailUrl = `[https://api.omegatech.app/api/movie/MovieBox-pro?action=detail&detailPath=$](https://api.omegatech.app/api/movie/MovieBox-pro?action=detail&detailPath=$){encodeURIComponent(detailPath)}`;
-        const detailRes = await axios.get(detailUrl, { timeout: 30000 });
-        const detailData = detailRes.data;
-
-        if (!detailData || !detailData.success) {
-            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return await conn.sendMessage(from, { text: `❌ Could not fetch details for this movie.` }, { quoted: mek });
-        }
-
-        const info = detailData.data || detailData;
-        const title = info.title || "Unknown Title";
-        const desc = info.description || "No description available.";
-        const release = info.releaseDate || "N/A";
-        const genre = info.genre || "N/A";
-        const cover = info.cover?.url || info.cover || "";
-        const subjectId = info.subjectId || "";
-
-        let downloadLink = info.proxyDownload || "";
-        let streamLink = info.proxyStream || "";
-
-        if (!downloadLink && subjectId) {
-            const dlApi = `[https://api.omegatech.app/api/movie/MovieBox-pro?action=download&subjectId=$](https://api.omegatech.app/api/movie/MovieBox-pro?action=download&subjectId=$){subjectId}&detailPath=${encodeURIComponent(detailPath)}`;
-            try {
-                const dlRes = await axios.get(dlApi, { timeout: 30000 });
-                if (dlRes.data && dlRes.data.success) {
-                    downloadLink = dlRes.data.data?.downloadUrl || dlRes.data.downloadUrl || "";
-                }
-            } catch (err) {
-                console.log("Download fetch sub-error:", err.message);
-            }
-        }
-
-        let caption = `> *KAMRAN-MD MOVIE DETAILS* 🎬\n\n`;
-        caption += `📌 *Title:* ${title}\n`;
-        caption += `📅 *Release:* ${release}\n`;
-        caption += `🎭 *Genre:* ${genre}\n`;
-        caption += `📝 *Description:* ${desc}\n\n`;
-        if (streamLink) caption += `▶️ *Stream:* ${streamLink}\n`;
-        if (downloadLink) caption += `📥 *Download:* ${downloadLink}\n`;
-
-        if (cover) {
-            await conn.sendMessage(from, { 
-                image: { url: cover }, 
-                caption: caption 
-            }, { quoted: mek });
-        } else {
-            await conn.sendMessage(from, { text: caption }, { quoted: mek });
-        }
-
-        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
-
-    } catch (error) {
-        console.error("Movie Detail Error:", error);
         await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
         await conn.sendMessage(from, { text: `❌ Error: ${error.message}` }, { quoted: mek });
     }
