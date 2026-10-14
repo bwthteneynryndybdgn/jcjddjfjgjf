@@ -1,75 +1,83 @@
-// plugins/song.js - ESM Version
 import { fileURLToPath } from 'url';
 import { cmd } from '../command.js';
 import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
 
-async function handleSong(input, client, message, from) {
-  await client.sendMessage(from, { react: { text: "⬇️", key: message.key } });
-  
-  const apiUrl = `https://api.azbry.com/api/download/ytplay2?q=${encodeURIComponent(input)}`;
-  const res = await axios.get(apiUrl, { timeout: 40_000, validateStatus: () => true }).catch(() => null);
-
-  if (!res || !res.data || !res.data.status || !res.data.result || !res.data.result.download) {
-    throw new Error("Audio download link extract nahi ho saka. Baraye meharbaani dobarah koshish karein.");
-  }
-
-  const songData = res.data.result;
-  const title = songData.title || "Unknown Song";
-  const author = songData.channel || "Unknown Artist";
-  const thumbnail = songData.thumbnail || "";
-  const audioUrl = songData.download;
-  const url = songData.url || `https://www.youtube.com/watch?v=${songData.videoId}`;
-
-  // Send Audio with externalAdReply preview card
-  await client.sendMessage(
-    from,
-    {
-      audio: { url: audioUrl },
-      mimetype: "audio/mpeg",
-      ptt: false,
-      fileName: `${title.replace(/[^\w\s-]/g, '')}.mp3`,
-      contextInfo: {
-        externalAdReply: {
-          title,
-          body: author,
-          mediaType: 2,
-          thumbnailUrl: thumbnail,
-          sourceUrl: url,
-          renderLargerThumbnail: true,
-          showAdAttribution: false,
-        },
-      },
-    },
-    { quoted: message }
-  );
-  await client.sendMessage(from, { react: { text: "🎵", key: message.key } });
-}
-
-for (const [commandName, description] of [
-  ["song17", "Search & download audio from YouTube"],
-  ["play17", "Search & play audio from YouTube"],
-  ["yta17", "YouTube audio downloader"],
-  ["ytmp3", "YouTube MP3 downloader"],
-]) {
-  cmd({
-    pattern: commandName,
-    alias: commandName === "song17" ? ["ytplay", "audio", "play17"] : [],
-    react: '🎵',
-    desc: description,
+cmd({
+    pattern: "play17",
+    alias: ["ytplay17", "song17", "plays17"],
+    desc: "Search and download songs from YouTube via FAA API",
     category: "downloader",
+    react: "🎵",
     filename: __filename
-  }, async (client, message, m, { from, q, prefix, command }) => {
-    if (!q) {
-      return await client.sendMessage(from, { text: `_Usage: .${command} <song name or YouTube URL>_` }, { quoted: message });
-    }
-
+}, async (conn, mek, m, { from, text, reply }) => {
     try {
-      await handleSong(q.trim(), client, message, from);
-    } catch (err) {
-      console.error(`[${command.toUpperCase()}]`, err?.message || err);
-      await client.sendMessage(from, { text: `❌ _*Download Failed*_ : \n\n⚠️ ${err?.message || "An unexpected error occurred."}` }, { quoted: message });
+        if (!text) {
+            return reply(
+                `⚠️ Please provide a song name or search query!\n\n` +
+                `Example:\n` +
+                `• .play Song pal`
+            );
+        }
+
+        // Loading reaction
+        await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
+
+        // Call the API endpoint
+        const encodedQuery = encodeURIComponent(text.trim());
+        const apiUrl = `https://api.azbry.com/api/download/ytplay2?q=${encodedQuery}`;
+        
+        const response = await axios.get(apiUrl, { timeout: 30000 });
+        const resData = response.data;
+
+        // Check if API returned success and result object
+        if (!resData || !resData.status || !resData.result) {
+            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+            return reply("❌ Could not find any results for that song.");
+        }
+
+        const info = resData.result;
+        const audioUrl = info.mp3; // Exact key from your API log
+        const title = info.title || text;
+        const thumbnail = info.thumbnail || '';
+        const duration = info.duration_timestamp || '';
+        const author = info.author || '';
+
+        if (!audioUrl) {
+            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+            return reply("❌ Failed to retrieve the MP3 download link from the API response.");
+        }
+
+        // Prepare info caption
+        let caption = `🎶 *Title:* ${title}\n`;
+        if (author) caption += `👤 *Artist/Channel:* ${author}\n`;
+        if (duration) caption += `⏱️ *Duration:* ${duration}\n`;
+        caption += `📁 *Status:* Downloading audio...`;
+
+        // Send thumbnail and details first
+        if (thumbnail) {
+            await conn.sendMessage(from, { 
+                image: { url: thumbnail }, 
+                caption: caption 
+            }, { quoted: mek });
+        } else {
+            await reply(caption);
+        }
+
+        // Send the audio file using direct mp3 link
+        await conn.sendMessage(from, {
+            audio: { url: audioUrl },
+            mimetype: 'audio/mp4',
+            ptt: false // Set true if you want voice note style
+        }, { quoted: mek });
+
+        // Success reaction
+        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
+
+    } catch (error) {
+        console.error("YTPlay Error:", error);
+        reply(`❌ Error: ${error.message}`);
+        await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
     }
-  });
-}
+});
