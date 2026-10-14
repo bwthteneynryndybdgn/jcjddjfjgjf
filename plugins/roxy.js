@@ -4,7 +4,6 @@ import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
 
-// Temporary memory store to keep search results for selection
 const searchSessions = new Map();
 
 // ==================== AUTO BODY & SELECTION LISTENER ====================
@@ -16,7 +15,6 @@ cmd({
         const rawText = body.trim();
         const lowerText = rawText.toLowerCase();
 
-        // 1. Search Trigger
         const triggers = ['movie ', 'searchmovie ', 'movsearch ', 'film '];
         const matchedTrigger = triggers.find(t => lowerText.startsWith(t));
 
@@ -28,16 +26,14 @@ cmd({
             return;
         }
 
-        // 2. Number Selection Trigger (e.g., replying "1", "2", "3" to select movie)
         if (searchSessions.has(from) && /^[1-5]$/.test(rawText)) {
             const session = searchSessions.get(from);
-            // Check if session is within 2 minutes
             if (Date.now() - session.timestamp < 120000) {
                 const selectedIndex = parseInt(rawText) - 1;
                 const chosenMovie = session.movies[selectedIndex];
 
                 if (chosenMovie) {
-                    searchSessions.delete(from); // Clear session
+                    searchSessions.delete(from);
                     await executeMovieDetailAndDownload(conn, mek, from, chosenMovie, mek);
                 }
             } else {
@@ -49,7 +45,7 @@ cmd({
     }
 });
 
-// ==================== MOVIE SEARCH COMMAND (Prefix Version) ====================
+// ==================== MOVIE SEARCH COMMAND ====================
 cmd({
     pattern: "movie",
     alias: ["searchmovie", "movsearch", "film", "movies"],
@@ -62,13 +58,8 @@ cmd({
 async (conn, mek, m, { from, text, reply }) => {
     try {
         if (!text) {
-            return reply(
-                `⚠️ Please provide a movie name to search!\n\n` +
-                `Example:\n` +
-                `• .movie Spider-Man`
-            );
+            return reply(`⚠️ Please provide a movie name to search!\n\nExample:\n• .movie Spider-Man`);
         }
-
         await executeMovieSearch(conn, mek, from, text.trim());
     } catch (e) {
         console.error("Error in movie command:", e);
@@ -76,7 +67,6 @@ async (conn, mek, m, { from, text, reply }) => {
     }
 });
 
-// ==================== STEP 1: SEARCH & SHOW LIST ====================
 async function executeMovieSearch(conn, mek, from, keyword) {
     try {
         await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
@@ -92,9 +82,8 @@ async function executeMovieSearch(conn, mek, from, keyword) {
             return await conn.sendMessage(from, { text: `❌ No movies found for "${keyword}".` }, { quoted: mek });
         }
 
-        const movies = resData.data.results.slice(0, 5); // Top 5 results
+        const movies = resData.data.results.slice(0, 5);
 
-        // Save session for selection
         searchSessions.set(from, {
             movies: movies,
             timestamp: Date.now()
@@ -102,7 +91,7 @@ async function executeMovieSearch(conn, mek, from, keyword) {
 
         let msg = `> *KAMRAN-MD MOVIE SELECTOR* 🍿\n\n`;
         msg += `🔍 *Search:* ${keyword}\n`;
-        msg += `📌 *Reply with a number (1 to ${movies.length}) to select & download:* \n\n`;
+        msg += `📌 *Reply with a number (1 to ${movies.length}) to download:* \n\n`;
 
         movies.forEach((movie, index) => {
             msg += `*${index + 1}. ${movie.title}* (${movie.releaseDate || 'N/A'})\n`;
@@ -110,7 +99,7 @@ async function executeMovieSearch(conn, mek, from, keyword) {
             msg += `⭐ IMDb: ${movie.imdbRatingValue || 'N/A'}\n\n`;
         });
 
-        msg += `_👉 Just reply with the number (e.g. 1) to get details and download the movie document!_`;
+        msg += `_👉 Just reply with the number (e.g. 1) to download the movie document!_`;
 
         await conn.sendMessage(from, { text: msg }, { quoted: mek });
         await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
@@ -122,34 +111,21 @@ async function executeMovieSearch(conn, mek, from, keyword) {
     }
 }
 
-// ==================== STEP 2: DETAIL & DOCUMENT DOWNLOAD ====================
 async function executeMovieDetailAndDownload(conn, mek, from, movie, quotedMek) {
     try {
         await conn.sendMessage(from, { react: { text: "⏳", key: quotedMek.key } });
 
-        const detailPath = movie.detailPath;
-        const subjectId = movie.subjectId;
+        const title = movie.title || "Movie";
+        const cover = movie.cover?.url || "";
+        let downloadUrl = movie.proxyDownload || "";
 
-        // 1. Fetch Detail API
-        const detailUrl = `https://api.omegatech.app/api/movie/MovieBox-pro?action=detail&detailPath=${encodeURIComponent(detailPath)}`;
-        const detailRes = await axios.get(detailUrl, { timeout: 30000 });
-        const detailData = detailRes.data;
-
-        const info = detailData?.success ? (detailData.data || detailData) : movie;
-        const title = info.title || movie.title || "Movie";
-        const desc = info.description || "No description available.";
-        const release = info.releaseDate || movie.releaseDate || "N/A";
-        const genre = info.genre || movie.genre || "N/A";
-        const cover = info.cover?.url || movie.cover?.url || "";
-
-        let caption = `> *KAMRAN-MD MOVIE DETAILS* 🎬\n\n`;
+        let caption = `> *KAMRAN-MD MOVIE DOWNLOADER* 🎬\n\n`;
         caption += `📌 *Title:* ${title}\n`;
-        caption += `📅 *Release:* ${release}\n`;
-        caption += `🎭 *Genre:* ${genre}\n`;
-        caption += `📝 *Description:* ${desc}\n\n`;
-        caption += `📁 *Status:* Fetching official download link & size...`;
+        caption += `📅 *Release:* ${movie.releaseDate || 'N/A'}\n`;
+        caption += `🎭 *Genre:* ${movie.genre || 'N/A'}\n`;
+        caption += `⭐ *IMDb:* ${movie.imdbRatingValue || 'N/A'}\n\n`;
+        caption += `📁 *Status:* Preparing document file...`;
 
-        // Send Details & Thumbnail first
         if (cover) {
             await conn.sendMessage(from, { 
                 image: { url: cover }, 
@@ -159,19 +135,18 @@ async function executeMovieDetailAndDownload(conn, mek, from, movie, quotedMek) 
             await conn.sendMessage(from, { text: caption }, { quoted: quotedMek });
         }
 
-        // 2. Fetch Official Download Link using action=download
-        let downloadUrl = movie.proxyDownload || "";
-        if (subjectId && detailPath) {
+        // Agar proxyDownload nahi hai to action=download se fetch karein
+        if (!downloadUrl && movie.subjectId && movie.detailPath) {
             try {
-                const dlApi = `https://api.omegatech.app/api/movie/MovieBox-pro?action=download&subjectId=${subjectId}&detailPath=${encodeURIComponent(detailPath)}`;
+                const dlApi = `https://api.omegatech.app/api/movie/MovieBox-pro?action=download&subjectId=${movie.subjectId}&detailPath=${encodeURIComponent(movie.detailPath)}`;
                 const dlRes = await axios.get(dlApi, { timeout: 30000 });
                 const dlData = dlRes.data;
                 if (dlData && dlData.success) {
                     const dlInfo = dlData.data || dlData;
-                    downloadUrl = dlInfo.downloadUrl || dlInfo.proxyDownload || dlInfo.url || downloadUrl;
+                    downloadUrl = dlInfo.downloadUrl || dlInfo.proxyDownload || dlInfo.url || "";
                 }
-            } catch (dlErr) {
-                console.log("Download link fetch sub-error:", dlErr.message);
+            } catch (err) {
+                console.log("Download fetch fallback error:", err.message);
             }
         }
 
@@ -180,9 +155,8 @@ async function executeMovieDetailAndDownload(conn, mek, from, movie, quotedMek) 
             return await conn.sendMessage(from, { text: `❌ Could not retrieve download link for this movie.` }, { quoted: quotedMek });
         }
 
-        await conn.sendMessage(from, { text: `📥 *Downloading movie document, please wait...*` }, { quoted: quotedMek });
+        await conn.sendMessage(from, { text: `📥 *Downloading document file, please wait...*` }, { quoted: quotedMek });
 
-        // 3. Send as Document (.mp4)
         await conn.sendMessage(from, {
             document: { url: downloadUrl },
             mimetype: 'video/mp4',
@@ -193,7 +167,7 @@ async function executeMovieDetailAndDownload(conn, mek, from, movie, quotedMek) 
         await conn.sendMessage(from, { react: { text: "✅", key: quotedMek.key } });
 
     } catch (error) {
-        console.error("Movie Detail & Download Error:", error);
+        console.error("Movie Download Error:", error);
         await conn.sendMessage(from, { react: { text: "❌", key: quotedMek.key } });
         await conn.sendMessage(from, { text: `❌ Error: ${error.message}` }, { quoted: quotedMek });
     }
