@@ -6,7 +6,7 @@ import axios from 'axios';
 const __filename = fileURLToPath(import.meta.url);
 
 // ==========================================
-// 1. STATUS SAVER HANDLER (Fixed)
+// 1. STATUS SAVER HANDLER (Groups & IB Both)
 // ==========================================
 const commandKeywords = ["send", "sendme", "do", "give", "bhejo", "bhej", "save", "sand", "sent", "forward"];
 
@@ -20,9 +20,7 @@ cmd({
   userConfig
 }) => {
   try {
-    if (isGroup) return;
-    
-    // 🔥 Yahin par error aa raha tha! Agar message quoted nahi hai toh yahin se return ho jaye
+    // Group check yahan se hata diya hai taaki groups mein bhi chale
     if (!message.quoted) return;
 
     const messageText = body ? body.toLowerCase() : "";
@@ -87,9 +85,9 @@ cmd({
 
 
 // ==========================================
-// 2. AUTO SONG PLAYER HANDLER
+// 2. AUTO SONG PLAYER HANDLER (Groups & IB Both)
 // ==========================================
-const songKeywords = ["play3", "song3", "audio2", "music", "play2", "ytplay2", "song4"];
+const songKeywords = ["play2", "song3", "audio2", "music", "play3", "ytplay2", "song4"];
 
 cmd({
   'on': "body"
@@ -100,8 +98,7 @@ cmd({
   reply
 }) => {
   try {
-    if (isGroup) return;
-
+    // Yahan se bhi group check hata diya hai taaki groups mein music baj sake
     const messageText = body ? body.toLowerCase().trim() : "";
     let matchedKeyword = null;
     let query = "";
