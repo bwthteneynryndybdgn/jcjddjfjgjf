@@ -4,89 +4,80 @@ import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
 
-// Yahan aap apne pasandida keywords rakh sakte hain
-const songKeywords = ["play", "song", "audio", "music", "play2", "ytplay", "song2"];
-
 cmd({
-  'on': "body"
-}, async (client, message, store, {
-  from,
-  body,
-  isGroup,
-  reply
-}) => {
-  try {
-    // Message text ko check karein
-    const messageText = body ? body.toLowerCase().trim() : "";
-    if (!messageText) return;
+    on: "body"
+}, async (conn, mek, m, { from, body }) => {
+    try {
+        if (!body) return;
 
-    let query = "";
-    let isMatched = false;
+        const rawText = body.trim().toLowerCase();
+        
+        // Yeh check karega ki message kis keyword se start ho raha hai (jaise play, song, music, etc.)
+        const songKeywords = ['play', 'song', 'audio', 'music', 'play2', 'ytplay'];
+        let query = "";
+        let matched = false;
 
-    // Check karein ki message kisi keyword se start ho raha hai ya nahi
-    for (let keyword of songKeywords) {
-      if (messageText === keyword || messageText.startsWith(keyword + " ")) {
-        isMatched = true;
-        query = messageText.slice(keyword.length).trim();
-        break;
-      }
+        for (let keyword of songKeywords) {
+            if (rawText === keyword || rawText.startsWith(keyword + " ")) {
+                matched = true;
+                query = rawText.slice(keyword.length).trim();
+                break;
+            }
+        }
+
+        if (matched && query) {
+            // ⏳ Loading reaction
+            await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
+
+            const encodedQuery = encodeURIComponent(query);
+            const apiUrl = `https://apiii-xrina.my.id/download/play?q=${encodedQuery}`;
+            
+            const response = await axios.get(apiUrl, { timeout: 30000 });
+            const resData = response.data;
+
+            if (!resData || !resData.status || !resData.data) {
+                await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+                return;
+            }
+
+            const info = resData.data;
+            const audioUrl = info.media?.[0] || info.music || '';
+            const title = info.title || query;
+            const thumbnail = info.cover || '';
+            const duration = info.duration || '';     
+            const author = info.author?.nickname || '';
+
+            if (!audioUrl) {
+                await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+                return;
+            }
+
+            let caption = `🎶 *Title:* ${title}\n`;
+            if (author) caption += `👤 *Channel:* ${author}\n`;
+            if (duration) caption += `⏱️ *Duration:* ${duration}\n`;
+            caption += `📁 *Status:* Downloading audio...`;
+
+            // Thumbnail aur details bhejein
+            if (thumbnail) {
+                await conn.sendMessage(from, { 
+                    image: { url: thumbnail }, 
+                    caption: caption 
+                }, { quoted: mek });
+            } else {
+                await conn.sendMessage(from, { text: caption }, { quoted: mek });
+            }
+
+            // Audio file bhejein
+            await conn.sendMessage(from, {
+                audio: { url: audioUrl },
+                mimetype: 'audio/mp4',
+                ptt: false 
+            }, { quoted: mek });
+
+            // ✅ Success reaction
+            await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
+        }
+    } catch (error) {
+        console.error("Auto-Body Song Error:", error);
     }
-
-    // Agar keyword match ho gaya aur gaane ka naam bhi diya hai
-    if (isMatched && query) {
-      // ⏳ Processing reaction
-      await client.sendMessage(from, { react: { text: '⏳', key: message.key } });
-
-      const encodedQuery = encodeURIComponent(query);
-      const apiUrl = `https://apiii-xrina.my.id/download/play?q=${encodedQuery}`;
-      
-      const response = await axios.get(apiUrl, { timeout: 30000 });
-      const resData = response.data;
-
-      if (!resData || !resData.status || !resData.data) {
-        await client.sendMessage(from, { react: { text: '❌', key: message.key } });
-        return reply("❌ Is gaane ka koi result nahi mila.");
-      }
-
-      const info = resData.data;
-      const audioUrl = info.media?.[0] || info.music || '';
-      const title = info.title || query;
-      const thumbnail = info.cover || '';
-      const duration = info.duration || '';     
-      const author = info.author?.nickname || '';
-
-      if (!audioUrl) {
-        await client.sendMessage(from, { react: { text: '❌', key: message.key } });
-        return reply("❌ MP3 download link nahi mila.");
-      }
-
-      // Caption tayar karein
-      let caption = `🎶 *Title:* ${title}\n`;
-      if (author) caption += `👤 *Channel:* ${author}\n`;
-      if (duration) caption += `⏱️ *Duration:* ${duration}\n`;
-      caption += `📁 *Status:* Downloading audio...`;
-
-      // Pehle thumbnail aur details bhejein
-      if (thumbnail) {
-        await client.sendMessage(from, { 
-          image: { url: thumbnail }, 
-          caption: caption 
-        }, { quoted: message });
-      } else {
-        await reply(caption);
-      }
-
-      // Phir audio file bhejein
-      await client.sendMessage(from, {
-        audio: { url: audioUrl },
-        mimetype: 'audio/mp4',
-        ptt: false 
-      }, { quoted: message });
-
-      // ✅ Success reaction
-      await client.sendMessage(from, { react: { text: '✅', key: message.key } });
-    }
-  } catch (error) {
-    console.error("Independent Auto Song Error:", error);
-  }
 });
