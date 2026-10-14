@@ -84,7 +84,6 @@ async function executeAiSong(conn, mek, from, promptText) {
 
         // 2. Polling Loop to check result status
         let audioUrl = null;
-        let songTitle = promptText;
         const maxAttempts = 20; // ~100 seconds total max wait
         let attempts = 0;
 
@@ -97,12 +96,19 @@ async function executeAiSong(conn, mek, from, promptText) {
                 const resResponse = await axios.get(resultUrl, { timeout: 30000 });
                 const resData = resResponse.data;
 
-                if (resData && resData.success && resData.status === 'completed' && resData.audioUrl) {
-                    audioUrl = resData.audioUrl;
-                    if (resData.title) songTitle = resData.title;
-                    break;
-                } else if (resData && resData.status === 'failed') {
-                    throw new Error("AI song generation failed on server.");
+                console.log(`Poll Attempt ${attempts} Response:`, JSON.stringify(resData));
+
+                // Flexible checking for audio url in different possible keys
+                if (resData) {
+                    const dataObj = resData.data || resData;
+                    audioUrl = dataObj.audioUrl || dataObj.download || dataObj.url || dataObj.audio;
+
+                    if (audioUrl) {
+                        break;
+                    }
+                    if (resData.status === 'failed') {
+                        throw new Error("AI song generation failed on server.");
+                    }
                 }
             } catch (pollErr) {
                 console.log(`Polling attempt ${attempts} error:`, pollErr.message);
