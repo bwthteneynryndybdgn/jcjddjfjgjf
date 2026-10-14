@@ -6,15 +6,14 @@ const __filename = fileURLToPath(import.meta.url);
 
 cmd({
     pattern: "play111",
-    alias: ["ytplay111", "song111", "plays111"],
+    alias: ["ytplay", "song111", "plays"],
     desc: "Search and download songs from YouTube via Xrina API",
     category: "downloader",
     react: "🎵",
     filename: __filename
-}, async (client, message, m, { from, q, text, reply }) => {
+}, async (conn, mek, m, { from, text, reply }) => {
     try {
-        const query = text || q;
-        if (!query) {
+        if (!text) {
             return reply(
                 `⚠️ Please provide a song name or search query!\n\n` +
                 `Example:\n` +
@@ -23,10 +22,10 @@ cmd({
         }
 
         // Loading reaction
-        await client.sendMessage(from, { react: { text: '⏳', key: message.key } });
+        await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
-        // Call the API endpoint
-        const encodedQuery = encodeURIComponent(query.trim());
+        // Call the Xrina API endpoint
+        const encodedQuery = encodeURIComponent(text.trim());
         const apiUrl = `https://apiii-xrina.my.id/download/play?q=${encodedQuery}`;
         
         const response = await axios.get(apiUrl, { timeout: 30000 });
@@ -34,20 +33,20 @@ cmd({
 
         // Check if API returned success and data object
         if (!resData || !resData.status || !resData.data) {
-            await client.sendMessage(from, { react: { text: '❌', key: message.key } });
-            return client.sendMessage(from, { text: "❌ Could not find any results for that song." }, { quoted: message });
+            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+            return reply("❌ Could not find any results for that song.");
         }
 
         const info = resData.data;
         const audioUrl = info.music; 
-        const title = info.title || query;
+        const title = info.title || text;
         const thumbnail = info.cover || ''; 
         const duration = info.duration || ''; 
         const author = info.author?.nickname || ''; 
 
         if (!audioUrl) {
-            await client.sendMessage(from, { react: { text: '❌', key: message.key } });
-            return client.sendMessage(from, { text: "❌ Failed to retrieve the MP3 download link from the API response." }, { quoted: message });
+            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+            return reply("❌ Failed to retrieve the MP3 download link from the API response.");
         }
 
         // Prepare info caption
@@ -58,27 +57,27 @@ cmd({
 
         // Send thumbnail and details first
         if (thumbnail) {
-            await client.sendMessage(from, { 
+            await conn.sendMessage(from, { 
                 image: { url: thumbnail }, 
                 caption: caption 
-            }, { quoted: message });
+            }, { quoted: mek });
         } else {
-            await client.sendMessage(from, { text: caption }, { quoted: message });
+            await reply(caption);
         }
 
         // Send the audio file using direct mp3 link
-        await client.sendMessage(from, {
+        await conn.sendMessage(from, {
             audio: { url: audioUrl },
             mimetype: 'audio/mp4',
             ptt: false 
-        }, { quoted: message });
+        }, { quoted: mek });
 
         // Success reaction
-        await client.sendMessage(from, { react: { text: '✅', key: message.key } });
+        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
 
-    }caught (error) {
+    } catch (error) {
         console.error("YTPlay Error:", error);
-        await client.sendMessage(from, { react: { text: '❌', key: message.key } });
-        return client.sendMessage(from, { text: `❌ Error: ${error.message}` }, { quoted: message });
+        reply(`❌ Error: ${error.message}`);
+        await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
     }
 });
