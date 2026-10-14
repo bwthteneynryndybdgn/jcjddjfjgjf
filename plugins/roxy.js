@@ -33,7 +33,7 @@ cmd({
     pattern: "movie",
     alias: ["searchmovie", "movsearch", "film", "movies"],
     use: '.movie <movie name>',
-    desc: "Search movies and get streaming/download links using MovieBox API",
+    desc: "Search movies and download as document using MovieBox API",
     category: "downloader",
     react: "🎬",
     filename: __filename
@@ -44,7 +44,7 @@ async (conn, mek, m, { from, text, reply }) => {
             return reply(
                 `⚠️ Please provide a movie name to search!\n\n` +
                 `Example:\n` +
-                `• .movie Spider-Man`
+                `• .movie Ghamasaan`
             );
         }
 
@@ -55,7 +55,7 @@ async (conn, mek, m, { from, text, reply }) => {
     }
 });
 
-// ==================== CORE MOVIE SEARCH LOGIC ====================
+// ==================== CORE MOVIE SEARCH & DOCUMENT DOWNLOAD LOGIC ====================
 async function executeMovieSearch(conn, mek, from, keyword) {
     try {
         // Loading reaction
@@ -72,35 +72,46 @@ async function executeMovieSearch(conn, mek, from, keyword) {
             return await conn.sendMessage(from, { text: `❌ No movies found for "${keyword}".` }, { quoted: mek });
         }
 
-        const movies = resData.data.results.slice(0, 5); // Top 5 results bhejega taake spam na ho
+        const movie = resData.data.results[0];
 
-        for (const movie of movies) {
-            const title = movie.title || "Unknown Title";
-            const releaseDate = movie.releaseDate || "N/A";
-            const genre = movie.genre || "N/A";
-            const country = movie.countryName || "N/A";
-            const imdb = movie.imdbRatingValue || "N/A";
-            const coverUrl = movie.cover?.url || "";
-            const downloadUrl = movie.proxyDownload || "";
-            const streamUrl = movie.proxyStream || "";
+        const title = movie.title || "Unknown Movie";
+        const releaseDate = movie.releaseDate || "N/A";
+        const genre = movie.genre || "N/A";
+        const country = movie.countryName || "N/A";
+        const imdb = movie.imdbRatingValue || "N/A";
+        const coverUrl = movie.cover?.url || "";
+        const downloadUrl = movie.proxyDownload || "";
+        const streamUrl = movie.proxyStream || "";
 
-            let caption = `> *KAMRAN-MD MOVIE FINDER* 🍿\n\n`;
-            caption += `📌 *Title:* ${title}\n`;
-            caption += `📅 *Release:* ${releaseDate}\n`;
-            caption += `🎭 *Genre:* ${genre}\n`;
-            caption += `🌍 *Country:* ${country}\n`;
-            caption += `⭐ *IMDb:* ${imdb}\n\n`;
-            if (downloadUrl) caption += `📥 *Download Link:* ${downloadUrl}\n`;
-            if (streamUrl) caption += `▶️ *Stream Link:* ${streamUrl}`;
+        let caption = `> *KAMRAN-MD MOVIE FINDER* 🍿\n\n`;
+        caption += `📌 *Title:* ${title}\n`;
+        caption += `📅 *Release:* ${releaseDate}\n`;
+        caption += `🎭 *Genre:* ${genre}\n`;
+        caption += `🌍 *Country:* ${country}\n`;
+        caption += `⭐ *IMDb:* ${imdb}\n\n`;
+        if (downloadUrl) caption += `📥 *Download Link:* ${downloadUrl}\n`;
+        if (streamUrl) caption += `▶️ *Stream Link:* ${streamUrl}`;
 
-            if (coverUrl) {
-                await conn.sendMessage(from, { 
-                    image: { url: coverUrl }, 
-                    caption: caption 
-                }, { quoted: mek });
-            } else {
-                await conn.sendMessage(from, { text: caption }, { quoted: mek });
-            }
+        // 1. Send Cover Thumbnail and Details
+        if (coverUrl) {
+            await conn.sendMessage(from, { 
+                image: { url: coverUrl }, 
+                caption: caption 
+            }, { quoted: mek });
+        } else {
+            await conn.sendMessage(from, { text: caption }, { quoted: mek });
+        }
+
+        // 2. Send Movie as Document File
+        if (downloadUrl) {
+            await conn.sendMessage(from, { text: `📁 *Preparing movie document file, please wait...*` }, { quoted: mek });
+            
+            await conn.sendMessage(from, {
+                document: { url: downloadUrl },
+                mimetype: 'video/mp4',
+                fileName: `${title}.mp4`,
+                caption: `🎬 *${title}* (Document File)`
+            }, { quoted: mek });
         }
 
         await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
