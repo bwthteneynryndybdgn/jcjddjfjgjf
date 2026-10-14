@@ -4,7 +4,7 @@ import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
 
-// ==================== AUTO BODY VIDEO LISTENER ====================
+// ==================== AUTO BODY AI SONG LISTENER ====================
 cmd({
     on: "body"
 }, async (conn, mek, m, { from, body }) => {
@@ -14,96 +14,117 @@ cmd({
         const rawText = body.trim();
         const lowerText = rawText.toLowerCase();
         
-        const triggers = ['video ', 'ytmp4 ', 'movie ', 'mp4 '];
+        const triggers = ['aisong ', 'suno ', 'make song ', 'generate song '];
         const matchedTrigger = triggers.find(t => lowerText.startsWith(t));
 
         if (matchedTrigger) {
             const query = rawText.slice(matchedTrigger.length).trim();
             if (query) {
-                await executeVideo(conn, mek, from, query);
+                await executeAiSong(conn, mek, from, query);
             }
         }
     } catch (error) {
-        console.error("Auto-Body Video Error:", error);
+        console.error("Auto-Body AI Song Error:", error);
     }
 });
 
-// ==================== VIDEO COMMAND (Prefix Version) ====================
+// ==================== AI SONG COMMAND (Prefix Version) ====================
 cmd({
-    pattern: "video3",
-    alias: ["ytmp43", "mp43", "movie4", "ytvideo"],
-    use: '.video <youtube url>',
-    desc: "Download videos from YouTube via API",
-    category: "downloader",
-    react: "🎥",
+    pattern: "aisong",
+    alias: ["suno", "makesong", "gensong"],
+    use: '.aisong <prompt>',
+    desc: "Generate AI songs using Omegatech API",
+    category: "ai",
+    react: "🎶",
     filename: __filename
 },
 async (conn, mek, m, { from, text, reply }) => {
     try {
         if (!text) {
             return reply(
-                `⚠️ Please provide a YouTube video URL!\n\n` +
+                `⚠️ Please provide a prompt or description for the song!\n\n` +
                 `Example:\n` +
-                `• .video https://youtu.be/...`
+                `• .aisong Sad Urdu poetry song`
             );
         }
 
-        await executeVideo(conn, mek, from, text.trim());
+        await executeAiSong(conn, mek, from, text.trim());
     } catch (e) {
-        console.error("Error in video command:", e);
+        console.error("Error in aisong command:", e);
         reply(`An error occurred: ${e.message}`);
     }
 });
 
-// ==================== CORE VIDEO LOGIC ====================
-async function executeVideo(conn, mek, from, videoUrl) {
+// ==================== CORE AI SONG LOGIC WITH POLLING ====================
+async function executeAiSong(conn, mek, from, promptText) {
     try {
         // Loading reaction
         await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
-        // Call the API endpoint with browser headers
-        const encodedUrl = encodeURIComponent(videoUrl);
-        const apiUrl = `https://apiii-xrina.my.id/download/ytmp4?url=${encodedUrl}&quality=360`;
-        
-        const response = await axios.get(apiUrl, { 
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'application/json, text/plain, */*'
-            },
-            timeout: 30000 
-        });
-        
-        const resData = response.data;
+        const encodedPrompt = encodeURIComponent(promptText);
+        const generateUrl = `https://api.omegatech.app/api/ai/sonu3?action=generate&prompt=${encodedPrompt}`;
 
-        if (!resData || !resData.status || !resData.data || !resData.data.download_url) {
+        // 1. Initial Generation Request
+        const genResponse = await axios.get(generateUrl, { timeout: 30000 });
+        const genData = genResponse.data;
+
+        if (!genData || !genData.success || !genData.taskId) {
             await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return await conn.sendMessage(from, { text: "❌ Could not retrieve the video download link from the API." }, { quoted: mek });
+            return await conn.sendMessage(from, { text: `❌ Failed to start song generation: ${genData?.message || 'Unknown error'}` }, { quoted: mek });
         }
 
-        const info = resData.data;
-        const downloadUrl = info.download_url;
-        const title = info.title || "YouTube Video";
-        const quality = info.quality || "360p";
-        const creator = resData.creator || "Rin imup";
-
-        let caption = `> *KAMRAN-MD VIDEO PLAYER* 🎬\n\n`;
-        caption += `📌 *Title:* ${title}\n`;
-        caption += `⚙️ *Quality:* ${quality}\n`;
-        caption += `🛠️ *Creator:* ${creator}\n\n`;
-        caption += `📁 *Status:* Video downloading...`;
+        const taskId = genData.taskId;
+        
+        let caption = `> *KAMRAN-MD AI SONG GENERATOR* 🎧\n\n`;
+        caption += `📌 *Prompt:* ${promptText}\n`;
+        caption += `🆔 *Task ID:* ${taskId}\n`;
+        caption += `⏳ *Status:* Generating song (please wait ~90s)...`;
 
         await conn.sendMessage(from, { text: caption }, { quoted: mek });
 
+        // 2. Polling Loop to check result status
+        let audioUrl = null;
+        let songTitle = promptText;
+        const maxAttempts = 20; // ~100 seconds total max wait
+        let attempts = 0;
+
+        while (attempts < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, 6000)); // wait 6 seconds each poll
+            attempts++;
+
+            try {
+                const resultUrl = `https://api.omegatech.app/api/ai/sonu3?action=result&taskId=${taskId}`;
+                const resResponse = await axios.get(resultUrl, { timeout: 30000 });
+                const resData = resResponse.data;
+
+                if (resData && resData.success && resData.status === 'completed' && resData.audioUrl) {
+                    audioUrl = resData.audioUrl;
+                    if (resData.title) songTitle = resData.title;
+                    break;
+                } else if (resData && resData.status === 'failed') {
+                    throw new Error("AI song generation failed on server.");
+                }
+            } catch (pollErr) {
+                console.log(`Polling attempt ${attempts} error:`, pollErr.message);
+            }
+        }
+
+        if (!audioUrl) {
+            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+            return await conn.sendMessage(from, { text: `❌ Song generation timed out or failed to complete.` }, { quoted: mek });
+        }
+
+        // 3. Send final generated audio file
         await conn.sendMessage(from, {
-            video: { url: downloadUrl },
-            mimetype: 'video/mp4',
-            caption: title
+            audio: { url: audioUrl },
+            mimetype: 'audio/mp4',
+            ptt: false
         }, { quoted: mek });
 
         await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
 
     } catch (error) {
-        console.error("YTMP4 Error:", error);
+        console.error("AI Song Error:", error);
         await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
         await conn.sendMessage(from, { text: `❌ Error: ${error.message}` }, { quoted: mek });
     }
