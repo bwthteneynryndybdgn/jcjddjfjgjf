@@ -38,11 +38,13 @@ cmd({
         }
 
         const info = resData.result;
-        const audioUrl = info.mp3; // Exact key from your API log
+        
+        // Fix: Use correct keys according to the API response JSON
+        const audioUrl = info.download;        // Changed from info.mp3 to info.download
         const title = info.title || text;
         const thumbnail = info.thumbnail || '';
-        const duration = info.duration_timestamp || '';
-        const author = info.author || '';
+        const duration = info.duration || '';     // Changed from info.duration_timestamp
+        const author = info.channel || '';       // Changed from info.author to info.channel
 
         if (!audioUrl) {
             await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
