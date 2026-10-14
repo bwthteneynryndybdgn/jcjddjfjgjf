@@ -33,7 +33,7 @@ cmd({
     pattern: "movie",
     alias: ["searchmovie", "movsearch", "film", "movies"],
     use: '.movie <movie name>',
-    desc: "Search movies and download as document using MovieBox API",
+    desc: "Search movies and send as document using MovieBox API",
     category: "downloader",
     react: "🎬",
     filename: __filename
@@ -55,7 +55,7 @@ async (conn, mek, m, { from, text, reply }) => {
     }
 });
 
-// ==================== CORE MOVIE SEARCH & DOCUMENT DOWNLOAD LOGIC ====================
+// ==================== CORE MOVIE SEARCH & DOCUMENT LOGIC ====================
 async function executeMovieSearch(conn, mek, from, keyword) {
     try {
         // Loading reaction
@@ -102,15 +102,13 @@ async function executeMovieSearch(conn, mek, from, keyword) {
             await conn.sendMessage(from, { text: caption }, { quoted: mek });
         }
 
-        // 2. Send Movie as Document File
+        // 2. Send Movie as Document File securely
         if (downloadUrl) {
-            await conn.sendMessage(from, { text: `📁 *Preparing movie document file, please wait...*` }, { quoted: mek });
-            
-            await conn.sendMessage(from, {
+            await conn.sendMessage(from, { 
                 document: { url: downloadUrl },
                 mimetype: 'video/mp4',
-                fileName: `${title}.mp4`,
-                caption: `🎬 *${title}* (Document File)`
+                fileName: `${title.replace(/[^a-zA-Z0-9]/g, '_')}.mp4`,
+                caption: `🎬 *${title}*`
             }, { quoted: mek });
         }
 
