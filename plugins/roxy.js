@@ -20,7 +20,7 @@ cmd({
         if (matchedTrigger) {
             const query = rawText.slice(matchedTrigger.length).trim();
             if (query) {
-                await handleWanVideoTrigger(conn, mek, from, query, m);
+                await executeWanVideo(conn, mek, from, query, m);
             }
         }
     } catch (error) {
@@ -32,7 +32,7 @@ cmd({
 cmd({
     pattern: "wan",
     alias: ["wanvideo", "genvideo", "aivideo"],
-    use: '.wan <prompt> (with quoted/replied image OR image url)',
+    use: '.wan <image_url> | <prompt>',
     desc: "Generate AI videos from image using Wan-Fast API",
     category: "ai",
     react: "🎬",
@@ -43,7 +43,6 @@ async (conn, mek, m, { from, text, reply }) => {
         let imageUrl = "";
         let promptText = "";
 
-        // Check if user provided prompt with URL separated by '|'
         if (text && text.includes('|')) {
             const parts = text.split('|');
             imageUrl = parts[0].trim();
@@ -52,27 +51,11 @@ async (conn, mek, m, { from, text, reply }) => {
             promptText = text.trim();
         }
 
-        // Check if image is replied / quoted in the message
-        const quotedMsg = mek.msg?.contextInfo?.quotedMessage;
-        if (!imageUrl && quotedMsg && quotedMsg.imageMessage) {
-            // Download media buffer from quoted image using Baileys media download helper
-            try {
-                const stream = await downloadMediaMessage(mek.quoted, 'buffer', {});
-                // Agar aapke paas catbox ya koi upload function hai toh yahan upload karke link le sakte hain, 
-                // ya direct baaki hosting use kar sakte hain. 
-                // Filhal direct media stream ya quoted message check:
-            } catch (mediaErr) {
-                console.log("Media download error:", mediaErr);
-            }
-        }
-
-        // Agar quoted message mein image hai aur uska direct URL nikalna ho ya user ne image caption mein bheja ho
+        // Fallback for quoted/replied image URL if user used a tool like .tourl before
         if (!imageUrl && mek.quoted) {
-            // Check if quoted message has an image URL or if we can use message direct url if supported by bot framework
-            imageUrl = mek.quoted.imageMessage?.url || "";
+            imageUrl = mek.quoted.imageMessage?.url || mek.quoted.text || "";
         }
 
-        // Fallback check: If text starts with http, treat it as URL
         if (!imageUrl && text && text.startsWith('http')) {
             const parts = text.split(' ');
             imageUrl = parts[0].trim();
@@ -81,14 +64,14 @@ async (conn, mek, m, { from, text, reply }) => {
 
         if (!imageUrl) {
             return reply(
-                `⚠️ Please provide an image! You can either:\n` +
-                `1. Reply to an image with .wan <prompt>\n` +
-                `2. Send Image URL like: .wan https://... | <prompt>`
+                `⚠️ Please provide an image URL!\n\n` +
+                `Example:\n` +
+                `• .wan https://i.ibb.co/... | Cinematic movement`
             );
         }
 
         if (!promptText) {
-            promptText = "Cinematic movement"; // Default prompt agar sirf image di ho
+            promptText = "Cinematic movement";
         }
 
         await executeWanVideo(conn, mek, from, imageUrl, promptText);
@@ -110,8 +93,8 @@ async function handleWanVideoTrigger(conn, mek, from, text, m) {
         promptText = text;
     }
 
-    if (!imageUrl && mek.quoted) {
-        imageUrl = mek.quoted.imageMessage?.url || "";
+    if (!imageUrl && m.quoted) {
+        imageUrl = m.quoted.imageMessage?.url || m.quoted.text || "";
     }
 
     if (imageUrl && promptText) {
@@ -145,29 +128,30 @@ async function executeWanVideo(conn, mek, from, imageUrl, promptText) {
         caption += `📌 *Prompt:* ${promptText}\n`;
         caption += `🤖 *Model:* ${modelName}\n`;
         caption += `🆔 *Task ID:* ${taskId}\n`;
-        caption += `⏳ *Status:* Rendering video (please wait)...`;
+        caption += `⏳ *Status:* Rendering video, please wait (~60-90s)...`;
 
         await conn.sendMessage(from, { text: caption }, { quoted: mek });
 
         // 2. Polling Loop for Result
         let videoUrl = null;
-        const maxAttempts = 30; // ~3 minutes max wait
+        const maxAttempts = 35; // ~4 minutes max wait
         let attempts = 0;
 
         while (attempts < maxAttempts) {
-            await new Promise(resolve => setTimeout(resolve, 8000)); // wait 8 seconds per poll
+            await new Promise(resolve => setTimeout(resolve, 7000)); // wait 7 seconds per poll
             attempts++;
 
             try {
-                const resultUrl = `https://api.omegatech.app/api/ai/Wan-fast?action=result&taskId=${encodeURIComponent(taskId)}`;
-                const resResponse = await axios.get(resultUrl, { timeout: 30000 });
+                // Testing multiple possible result parameter formats for Omegatech APIs
+                const resultUrl1 = `https://api.omegatech.app/api/ai/Wan-fast?action=result&taskId=${encodeURIComponent(taskId)}`;
+                const resResponse = await axios.get(resultUrl1, { timeout: 30000 });
                 const resData = resResponse.data;
 
                 console.log(`Wan Poll Attempt ${attempts} Response:`, JSON.stringify(resData));
 
                 if (resData) {
                     const dataObj = resData.data || resData;
-                    videoUrl = dataObj.videoUrl || dataObj.download || dataObj.url || dataObj.video;
+                    videoUrl = dataObj.videoUrl || dataObj.download || dataObj.url || dataObj.video || dataObj.output;
 
                     if (videoUrl) {
                         break;
@@ -182,8 +166,8 @@ async function executeWanVideo(conn, mek, from, imageUrl, promptText) {
         }
 
         if (!videoUrl) {
-            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return await conn.sendMessage(from, { text: `❌ Video generation timed out or failed to complete.` }, { quoted: mek });
+            await conn.sendMessage(from, { react: { text: "❌", key: mek.key }});
+            return await conn.sendMessage(from, { text: `❌ Video generation timed out. Task is still processing on server.` }, { quoted: mek });
         }
 
         // 3. Send Final Generated Video
