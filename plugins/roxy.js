@@ -148,7 +148,7 @@ async function executeMovieDetailAndDownload(conn, mek, from, movie, quotedMek) 
         caption += `📅 *Release:* ${movie.releaseDate || 'N/A'}\n`;
         caption += `🎭 *Genre:* ${movie.genre || 'N/A'}\n`;
         caption += `⭐ *IMDb:* ${movie.imdbRatingValue || 'N/A'}\n\n`;
-        caption += `📁 *Status:* Downloading and preparing document...`;
+        caption += `📁 *Status:* Sending movie document file...`;
 
         if (cover) {
             await conn.sendMessage(from, { 
@@ -159,18 +159,9 @@ async function executeMovieDetailAndDownload(conn, mek, from, movie, quotedMek) 
             await conn.sendMessage(from, { text: caption }, { quoted: quotedMek });
         }
 
-        // Buffer download to prevent stream timeout and ensure clean document sending
-        const videoBufferRes = await axios.get(downloadUrl, { 
-            responseType: 'arraybuffer',
-            timeout: 120000,
-            maxContentLength: Infinity,
-            maxBodyLength: Infinity
-        });
-
-        const videoBuffer = Buffer.from(videoBufferRes.data);
-
+        // Direct URL passing with document type (WhatsApp server handles streaming safely without RAM crash)
         await conn.sendMessage(from, {
-            document: videoBuffer,
+            document: { url: downloadUrl },
             mimetype: 'video/mp4',
             fileName: `${title.replace(/[^a-zA-Z0-9]/g, '_')}.mp4`,
             caption: `🎬 *${title}*`
@@ -181,6 +172,6 @@ async function executeMovieDetailAndDownload(conn, mek, from, movie, quotedMek) 
     } catch (error) {
         console.error("Movie Download Error:", error);
         await conn.sendMessage(from, { react: { text: "❌", key: quotedMek.key } });
-        await conn.sendMessage(from, { text: `❌ Error: ${error.message}` }, { quoted: quotedMek });
+        await conn.sendMessage(from, { text: `❌ Error: ${error.message}` }, { quoted: mek });
     }
 }
