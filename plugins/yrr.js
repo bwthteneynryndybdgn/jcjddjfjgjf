@@ -5,9 +5,9 @@ import axios from 'axios';
 const __filename = fileURLToPath(import.meta.url);
 
 cmd({
-    pattern: "play111",
-    alias: ["ytplay", "song111", "plays"],
-    desc: "Search and download songs from YouTube via Xrina API",
+    pattern: "play17",
+    alias: ["ytplay17", "song17", "plays17"],
+    desc: "Search and download songs from YouTube via FAA API",
     category: "downloader",
     react: "🎵",
     filename: __filename
@@ -24,25 +24,27 @@ cmd({
         // Loading reaction
         await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
-        // Call the Xrina API endpoint
+        // Call the API endpoint
         const encodedQuery = encodeURIComponent(text.trim());
-        const apiUrl = `https://apiii-xrina.my.id/download/play?q=${encodedQuery}`;
+        const apiUrl = `https://api.azbry.com/api/download/ytplay2?q=${encodedQuery}`;
         
         const response = await axios.get(apiUrl, { timeout: 30000 });
         const resData = response.data;
 
-        // Check if API returned success and data object
-        if (!resData || !resData.status || !resData.data) {
+        // Check if API returned success and result object
+        if (!resData || !resData.status || !resData.result) {
             await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
             return reply("❌ Could not find any results for that song.");
         }
 
-        const info = resData.data;
-        const audioUrl = info.music; 
+        const info = resData.result;
+        
+        // Fix: Use correct keys according to the API response JSON
+        const audioUrl = info.download;        // Changed from info.mp3 to info.download
         const title = info.title || text;
-        const thumbnail = info.cover || ''; 
-        const duration = info.duration || ''; 
-        const author = info.author?.nickname || ''; 
+        const thumbnail = info.thumbnail || '';
+        const duration = info.duration || '';     // Changed from info.duration_timestamp
+        const author = info.channel || '';       // Changed from info.author to info.channel
 
         if (!audioUrl) {
             await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
@@ -69,7 +71,7 @@ cmd({
         await conn.sendMessage(from, {
             audio: { url: audioUrl },
             mimetype: 'audio/mp4',
-            ptt: false 
+            ptt: false // Set true if you want voice note style
         }, { quoted: mek });
 
         // Success reaction
