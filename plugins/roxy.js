@@ -26,7 +26,6 @@ cmd({
             return;
         }
 
-        // Selection handler when user replies with a number (1-5)
         if (searchSessions.has(from) && /^[1-5]$/.test(rawText)) {
             const session = searchSessions.get(from);
             if (Date.now() - session.timestamp < 120000) {
@@ -120,7 +119,6 @@ async function executeMovieDetailAndDownload(conn, mek, from, movie, quotedMek) 
         const cover = movie.cover?.url || "";
         let downloadUrl = "";
 
-        // 1. Properly fetch download link using action=download endpoint with subjectId and detailPath
         if (movie.subjectId && movie.detailPath) {
             try {
                 const dlApi = `https://api.omegatech.app/api/movie/MovieBox-pro?action=download&subjectId=${movie.subjectId}&detailPath=${encodeURIComponent(movie.detailPath)}`;
@@ -136,7 +134,6 @@ async function executeMovieDetailAndDownload(conn, mek, from, movie, quotedMek) 
             }
         }
 
-        // Fallback to proxyDownload if direct download action fails
         if (!downloadUrl) {
             downloadUrl = movie.proxyDownload || "";
         }
@@ -151,7 +148,7 @@ async function executeMovieDetailAndDownload(conn, mek, from, movie, quotedMek) 
         caption += `📅 *Release:* ${movie.releaseDate || 'N/A'}\n`;
         caption += `🎭 *Genre:* ${movie.genre || 'N/A'}\n`;
         caption += `⭐ *IMDb:* ${movie.imdbRatingValue || 'N/A'}\n\n`;
-        caption += `📁 *Status:* Sending movie document file...`;
+        caption += `📁 *Status:* Downloading and preparing document...`;
 
         if (cover) {
             await conn.sendMessage(from, { 
@@ -162,8 +159,18 @@ async function executeMovieDetailAndDownload(conn, mek, from, movie, quotedMek) 
             await conn.sendMessage(from, { text: caption }, { quoted: quotedMek });
         }
 
+        // Buffer download to prevent stream timeout and ensure clean document sending
+        const videoBufferRes = await axios.get(downloadUrl, { 
+            responseType: 'arraybuffer',
+            timeout: 120000,
+            maxContentLength: Infinity,
+            maxBodyLength: Infinity
+        });
+
+        const videoBuffer = Buffer.from(videoBufferRes.data);
+
         await conn.sendMessage(from, {
-            document: { url: downloadUrl },
+            document: videoBuffer,
             mimetype: 'video/mp4',
             fileName: `${title.replace(/[^a-zA-Z0-9]/g, '_')}.mp4`,
             caption: `🎬 *${title}*`
