@@ -3,6 +3,20 @@ import { cmd } from '../command.js';
 
 const __filename = fileURLToPath(import.meta.url);
 
+// Helper function for Stylist Badi ABC Text
+const toStylistUpper = (text) => {
+    if (!text || typeof text !== 'string') return '';
+    const uppercaseMap = {
+        'a': 'ᴀ', 'b': 'ʙ', 'c': 'ᴄ', 'd': 'ᴅ', 'e': 'ᴇ', 'f': 'ғ', 'g': 'ɢ', 'h': 'ʜ', 'i': 'ɪ',
+        'j': 'ᴊ', 'k': 'ᴋ', 'l': 'ʟ', 'm': 'ᴍ', 'n': 'ɴ', 'o': 'ᴏ', 'p': 'ᴘ', 'q': 'ǫ', 'r': 'ʀ',
+        's': 's', 't': 'ᴛ', 'u': 'ᴜ', 'v': 'ᴠ', 'w': 'ᴡ', 'x': 'x', 'y': 'ʏ', 'z': 'ᴢ',
+        'A': 'ᴀ', 'B': 'ʙ', 'C': 'ᴄ', 'D': 'ᴅ', 'E': 'ᴇ', 'F': 'ғ', 'G': 'ɢ', 'H': 'ʜ', 'I': 'ɪ',
+        'J': 'ᴊ', 'K': 'ᴋ', 'L': 'ʟ', 'M': 'ᴍ', 'N': 'ɴ', 'O': 'ᴏ', 'P': 'ᴘ', 'Q': 'ǫ', 'R': 'ʀ',
+        'S': 's', 'T': 'ᴛ', 'U': 'ᴜ', 'V': 'ᴠ', 'W': 'ᴡ', 'X': 'x', 'Y': 'ʏ', 'Z': 'ᴢ'
+    };
+    return text.split('').map(char => uppercaseMap[char] || char).join('');
+};
+
 // ==================== AUTO PING LISTENER (BODY HOOK) ====================
 cmd({
     on: "body"
@@ -62,7 +76,7 @@ async function executePing(conn, mek, from) {
     const end = new Date().getTime();
     const responseTime = (end - start) / 1000;
 
-    const text = `> *KAMRAN-MD SPEED: ${responseTime.toFixed(2)}ms ${reactionEmoji}*`;
+    const text = `> ⚡ *${toStylistUpper('Kamran-Md Speed')} : ${responseTime.toFixed(2)}ms* ${reactionEmoji}`;
 
     await conn.sendMessage(from, {
         text,
@@ -71,7 +85,7 @@ async function executePing(conn, mek, from) {
             forwardingScore: 999,
             isForwarded: true,
             forwardedNewsletterMessageInfo: {
-                newsletterJid: '120363413585581317@newsletter',
+                newsletterJid: '120363418144382782@newsletter',
                 newsletterName: "KAMI-MD",
                 serverMessageId: 143
             }
@@ -97,16 +111,16 @@ async (conn, mek, m, { from, reply }) => {
         const ping = endTime - startTime;
 
         let status;
-        if (ping < 1000) status = "⚡ *Fast & Responsive*";
-        else if (ping < 1400) status = "⚙️ *Normal Speed*";
-        else status = "🐢 *Slow Response*";
+        if (ping < 1000) status = `⚡ *${toStylistUpper('Fast & Responsive')}*`;
+        else if (ping < 1400) status = `⚙️ *${toStylistUpper('Normal Speed')}*`;
+        else status = `🐢 *${toStylistUpper('Slow Response')}*`;
 
         const msg = `
-*╭┈──〔 ⚡ KAMRAN-ᴍᴅ Pɪɴɢ 〕─⊷*
-*├▢ 📶 Response:* ${ping} ms
-*├▢ 🧠 Status:* ${status}
-*├▢ 💫 Mode:* Active & Stable
-*╰───────────────⊷*
+╔═════ ⌈ *⚡ ${toStylistUpper('Kamran-Md Ping')}* ⌋ ═════✧
+║ 📶 *${toStylistUpper('Response')}:* ${ping} ms
+║ 🧠 *${toStylistUpper('Status')}:* ${status}
+║ 💫 *${toStylistUpper('Mode')}:* Active & Stable
+╚══════════════════════✧
         `;
 
         await conn.sendMessage(from, { text: msg.trim() }, { quoted: mek });
