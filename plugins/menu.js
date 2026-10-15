@@ -1,7 +1,6 @@
 import { fileURLToPath } from 'url';
 import path from 'path';
 import os from 'os';
-import fs from 'fs';
 import { cmd, commands } from '../command.js';
 import config from '../config.js';
 import { runtime } from '../lib/functions.js';
@@ -23,18 +22,18 @@ const toStylistUpper = (text) => {
     return text.split('').map(char => uppercaseMap[char] || char).join('');
 };
 
-// Format category with premium sleek styles & Stylist Uppercase Commands
+// Format category with extra sleek & luxury styles
 const formatCategory = (category, cmds) => {
     const validCmds = cmds.filter(cmd => cmd.pattern && cmd.pattern.trim() !== '');
     
     if (validCmds.length === 0) return '';
     
-    let title = `\n╭━━━〔 *${toStylistUpper(category.toUpperCase())}* 〕━━━┈⊷\n`;
+    let title = `\n╔═════ ⌈ *⚡ ${toStylistUpper(category)}* ⌋ ═════✧\n`;
     let body = validCmds.map(cmd => {
         const commandName = toStylistUpper(cmd.pattern || '');
-        return `┃ ⚡ \`${commandName}\``;
+        return `║ ◈ \`${commandName}\``;
     }).join('\n');
-    let footer = `\n╰━━━━━━━━━━━━━━━━━━━┈⊷`;
+    let footer = `\n╚══════════════════════✧`;
     return `${title}${body}${footer}`;
 };
 
@@ -83,22 +82,22 @@ async (conn, mek, m, { from, reply, userConfig }) => {
         const VERSION = userConfig?.VERSION || config.VERSION || "10.0.0";
         const DESCRIPTION = userConfig?.DESCRIPTION || config.DESCRIPTION || "";
         
-        // Direct image URL set kar diya gaya hai
+        // Direct image URL
         const imageToUse = 'https://i.ibb.co/RTWD9M32/jawadmd.jpg';
         
-        let dec = `✨ *${toStylistUpper(BOT_NAME)} ᴍᴜʟᴛɪ-ᴅᴇᴠɪᴄᴇ* ✨
+        let dec = `❖ ── ✦ *${toStylistUpper(BOT_NAME)} ᴍᴜʟᴛɪ-ᴅᴇᴠɪᴄᴇ* ✦ ── ❖
 
-┌━━━〔 *ɪɴғᴏ ʙᴏx* 〕━━━┈⊷
-┃ 👑 *${toStylistUpper('Owner')}:* ${OWNER_NAME}
-┃ 📊 *${toStylistUpper('Commands')}:* ${totalCommands}
-┃ ⏳ *${toStylistUpper('Runtime')}:* ${runtime(process.uptime())}
-┃ 📡 *${toStylistUpper('Prefix')}:* [  ${PREFIX}  ]
-┃ ⚙️ *${toStylistUpper('Mode')}:* ${MODE}
-┃ 🏷️ *${toStylistUpper('Version')}:* ${VERSION}
-╰━━━━━━━━━━━━━━━━━━━┈⊷
+╔═════ ⌈ *👑 ${toStylistUpper('User Info')}* ⌋ ═════✧
+║ 🚀 *${toStylistUpper('Owner')}:* ${OWNER_NAME}
+║ 📂 *${toStylistUpper('Commands')}:* ${totalCommands}
+║ ⏱️ *${toStylistUpper('Runtime')}:* ${runtime(process.uptime())}
+║ ⚡ *${toStylistUpper('Prefix')}:* [ ${PREFIX} ]
+║ 🔐 *${toStylistUpper('Mode')}:* ${MODE}
+║ 📌 *${toStylistUpper('Version')}:* ${VERSION}
+╚══════════════════════✧
 ${menuSections}
 
-> 💡 _${DESCRIPTION || 'Powered by WhatsApp Bot'}_`;
+> 💫 _${DESCRIPTION || 'Powered by WhatsApp Bot'}_`;
 
         await conn.sendMessage(from, { 
             image: { url: imageToUse },
