@@ -1,4 +1,3 @@
-
 import { fileURLToPath } from 'url';
 import config from '../config.js';
 import { cmd } from '../command.js';
@@ -6,6 +5,20 @@ import { getBuffer, getGroupAdmins, getRandom, h2k, isUrl, Json, runtime, sleep,
 import converter from '../lib/converter.js';
 
 const __filename = fileURLToPath(import.meta.url);
+
+// Helper function for Stylist Badi ABC Text
+const toStylistUpper = (text) => {
+    if (!text || typeof text !== 'string') return '';
+    const uppercaseMap = {
+        'a': 'ᴀ', 'b': 'ʙ', 'c': 'ᴄ', 'd': 'ᴅ', 'e': 'ᴇ', 'f': 'ғ', 'g': 'ɢ', 'h': 'ʜ', 'i': 'ɪ',
+        'j': 'ᴊ', 'k': 'ᴋ', 'l': 'ʟ', 'm': 'ᴍ', 'n': 'ɴ', 'o': 'ᴏ', 'p': 'ᴘ', 'q': 'ǫ', 'r': 'ʀ',
+        's': 's', 't': 'ᴛ', 'u': 'ᴜ', 'v': 'ᴠ', 'w': 'ᴡ', 'x': 'x', 'y': 'ʏ', 'z': 'ᴢ',
+        'A': 'ᴀ', 'B': 'ʙ', 'C': 'ᴄ', 'D': 'ᴅ', 'E': 'ᴇ', 'F': 'ғ', 'G': 'ɢ', 'H': 'ʜ', 'I': 'ɪ',
+        'J': 'ᴊ', 'K': 'ᴋ', 'L': 'ʟ', 'M': 'ᴍ', 'N': 'ɴ', 'O': 'ᴏ', 'P': 'ᴘ', 'Q': 'ǫ', 'R': 'ʀ',
+        'S': 's', 'T': 'ᴛ', 'U': 'ᴜ', 'V': 'ᴠ', 'W': 'ᴡ', 'X': 'x', 'Y': 'ʏ', 'Z': 'ᴢ'
+    };
+    return text.split('').map(char => uppercaseMap[char] || char).join('');
+};
 
 // ==================== UNMUTE COMMAND ====================
 cmd({
@@ -17,16 +30,16 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, { from, isCreator, isBotAdmins, isAdmins, isGroup, reply }) => {
     try {
-        if (!isGroup) return await reply("⚠️ This command only works in groups.");
-        if (!isBotAdmins) return await reply("❌ I must be admin to unmute the group.");
-        if (!isAdmins && !isCreator) return await reply("🔐 Only group admins or owner can use this command.");
+        if (!isGroup) return await reply(`⚠️ *${toStylistUpper('This command only works in groups.')}*`);
+        if (!isBotAdmins) return await reply(`❌ *${toStylistUpper('I must be admin to unmute the group.')}*`);
+        if (!isAdmins && !isCreator) return await reply(`🔐 *${toStylistUpper('Only group admins or owner can use this command.')}*`);
 
         await conn.groupSettingUpdate(from, 'not_announcement');
-        await reply("*🔊 Group has been unmuted!* \nEveryone can send messages now.");
+        await reply(`🔊 *${toStylistUpper('Group has been unmuted!')}*\n${toStylistUpper('Everyone can send messages now.')}`);
 
     } catch (err) {
         console.error(err);
-        await reply("❌ Failed to unmute group. Something went wrong.");
+        await reply(`❌ *${toStylistUpper('Failed to unmute group. Something went wrong.')}*`);
     }
 });
 
@@ -40,16 +53,16 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, { from, isCreator, isBotAdmins, isAdmins, isGroup, reply }) => {
     try {
-        if (!isGroup) return await reply("⚠️ This command only works in groups.");
-        if (!isBotAdmins) return await reply("❌ I must be admin to mute the group.");
-        if (!isAdmins && !isCreator) return await reply("🔐 Only group admins or owner can use this command.");
+        if (!isGroup) return await reply(`⚠️ *${toStylistUpper('This command only works in groups.')}*`);
+        if (!isBotAdmins) return await reply(`❌ *${toStylistUpper('I must be admin to mute the group.')}*`);
+        if (!isAdmins && !isCreator) return await reply(`🔐 *${toStylistUpper('Only group admins or owner can use this command.')}*`);
 
         await conn.groupSettingUpdate(from, 'announcement');
-        await reply("*🔇 Group has been muted!* \nOnly admins can send messages now.");
+        await reply(`🔇 *${toStylistUpper('Group has been muted!')}*\n${toStylistUpper('Only admins can send messages now.')}`);
 
     } catch (err) {
         console.error(err);
-        await reply("❌ Failed to mute group. Something went wrong.");
+        await reply(`❌ *${toStylistUpper('Failed to mute group. Something went wrong.')}*`);
     }
 });
 
@@ -66,20 +79,20 @@ cmd({
     try {
         if (!isGroup) {
             await conn.sendMessage(from, { react: { text: '❌', key: m.key } });
-            return reply("❌ This command can only be used in groups.");
+            return reply(`❌ *${toStylistUpper('This command can only be used in groups.')}*`);
         }
 
         if (!isAdmins && !isCreator) {
             await conn.sendMessage(from, { react: { text: '❌', key: m.key } });
-            return reply("❌ Only group admins or the bot owner can use this command.");
+            return reply(`❌ *${toStylistUpper('Only group admins or the bot owner can use this command.')}*`);
         }
 
         let groupInfo = await conn.groupMetadata(from).catch(() => null);
-        if (!groupInfo) return reply("❌ Failed to fetch group information.");
+        if (!groupInfo) return reply(`❌ *${toStylistUpper('Failed to fetch group information.')}*`);
 
         let groupName = groupInfo.subject || "Unknown Group";
         let totalMembers = participants ? participants.length : 0;
-        if (totalMembers === 0) return reply("❌ No members found in this group.");
+        if (totalMembers === 0) return reply(`❌ *${toStylistUpper('No members found in this group.')}*`);
 
         let emojis = ['📢', '🔊', '🌐', '🔰', '❤‍🩹', '🤍', '🖤', '🩵', '📝', '💗', '🔖', '🪩', '📦', '🎉', '🛡️', '💸', '⏳', '🗿', '🚀', '🎧', '🪀', '⚡', '🚩', '🍁', '🗣️', '👻', '⚠️', '🔥'];
         let randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
@@ -87,14 +100,18 @@ cmd({
         let message = body.slice(body.indexOf(command) + command.length).trim();
         if (!message) message = "Attention Everyone";
 
-        let teks = `▢ Group : *${groupName}*\n▢ Members : *${totalMembers}*\n▢ Message: *${message}*\n\n┌───⊷ *MENTIONS*\n`;
+        let teks = `╔═════ ⌈ *⚡ ${toStylistUpper('Tag All')}* ⌋ ═════✧\n`;
+        teks += `║ 📂 *${toStylistUpper('Group')}:*${groupName}\n`;
+        teks += `║ 👥 *${toStylistUpper('Members')}:*${totalMembers}\n`;
+        teks += `║ 💬 *${toStylistUpper('Message')}:*${message}\n`;
+        teks += `╚══════════════════════✧\n\n`;
 
         for (let mem of participants) {
             if (!mem.id) continue;
             teks += `${randomEmoji} @${mem.id.split('@')[0]}\n`;
         }
 
-        teks += "└──✪ KAMRAN ┃ MD ✪──";
+        teks += `\n> 💫 _${toStylistUpper('Kamran-Md Group Manager')}_`;
 
         conn.sendMessage(from, { text: teks, mentions: participants.map(a => a.id) }, { quoted: mek });
 
@@ -114,26 +131,26 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, { from, isCreator, isBotAdmins, isAdmins, isGroup, quoted, reply, botNumber2, botNumber }) => {
     try {
-        if (!isGroup) return await reply("⚠️ This command only works in groups.");
-        if (!isBotAdmins) return await reply("❌ I must be admin to remove someone.");
-        if (!isCreator && !isAdmins) return await reply("🔐 Only bot owner or group admins can use this command.");
+        if (!isGroup) return await reply(`⚠️ *${toStylistUpper('This command only works in groups.')}*`);
+        if (!isBotAdmins) return await reply(`❌ *${toStylistUpper('I must be admin to remove someone.')}*`);
+        if (!isCreator && !isAdmins) return await reply(`🔐 *${toStylistUpper('Only bot owner or group admins can use this command.')}*`);
 
         if (!m.quoted && (!m.mentionedJid || m.mentionedJid.length === 0)) {
-            return await reply("❓ You did not give me a user to remove!");
+            return await reply(`❓ *${toStylistUpper('You did not give me a user to remove!')}*`);
         }
         let users = m.mentionedJid[0] ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : null;
-        if (!users) return await reply("⚠️ Couldn't determine target user.");
+        if (!users) return await reply(`⚠️ *${toStylistUpper('Couldn\'t determine target user.')}*`);
 
-        if (users === botNumber || users === botNumber2) return await reply("🤖 I can't kick myself!");
+        if (users === botNumber || users === botNumber2) return await reply(`🤖 *${toStylistUpper('I can\'t kick myself!')}*`);
         const self = conn.user.id.split(":")[0] + '@s.whatsapp.net';
-        if (users === self) return await reply("👑 That's the owner! I can't remove them.");
+        if (users === self) return await reply(`👑 *${toStylistUpper('That\'s the owner! I can\'t remove them.')}*`);
 
         await conn.groupParticipantsUpdate(from, [users], "remove");
-        await reply(`*✅ Successfully removed from group.*`, { mentions: [users] });
+        await reply(`*✅ ${toStylistUpper('Successfully removed from group.')}*`, { mentions: [users] });
 
     } catch (err) {
         console.error(err);
-        await reply("❌ Failed to remove user. Something went wrong.");
+        await reply(`❌ *${toStylistUpper('Failed to remove user. Something went wrong.')}*`);
     }
 });
 
@@ -147,26 +164,26 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, { from, isCreator, isBotAdmins, isAdmins, isGroup, quoted, reply, botNumber2, botNumber }) => {
     try {
-        if (!isGroup) return await reply("⚠️ This command only works in groups.");
-        if (!isBotAdmins) return await reply("❌ I must be admin to promote someone.");
-        if (!isAdmins && !isCreator) return await reply("🔐 Only group admins or owner can use this command.");
+        if (!isGroup) return await reply(`⚠️ *${toStylistUpper('This command only works in groups.')}*`);
+        if (!isBotAdmins) return await reply(`❌ *${toStylistUpper('I must be admin to promote someone.')}*`);
+        if (!isAdmins && !isCreator) return await reply(`🔐 *${toStylistUpper('Only group admins or owner can use this command.')}*`);
 
         if (!m.quoted && (!m.mentionedJid || m.mentionedJid.length === 0)) {
-            return await reply("❓ You did not give me a user to promote!");
+            return await reply(`❓ *${toStylistUpper('You did not give me a user to promote!')}*`);
         }
         let users = m.mentionedJid[0] ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : null;
-        if (!users) return await reply("⚠️ Couldn't determine target user.");
+        if (!users) return await reply(`⚠️ *${toStylistUpper('Couldn\'t determine target user.')}*`);
 
-        if (users === botNumber || users === botNumber2) return await reply("🤖 I can't promote myself!");
+        if (users === botNumber || users === botNumber2) return await reply(`🤖 *${toStylistUpper('I can\'t promote myself!')}*`);
         const self = conn.user.id.split(":")[0] + '@s.whatsapp.net';
-        if (users === self) return await reply("👑 Owner is already super admin!");
+        if (users === self) return await reply(`👑 *${toStylistUpper('Owner is already super admin!')}*`);
 
         await conn.groupParticipantsUpdate(from, [users], "promote");
-        await reply(`*✅ Successfully Promoted to Admin.*`, { mentions: [users] });
+        await reply(`*✅ ${toStylistUpper('Successfully Promoted to Admin.')}*`, { mentions: [users] });
 
     } catch (err) {
         console.error(err);
-        await reply("❌ Failed to promote. Something went wrong.");
+        await reply(`❌ *${toStylistUpper('Failed to promote. Something went wrong.')}*`);
     }
 });
 
@@ -180,26 +197,26 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, { from, isCreator, isBotAdmins, isAdmins, isGroup, quoted, reply, botNumber2, botNumber }) => {
     try {
-        if (!isGroup) return await reply("⚠️ This command only works in groups.");
-        if (!isBotAdmins) return await reply("❌ I must be admin to demote someone.");
-        if (!isAdmins && !isCreator) return await reply("🔐 Only group admins or owner can use this command.");
+        if (!isGroup) return await reply(`⚠️ *${toStylistUpper('This command only works in groups.')}*`);
+        if (!isBotAdmins) return await reply(`❌ *${toStylistUpper('I must be admin to demote someone.')}*`);
+        if (!isAdmins && !isCreator) return await reply(`🔐 *${toStylistUpper('Only group admins or owner can use this command.')}*`);
 
         if (!m.quoted && (!m.mentionedJid || m.mentionedJid.length === 0)) {
-            return await reply("❓ You did not give me a user to demote!");
+            return await reply(`❓ *${toStylistUpper('You did not give me a user to demote!')}*`);
         }
         let users = m.mentionedJid[0] ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : null;
-        if (!users) return await reply("⚠️ Couldn't determine target user.");
+        if (!users) return await reply(`⚠️ *${toStylistUpper('Couldn\'t determine target user.')}*`);
 
-        if (users === botNumber || users === botNumber2) return await reply("🤖 I can't demote myself!");
+        if (users === botNumber || users === botNumber2) return await reply(`🤖 *${toStylistUpper('I can\'t demote myself!')}*`);
         const self = conn.user.id.split(":")[0] + '@s.whatsapp.net';
-        if (users === self) return await reply("👑 I can't demote the owner!");
+        if (users === self) return await reply(`👑 *${toStylistUpper('I can\'t demote the owner!')}*`);
 
         await conn.groupParticipantsUpdate(from, [users], "demote");
-        await reply(`*✅ Admin Successfully demoted to a normal member.*`, { mentions: [users] });
+        await reply(`*✅ ${toStylistUpper('Admin Successfully demoted to a normal member.')}*`, { mentions: [users] });
 
     } catch (err) {
         console.error(err);
-        await reply("❌ Failed to demote. Something went wrong.");
+        await reply(`❌ *${toStylistUpper('Failed to demote. Something went wrong.')}*`);
     }
 });
 
@@ -213,22 +230,22 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, { from, isCreator, isBotAdmins, isAdmins, isGroup, reply }) => {
     try {
-        if (!isGroup) return await reply("⚠️ This command only works in groups.");
-        if (!isBotAdmins) return await reply("❌ I must be admin to change group picture.");
-        if (!isAdmins && !isCreator) return await reply("🔐 Only admins can use this command.");
+        if (!isGroup) return await reply(`⚠️ *${toStylistUpper('This command only works in groups.')}*`);
+        if (!isBotAdmins) return await reply(`❌ *${toStylistUpper('I must be admin to change group picture.')}*`);
+        if (!isAdmins && !isCreator) return await reply(`🔐 *${toStylistUpper('Only admins can use this command.')}*`);
 
-        if (!m.quoted) return await reply("*🍁 Please reply to an image with .gcpp*");
+        if (!m.quoted) return await reply(`*🍁 ${toStylistUpper('Please reply to an image with .gcpp')}*`);
 
         const mtype = m.quoted.mtype;
-        if (mtype !== "imageMessage") return await reply("❌ Only image messages are supported for group picture");
+        if (mtype !== "imageMessage") return await reply(`❌ *${toStylistUpper('Only image messages are supported for group picture')}*`);
 
         const buffer = await m.quoted.download();
         await conn.updateProfilePicture(from, buffer);
-        await reply("*✅ Group profile picture updated successfully!*");
+        await reply(`*✅ ${toStylistUpper('Group profile picture updated successfully!')}*`);
 
     } catch (error) {
         console.error("setgcpp Error:", error);
-        await reply("❌ Error updating group picture:\n" + error.message);
+        await reply(`❌ *${toStylistUpper('Error updating group picture:')}*\n` + error.message);
     }
 });
 
@@ -242,16 +259,16 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, { from, isCreator, isBotAdmins, isAdmins, isGroup, reply }) => {
     try {
-        if (!isGroup) return await reply("⚠️ This command only works in groups.");
-        if (!isBotAdmins) return await reply("❌ I must be admin to reset link.");
-        if (!isAdmins && !isCreator) return await reply("🔐 Only admins can use this command.");
+        if (!isGroup) return await reply(`⚠️ *${toStylistUpper('This command only works in groups.')}*`);
+        if (!isBotAdmins) return await reply(`❌ *${toStylistUpper('I must be admin to reset link.')}*`);
+        if (!isAdmins && !isCreator) return await reply(`🔐 *${toStylistUpper('Only admins can use this command.')}*`);
 
         const newCode = await conn.groupRevokeInvite(from);
-        await reply(`*✅ Link Reset Successful!*\n\n🔗 https://chat.whatsapp.com/${newCode}`);
+        await reply(`*✅ ${toStylistUpper('Link Reset Successful!')}*\n\n🔗 https://chat.whatsapp.com/${newCode}`);
 
     } catch (err) {
         console.error(err);
-        await reply("❌ Failed to reset link.");
+        await reply(`❌ *${toStylistUpper('Failed to reset link.')}*`);
     }
 });
 
@@ -265,16 +282,16 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, { from, isGroup, isBotAdmins, reply }) => {
     try {
-        if (!isGroup) return await reply("⚠️ This command only works in groups.");
-        if (!isBotAdmins) return await reply("❌ I must be admin to get the invite link.");
+        if (!isGroup) return await reply(`⚠️ *${toStylistUpper('This command only works in groups.')}*`);
+        if (!isBotAdmins) return await reply(`❌ *${toStylistUpper('I must be admin to get the invite link.')}*`);
         
         const inviteCode = await conn.groupInviteCode(from);
         const link = `https://chat.whatsapp.com/${inviteCode}`;
-        await reply(`🔗 *Group Invite Link:*\n\n${link}`);
+        await reply(`🔗 *${toStylistUpper('Group Invite Link:')}*\n\n${link}`);
 
     } catch (err) {
         console.error(err);
-        await reply("❌ Failed to get group link. I may not have admin permission.");
+        await reply(`❌ *${toStylistUpper('Failed to get group link. I may not have admin permission.')}*`);
     }
 });
 
@@ -288,21 +305,22 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, { from, isCreator, isBotAdmins, isAdmins, isGroup, reply, metadata, participants }) => {
     try {
-        if (!isGroup) return await reply("⚠️ This command only works in groups.");
-        if (!isBotAdmins) return await reply("❌ I must be admin to fetch group info.");
-        if (!isAdmins && !isCreator) return await reply("🔐 Only admins can use this command.");
+        if (!isGroup) return await reply(`⚠️ *${toStylistUpper('This command only works in groups.')}*`);
+        if (!isBotAdmins) return await reply(`❌ *${toStylistUpper('I must be admin to fetch group info.')}*`);
+        if (!isAdmins && !isCreator) return await reply(`🔐 *${toStylistUpper('Only admins can use this command.')}*`);
 
         const groupData = metadata || await conn.groupMetadata(from);
         const groupAdmins = participants?.filter(p => p.admin) || [];
         let description = groupData.desc || 'No description';
         
-        let text = `*「 Group Information 」*\n\n`;
-        text += `*Name:* ${groupData.subject}\n`;
-        text += `*ID:* ${groupData.id}\n`;
-        text += `*Participants:* ${groupData.size}\n`;
-        text += `*Created:* ${new Date(groupData.creation * 1000).toLocaleString()}\n\n`;
-        text += `*Description:*\n${description}\n\n`;
-        text += `*Admins (${groupAdmins.length}):*\n`;
+        let text = `╔═════ ⌈ *⚡ ${toStylistUpper('Group Information')}* ⌋ ═════✧\n`;
+        text += `║ 📌 *${toStylistUpper('Name')}:*${groupData.subject}\n`;
+        text += `║ 🆔 *${toStylistUpper('ID')}:*${groupData.id}\n`;
+        text += `║ 👥 *${toStylistUpper('Participants')}:*${groupData.size}\n`;
+        text += `║ ⏱️ *${toStylistUpper('Created')}:*${new Date(groupData.creation * 1000).toLocaleString()}\n`;
+        text += `╚══════════════════════✧\n\n`;
+        text += `*📝 ${toStylistUpper('Description')}:*\n${description}\n\n`;
+        text += `*👑 ${toStylistUpper('Admins')} (${groupAdmins.length}):*\n`;
         
         groupAdmins.forEach((admin, i) => {
             text += `${i+1}. @${admin.id.split('@')[0]}\n`;
@@ -321,7 +339,7 @@ cmd({
 
     } catch (err) {
         console.error('Group info error:', err);
-        await reply("❌ Failed to fetch group information. Error: " + err.message);
+        await reply(`❌ *${toStylistUpper('Failed to fetch group information. Error:')}* ` + err.message);
     }
 });
 
@@ -335,20 +353,20 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, { from, isCreator, isBotAdmins, isAdmins, isGroup, q, reply }) => {
     try {
-        if (!isGroup) return await reply("⚠️ This command only works in groups.");
-        if (!isBotAdmins) return await reply("❌ I must be admin to change group description.");
-        if (!isAdmins && !isCreator) return await reply("🔐 Only admins can use this command.");
+        if (!isGroup) return await reply(`⚠️ *${toStylistUpper('This command only works in groups.')}*`);
+        if (!isBotAdmins) return await reply(`❌ *${toStylistUpper('I must be admin to change group description.')}*`);
+        if (!isAdmins && !isCreator) return await reply(`🔐 *${toStylistUpper('Only admins can use this command.')}*`);
         
-        if (!q) return await reply("❌ Please provide a new group description.\nExample: `gdesc Welcome to our group!`");
+        if (!q) return await reply(`❌ *${toStylistUpper('Please provide a new group description.')}*\n${toStylistUpper('Example')}: \`gdesc Welcome to our group!\``);
 
-        if (q.length > 500) return await reply("⚠️ Description is too long (max 500 characters).");
+        if (q.length > 500) return await reply(`⚠️ *${toStylistUpper('Description is too long (max 500 characters).')}*`);
 
         await conn.groupUpdateDescription(from, q);
-        await reply("✅ Group description updated successfully!");
+        await reply(`✅ *${toStylistUpper('Group description updated successfully!')}*`);
 
     } catch (err) {
         console.error(err);
-        await reply("❌ Failed to update group description.");
+        await reply(`❌ *${toStylistUpper('Failed to update group description.')}*`);
     }
 });
 
@@ -362,20 +380,20 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, { from, isCreator, isBotAdmins, isAdmins, isGroup, q, reply }) => {
     try {
-        if (!isGroup) return await reply("⚠️ This command only works in groups.");
-        if (!isBotAdmins) return await reply("❌ I must be admin to change group name.");
-        if (!isAdmins && !isCreator) return await reply("🔐 Only admins can use this command.");
+        if (!isGroup) return await reply(`⚠️ *${toStylistUpper('This command only works in groups.')}*`);
+        if (!isBotAdmins) return await reply(`❌ *${toStylistUpper('I must be admin to change group name.')}*`);
+        if (!isAdmins && !isCreator) return await reply(`🔐 *${toStylistUpper('Only admins can use this command.')}*`);
         
-        if (!q) return await reply("❌ Please provide a new group name.\nExample: `gname My New Group`");
+        if (!q) return await reply(`❌ *${toStylistUpper('Please provide a new group name.')}*\n${toStylistUpper('Example')}: \`gname My New Group\``);
 
-        if (q.length > 100) return await reply("⚠️ Group name is too long (max 100 characters).");
+        if (q.length > 100) return await reply(`⚠️ *${toStylistUpper('Group name is too long (max 100 characters).')}*`);
 
         await conn.groupUpdateSubject(from, q);
-        await reply(`✅ Group name changed to: *${q}*`);
+        await reply(`✅ *${toStylistUpper('Group name changed to:')}* *${q}*`);
 
     } catch (err) {
         console.error(err);
-        await reply("❌ Failed to update group name.");
+        await reply(`❌ *${toStylistUpper('Failed to update group name.')}*`);
     }
 });
 
@@ -388,29 +406,29 @@ cmd({
     filename: __filename,
 }, async (conn, mek, m, { from, isCreator, isAdmins, isGroup, q, reply }) => {
     try {
-        if (!isGroup) return await reply("⚠️ This command only works in groups.");
-        if (!isAdmins && !isCreator) return await reply("🔐 Only admins can create polls.");
+        if (!isGroup) return await reply(`⚠️ *${toStylistUpper('This command only works in groups.')}*`);
+        if (!isAdmins && !isCreator) return await reply(`🔐 *${toStylistUpper('Only admins can create polls.')}*`);
         
         if (!q) {
-            return await reply("❓ Usage: `poll Question;Option1,Option2,Option3`\nExample: `poll Best color?;Red,Blue,Green,Black`");
+            return await reply(`❓ *${toStylistUpper('Usage')}:* \`poll Question;Option1,Option2,Option3\`\n${toStylistUpper('Example')}: \`poll Best color?;Red,Blue,Green,Black\``);
         }
 
         const parts = q.split(";");
         if (parts.length < 2) {
-            return await reply("⚠️ Please provide both question and options.\nFormat: Question;Option1,Option2,Option3");
+            return await reply(`⚠️ *${toStylistUpper('Please provide both question and options.')}*\n${toStylistUpper('Format')}: Question;Option1,Option2,Option3`);
         }
 
         const question = parts[0].trim();
         const optionsString = parts[1].trim();
 
         if (!question || !optionsString) {
-            return await reply("⚠️ Question and options are required.");
+            return await reply(`⚠️ *${toStylistUpper('Question and options are required.')}*`);
         }
 
         const options = optionsString.split(",").map(opt => opt.trim()).filter(opt => opt.length > 0);
 
-        if (options.length < 2) return await reply("❌ Please provide at least two options.");
-        if (options.length > 12) return await reply("⚠️ Maximum 12 options allowed.");
+        if (options.length < 2) return await reply(`❌ *${toStylistUpper('Please provide at least two options.')}*`);
+        if (options.length > 12) return await reply(`⚠️ *${toStylistUpper('Maximum 12 options allowed.')}*`);
 
         await conn.sendMessage(from, {
             poll: {
@@ -423,7 +441,7 @@ cmd({
 
     } catch (err) {
         console.error(err);
-        await reply("❌ Failed to create poll.");
+        await reply(`❌ *${toStylistUpper('Failed to create poll.')}*`);
     }
 });
 
@@ -436,28 +454,28 @@ cmd({
     react: "❌",
     filename: __filename
 }, async (conn, mek, m, { from, q, isGroup, isBotAdmins, reply, groupMetadata, isCreator }) => {
-    if (!isGroup) return reply("❌ This command can only be used in groups.");
-    if (!isCreator) return await conn.sendMessage(from, { text: "*📛 This is an owner command.*" }, { quoted: mek });
-    if (!isBotAdmins) return reply("❌ I need to be an admin to use this command.");
-    if (!q) return reply("❌ Please provide a country code. Example: .out 92");
+    if (!isGroup) return reply(`❌ *${toStylistUpper('This command can only be used in groups.')}*`);
+    if (!isCreator) return await conn.sendMessage(from, { text: `*📛 ${toStylistUpper('This is an owner command.')}*` }, { quoted: mek });
+    if (!isBotAdmins) return reply(`❌ *${toStylistUpper('I need to be an admin to use this command.')}*`);
+    if (!q) return reply(`❌ *${toStylistUpper('Please provide a country code. Example: .out 92')}*`);
 
     const countryCode = q.trim();
     if (!/^\d+$/.test(countryCode)) {
-        return reply("❌ Invalid country code. Please provide only numbers (e.g., 92 for +92 numbers)");
+        return reply(`❌ *${toStylistUpper('Invalid country code. Please provide only numbers')}*`);
     }
 
     try {
         const participants = await groupMetadata.participants;
         const targets = participants.filter(participant => participant.id.startsWith(countryCode) && !participant.admin);
 
-        if (targets.length === 0) return reply(`❌ No members found with country code +${countryCode}`);
+        if (targets.length === 0) return reply(`❌ *${toStylistUpper('No members found with country code')} +${countryCode}*`);
 
         const jids = targets.map(p => p.id);
         await conn.groupParticipantsUpdate(from, jids, "remove");
-        reply(`✅ Successfully removed ${targets.length} members with country code +${countryCode}`);
+        reply(`✅ *${toStylistUpper('Successfully removed')}${targets.length} ${toStylistUpper('members with country code')} +${countryCode}*`);
     } catch (error) {
         console.error("Out command error:", error);
-        reply("❌ Failed to remove members. Error: " + error.message);
+        reply(`❌ *${toStylistUpper('Failed to remove members. Error:')}* ` + error.message);
     }
 });
 
@@ -470,19 +488,19 @@ cmd({
     filename: __filename,
 }, async (conn, mek, m, { from, isCreator, body, reply }) => {
     try {
-        if (!isCreator) return await reply("🔐 Only bot owner can use this command.");
+        if (!isCreator) return await reply(`🔐 *${toStylistUpper('Only bot owner can use this command.')}*`);
         
         if (!body) {
-            return await reply("❓ Usage: `newgc Group Name;number1,number2,...`\nExample: `newgc My Group;923001234567,923009876543`");
+            return await reply(`❓ *${toStylistUpper('Usage')}:* \`newgc Group Name;number1,number2,...\`\n${toStylistUpper('Example')}: \`newgc My Group;923001234567,923009876543\``);
         }
 
         const parts = body.split(";");
-        if (parts.length < 2) return await reply("⚠️ Please provide both group name and numbers.\nFormat: Group Name;number1,number2,...");
+        if (parts.length < 2) return await reply(`⚠️ *${toStylistUpper('Please provide both group name and numbers.')}*`);
 
         const groupName = parts[0].trim();
         const numbersString = parts[1].trim();
 
-        if (!groupName || !numbersString) return await reply("⚠️ Group name and numbers are required.");
+        if (!groupName || !numbersString) return await reply(`⚠️ *${toStylistUpper('Group name and numbers are required.')}*`);
 
         const participantNumbers = numbersString.split(",").map(num => {
             let cleanNum = num.trim();
@@ -490,7 +508,7 @@ cmd({
             return cleanNum.includes('@') ? cleanNum : `${cleanNum}@s.whatsapp.net`;
         }).filter(num => num.match(/^\d+@s\.whatsapp\.net$/));
 
-        if (participantNumbers.length === 0) return await reply("❌ No valid phone numbers provided.\nExample: 923001234567,923009876543");
+        if (participantNumbers.length === 0) return await reply(`❌ *${toStylistUpper('No valid phone numbers provided.')}*`);
 
         const ownerJid = conn.user.id.split(':')[0] + '@s.whatsapp.net';
         if (!participantNumbers.includes(ownerJid)) participantNumbers.push(ownerJid);
@@ -499,14 +517,14 @@ cmd({
         const inviteCode = await conn.groupInviteCode(group.id);
         const inviteLink = `https://chat.whatsapp.com/${inviteCode}`;
 
-        await conn.sendMessage(group.id, { text: `🎉 *Welcome to ${groupName}!*\n\nGroup created successfully!\nInvite Link: ${inviteLink}\n\nUse this link to invite more members.` });
-        await reply(`✅ Group created successfully!\n\n📌 *Name:* ${groupName}\n👥 *Members:* ${participantNumbers.length}\n🔗 *Link:* ${inviteLink}`);
+        await conn.sendMessage(group.id, { text: `🎉 *${toStylistUpper('Welcome to')} ${groupName}!*\n\n${toStylistUpper('Group created successfully!')}\n${toStylistUpper('Invite Link')}:${inviteLink}` });
+        await reply(`✅ *${toStylistUpper('Group created successfully!')}*\n\n📌 *${toStylistUpper('Name')}:*${groupName}\n👥 *${toStylistUpper('Members')}:*${participantNumbers.length}\n🔗 *${toStylistUpper('Link')}:*${inviteLink}`);
 
     } catch (err) {
         console.error(err);
-        if (err.message?.includes("401")) await reply("❌ I'm not authorized to create groups.");
-        else if (err.message?.includes("invalid")) await reply("❌ Invalid phone number(s) provided.");
-        else await reply("❌ Failed to create group: " + (err.message || "Unknown error"));
+        if (err.message?.includes("401")) await reply(`❌ *${toStylistUpper('I\'m not authorized to create groups.')}*`);
+        else if (err.message?.includes("invalid")) await reply(`❌ *${toStylistUpper('Invalid phone number(s) provided.')}*`);
+        else await reply(`❌ *${toStylistUpper('Failed to create group:')}* ` + (err.message || "Unknown error"));
     }
 });
 
@@ -520,10 +538,10 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, { from, isGroup, isCreator, reply }) => {
     try {
-        if (!isGroup) return reply("❗ This command can only be used in *groups*.");
-        if (!isCreator) return reply("❗ This command can only be used by my *owner*.");
+        if (!isGroup) return reply(`❗ *${toStylistUpper('This command can only be used in groups.')}*`);
+        if (!isCreator) return reply(`❗ *${toStylistUpper('This command can only be used by my owner.')}*`);
 
-        await reply(`👋 *Goodbye everyone!* I am leaving the group now. Thanks for having me here! ❤️`);
+        await reply(`👋 *${toStylistUpper('Goodbye everyone!')}*${toStylistUpper('I am leaving the group now. Thanks for having me here!')} ❤️`);
         await sleep(1500);
         await conn.groupLeave(from);
 
@@ -543,9 +561,9 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, { from, isCreator, isBotAdmins, botNumber2, botNumber, isGroup, sender, metadata, reply }) => {
     try {
-        if (!isGroup) return await reply("⚠️ This command only works in groups.");
-        if (!isBotAdmins) return await reply("❌ I must be admin to remove members.");
-        if (!isCreator) return await reply("🔐 Only bot owner can use this command.");
+        if (!isGroup) return await reply(`⚠️ *${toStylistUpper('This command only works in groups.')}*`);
+        if (!isBotAdmins) return await reply(`❌ *${toStylistUpper('I must be admin to remove members.')}*`);
+        if (!isCreator) return await reply(`🔐 *${toStylistUpper('Only bot owner can use this command.')}*`);
 
         const ignoreJids = [botNumber2, botNumber, sender];
         const groupData = metadata || await conn.groupMetadata(from);
@@ -553,14 +571,14 @@ cmd({
         const targets = participants.filter(p => !ignoreJids.includes(p.id));
         const jids = targets.map(p => p.id);
 
-        if (jids.length === 0) return await reply("✅ No members to remove (everyone is excluded).");
+        if (jids.length === 0) return await reply(`✅ *${toStylistUpper('No members to remove (everyone is excluded).')}*`);
 
         await conn.groupParticipantsUpdate(from, jids, "remove");
-        await reply(`✅ Successfully removed ${jids.length} member${jids.length > 1 ? 's' : ''} from the group.`);
+        await reply(`✅ *${toStylistUpper('Successfully removed')} ${jids.length}${toStylistUpper('members from the group.')}*`);
 
     } catch (err) {
         console.error(err);
-        await reply("❌ Failed to remove members. I may not have admin permission.");
+        await reply(`❌ *${toStylistUpper('Failed to remove members. I may not have admin permission.')}*`);
     }
 });
 
@@ -574,7 +592,7 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, { isCreator, q, quoted, reply }) => {
     try {
-        if (!isCreator) return await reply("🔐 Only bot owner can use this command.");
+        if (!isCreator) return await reply(`🔐 *${toStylistUpper('Only bot owner can use this command.')}*`);
         
         let link;
 
@@ -588,23 +606,23 @@ cmd({
             if (linkMatch) link = linkMatch[1];
         }
 
-        if (!link) return await reply("❌ Please provide a valid WhatsApp group invite link.\nExample: join https://chat.whatsapp.com/ABC123XYZ");
+        if (!link) return await reply(`❌ *${toStylistUpper('Please provide a valid WhatsApp group invite link.')}*`);
 
         link = link.split('?')[0];
 
         try {
             await conn.groupAcceptInvite(link);
-            await reply("✅ Successfully joined the group!");
+            await reply(`✅ *${toStylistUpper('Successfully joined the group!')}*`);
         } catch (err) {
-            if (err.message?.includes("already")) await reply("ℹ️ I'm already in this group.");
-            else if (err.message?.includes("expired")) await reply("❌ This link has expired or been reset.");
-            else if (err.message?.includes("invalid")) await reply("❌ Invalid group link.");
-            else await reply("❌ Failed to join group: " + (err.message || "Unknown error"));
+            if (err.message?.includes("already")) return await reply(`ℹ️ *${toStylistUpper('I\'m already in this group.')}*`);
+            else if (err.message?.includes("expired")) return await reply(`❌ *${toStylistUpper('This link has expired or been reset.')}*`);
+            else if (err.message?.includes("invalid")) return await reply(`❌ *${toStylistUpper('Invalid group link.')}*`);
+            else await reply(`❌ *${toStylistUpper('Failed to join group:')}* ` + (err.message || "Unknown error"));
         }
 
     } catch (err) {
         console.error(err);
-        await reply("❌ An error occurred while processing the command.");
+        await reply(`❌ *${toStylistUpper('An error occurred while processing the command.')}*`);
     }
 });
 
@@ -618,29 +636,29 @@ cmd({
     react: "📨"
 }, async (conn, mek, m, { from, args, isGroup, isBotAdmins, isCreator, isAdmins, reply }) => {
     try {
-        if (!isGroup) return await reply("⚠️ Group only.");
-        if (!isBotAdmins) return await reply("❌ I need admin.");
-        if (!isCreator && !isAdmins) return await reply("🔐 Admins only.");
+        if (!isGroup) return await reply(`⚠️ *${toStylistUpper('Group only.')}*`);
+        if (!isBotAdmins) return await reply(`❌ *${toStylistUpper('I need admin.')}*`);
+        if (!isCreator && !isAdmins) return await reply(`🔐 *${toStylistUpper('Admins only.')}*`);
         
         if (!args[0]) {
             const code = await conn.groupInviteCode(from);
-            return await reply(`🔗 Group Link:\nhttps://chat.whatsapp.com/${code}`);
+            return await reply(`🔗 *${toStylistUpper('Group Link:')}*\nhttps://chat.whatsapp.com/${code}`);
         }
 
         let number = args[0].replace(/[^0-9]/g, '');
-        if (number.length < 10) return await reply("⚠️ Invalid number.");
+        if (number.length < 10) return await reply(`⚠️ *${toStylistUpper('Invalid number.')}*`);
         
         let jid = number + "@s.whatsapp.net";
         const metadata = await conn.groupMetadata(from);
         const code = await conn.groupInviteCode(from);
         const link = `https://chat.whatsapp.com/${code}`;
         
-        await conn.sendMessage(jid, { text: `📨 *You're invited to join ${metadata.subject}*\n\n🔗 ${link}\n\n👤 Invited by: @${m.sender.split('@')[0]}` });
-        await reply(`📨 Invite sent to @${number}`, { mentions: [jid] });
+        await conn.sendMessage(jid, { text: `📨 *${toStylistUpper('You\'re invited to join')} ${metadata.subject}*\n\n🔗 ${link}\n\n👤 *${toStylistUpper('Invited by')}:* @${m.sender.split('@')[0]}` });
+        await reply(`📨 *${toStylistUpper('Invite sent to')}* @${number}`, { mentions: [jid] });
 
     } catch (err) {
         console.error(err);
-        await reply("❌ Failed to send invite.");
+        await reply(`❌ *${toStylistUpper('Failed to send invite.')}*`);
     }
 });
 
@@ -655,10 +673,10 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, { from, q, isGroup, isCreator, reply }) => {
     try {
-        if (!isGroup) return reply("❌ This command can only be used in groups.");
-        if (!isCreator) return reply("❌ Only the bot creator can use this command.");
+        if (!isGroup) return reply(`❌ *${toStylistUpper('This command can only be used in groups.')}*`);
+        if (!isCreator) return reply(`❌ *${toStylistUpper('Only the bot creator can use this command.')}*`);
 
-        if (!m.quoted && !q) return reply("❌ Please provide a message or reply to media.");
+        if (!m.quoted && !q) return reply(`❌ *${toStylistUpper('Please provide a message or reply to media.')}*`);
 
         await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
         
@@ -717,10 +735,10 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, { from, q, isGroup, isCreator, isAdmins, reply }) => {
     try {
-        if (!isGroup) return reply("❌ This command can only be used in groups.");
-        if (!isAdmins && !isCreator) return reply("❌ Only group admins can use this command.");
+        if (!isGroup) return reply(`❌ *${toStylistUpper('This command can only be used in groups.')}*`);
+        if (!isAdmins && !isCreator) return reply(`❌ *${toStylistUpper('Only group admins can use this command.')}*`);
 
-        if (!m.quoted && !q) return reply("❌ Please provide a message or reply to media to tag all members.");
+        if (!m.quoted && !q) return reply(`❌ *${toStylistUpper('Please provide a message or reply to media to tag all members.')}*`);
 
         await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
         
@@ -778,21 +796,21 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, { from, isCreator, isBotAdmins, isAdmins, isGroup, reply }) => {
     try {
-        if (!isGroup) return await reply("⚠️ This command only works in groups.");
-        if (!isBotAdmins) return await reply("❌ I must be admin to accept join requests.");
-        if (!isAdmins && !isCreator) return await reply("🔐 Only admins can use this command.");
+        if (!isGroup) return await reply(`⚠️ *${toStylistUpper('This command only works in groups.')}*`);
+        if (!isBotAdmins) return await reply(`❌ *${toStylistUpper('I must be admin to accept join requests.')}*`);
+        if (!isAdmins && !isCreator) return await reply(`🔐 *${toStylistUpper('Only admins can use this command.')}*`);
 
         const requests = await conn.groupRequestParticipantsList(from);
         
-        if (!requests || requests.length === 0) return await reply("ℹ️ No pending join requests to accept.");
+        if (!requests || requests.length === 0) return await reply(`ℹ️ *${toStylistUpper('No pending join requests to accept.')}*`);
 
         const jids = requests.map(u => u.jid);
         await conn.groupRequestParticipantsUpdate(from, jids, "approve");
-        await reply(`✅ Successfully accepted ${requests.length} join request${requests.length > 1 ? 's' : ''}.`);
+        await reply(`✅ *${toStylistUpper('Successfully accepted')} ${requests.length}${toStylistUpper('join requests.')}*`);
 
     } catch (err) {
         console.error(err);
-        await reply("❌ Failed to accept join requests.");
+        await reply(`❌ *${toStylistUpper('Failed to accept join requests.')}*`);
     }
 });
 
@@ -806,21 +824,21 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, { from, isCreator, isBotAdmins, isAdmins, isGroup, reply }) => {
     try {
-        if (!isGroup) return await reply("⚠️ This command only works in groups.");
-        if (!isBotAdmins) return await reply("❌ I must be admin to reject join requests.");
-        if (!isAdmins && !isCreator) return await reply("🔐 Only admins can use this command.");
+        if (!isGroup) return await reply(`⚠️ *${toStylistUpper('This command only works in groups.')}*`);
+        if (!isBotAdmins) return await reply(`❌ *${toStylistUpper('I must be admin to reject join requests.')}*`);
+        if (!isAdmins && !isCreator) return await reply(`🔐 *${toStylistUpper('Only admins can use this command.')}*`);
 
         const requests = await conn.groupRequestParticipantsList(from);
         
-        if (!requests || requests.length === 0) return await reply("ℹ️ No pending join requests to reject.");
+        if (!requests || requests.length === 0) return await reply(`ℹ️ *${toStylistUpper('No pending join requests to reject.')}*`);
 
         const jids = requests.map(u => u.jid);
         await conn.groupRequestParticipantsUpdate(from, jids, "reject");
-        await reply(`✅ Successfully rejected ${requests.length} join request${requests.length > 1 ? 's' : ''}.`);
+        await reply(`✅ *${toStylistUpper('Successfully rejected')} ${requests.length}${toStylistUpper('join requests.')}*`);
 
     } catch (err) {
         console.error(err);
-        await reply("❌ Failed to reject join requests.");
+        await reply(`❌ *${toStylistUpper('Failed to reject join requests.')}*`);
     }
 });
 
@@ -834,26 +852,26 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, { from, isCreator, isBotAdmins, isAdmins, isGroup, reply }) => {
     try {
-        if (!isGroup) return await reply("⚠️ This command only works in groups.");
-        if (!isBotAdmins) return await reply("❌ I must be admin to view join requests.");
-        if (!isAdmins && !isCreator) return await reply("🔐 Only admins can use this command.");
+        if (!isGroup) return await reply(`⚠️ *${toStylistUpper('This command only works in groups.')}*`);
+        if (!isBotAdmins) return await reply(`❌ *${toStylistUpper('I must be admin to view join requests.')}*`);
+        if (!isAdmins && !isCreator) return await reply(`🔐 *${toStylistUpper('Only admins can use this command.')}*`);
 
         const requests = await conn.groupRequestParticipantsList(from);
         
-        if (!requests || requests.length === 0) return await reply("ℹ️ No pending join requests.");
+        if (!requests || requests.length === 0) return await reply(`ℹ️ *${toStylistUpper('No pending join requests.')}*`);
 
-        let text = `📋 *Pending Join Requests (${requests.length})*\n\n`;
+        let text = `╔═════ ⌈ *⚡ ${toStylistUpper('Pending Requests')}* (${requests.length}) ⌋ ═════✧\n`;
         requests.forEach((user, i) => {
-            text += `${i+1}. ${user.jid.replace('@s.whatsapp.net', '')}\n`;
+            text += `║ ${i+1}.${user.jid.replace('@s.whatsapp.net', '')}\n`;
         });
-
-        text += `\n*Usage:*\n• Type \`accept 1\` to accept request #1\n• Type \`reject 3\` to reject request #3\n• Type \`acceptall\` to accept all\n• Type \`rejectall\` to reject all`;
+        text += `╚══════════════════════✧\n\n`;
+        text += `*${toStylistUpper('Usage')}:*\n• Type \`accept 1\`\n• Type \`reject 3\`\n• Type \`acceptall\`\n• Type \`rejectall\``;
 
         await reply(text);
 
     } catch (err) {
         console.error(err);
-        await reply("❌ Failed to fetch join requests.");
+        await reply(`❌ *${toStylistUpper('Failed to fetch join requests.')}*`);
     }
 });
 
@@ -867,27 +885,27 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, { from, isCreator, isBotAdmins, isAdmins, isGroup, args, reply }) => {
     try {
-        if (!isGroup) return await reply("⚠️ This command only works in groups.");
-        if (!isBotAdmins) return await reply("❌ I must be admin to accept join requests.");
-        if (!isAdmins && !isCreator) return await reply("🔐 Only admins can use this command.");
+        if (!isGroup) return await reply(`⚠️ *${toStylistUpper('This command only works in groups.')}*`);
+        if (!isBotAdmins) return await reply(`❌ *${toStylistUpper('I must be admin to accept join requests.')}*`);
+        if (!isAdmins && !isCreator) return await reply(`🔐 *${toStylistUpper('Only admins can use this command.')}*`);
 
-        if (!args[0]) return await reply("❓ Usage: accept [number]\nExample: accept 1");
+        if (!args[0]) return await reply(`❓ *${toStylistUpper('Usage: accept [number]')}*`);
 
         const num = parseInt(args[0]);
-        if (isNaN(num) || num < 1) return await reply("⚠️ Please provide a valid number.");
+        if (isNaN(num) || num < 1) return await reply(`⚠️ *${toStylistUpper('Please provide a valid number.')}*`);
 
         const requests = await conn.groupRequestParticipantsList(from);
-        if (!requests || requests.length === 0) return await reply("ℹ️ No pending join requests.");
+        if (!requests || requests.length === 0) return await reply(`ℹ️ *${toStylistUpper('No pending join requests.')}*`);
 
-        if (num > requests.length) return await reply(`⚠️ Only ${requests.length} pending request${requests.length > 1 ? 's' : ''} available.`);
+        if (num > requests.length) return await reply(`⚠️ *${toStylistUpper('Only')} ${requests.length} ${toStylistUpper('pending requests available.')}*`);
 
         const user = requests[num - 1].jid;
         await conn.groupRequestParticipantsUpdate(from, [user], "approve");
-        await reply(`✅ Accepted join request #${num} from ${user.replace('@s.whatsapp.net', '')}`);
+        await reply(`✅ *${toStylistUpper('Accepted join request #')}*${num}`);
 
     } catch (err) {
         console.error(err);
-        await reply("❌ Failed to accept join request.");
+        await reply(`❌ *${toStylistUpper('Failed to accept join request.')}*`);
     }
 });
 
@@ -901,27 +919,27 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, { from, isCreator, isBotAdmins, isAdmins, isGroup, args, reply }) => {
     try {
-        if (!isGroup) return await reply("⚠️ This command only works in groups.");
-        if (!isBotAdmins) return await reply("❌ I must be admin to reject join requests.");
-        if (!isAdmins && !isCreator) return await reply("🔐 Only admins can use this command.");
+        if (!isGroup) return await reply(`⚠️ *${toStylistUpper('This command only works in groups.')}*`);
+        if (!isBotAdmins) return await reply(`❌ *${toStylistUpper('I must be admin to reject join requests.')}*`);
+        if (!isAdmins && !isCreator) return await reply(`🔐 *${toStylistUpper('Only admins can use this command.')}*`);
 
-        if (!args[0]) return await reply("❓ Usage: reject [number]\nExample: reject 2");
+        if (!args[0]) return await reply(`❓ *${toStylistUpper('Usage: reject [number]')}*`);
 
         const num = parseInt(args[0]);
-        if (isNaN(num) || num < 1) return await reply("⚠️ Please provide a valid number.");
+        if (isNaN(num) || num < 1) return await reply(`⚠️ *${toStylistUpper('Please provide a valid number.')}*`);
 
         const requests = await conn.groupRequestParticipantsList(from);
-        if (!requests || requests.length === 0) return await reply("ℹ️ No pending join requests.");
+        if (!requests || requests.length === 0) return await reply(`ℹ️ *${toStylistUpper('No pending join requests.')}*`);
 
-        if (num > requests.length) return await reply(`⚠️ Only ${requests.length} pending request${requests.length > 1 ? 's' : ''} available.`);
+        if (num > requests.length) return await reply(`⚠️ *${toStylistUpper('Only')} ${requests.length} ${toStylistUpper('pending requests available.')}*`);
 
         const user = requests[num - 1].jid;
         await conn.groupRequestParticipantsUpdate(from, [user], "reject");
-        await reply(`✅ Rejected join request #${num} from ${user.replace('@s.whatsapp.net', '')}`);
+        await reply(`✅ *${toStylistUpper('Rejected join request #')}*${num}`);
 
     } catch (err) {
         console.error(err);
-        await reply("❌ Failed to reject join request.");
+        await reply(`❌ *${toStylistUpper('Failed to reject join request.')}*`);
     }
 });
 
@@ -934,14 +952,14 @@ cmd({
     react: "➕"
 }, async (conn, mek, m, { from, args, quoted, mentionedJid, isGroup, isBotAdmins, isCreator, reply }) => {
     try {
-        if (!isGroup) return await reply("⚠️ Group only.");
-        if (!isBotAdmins) return await reply("❌ I need admin.");
-        if (!isCreator) return await reply("🔐 Owner only.");
+        if (!isGroup) return await reply(`⚠️ *${toStylistUpper('Group only.')}*`);
+        if (!isBotAdmins) return await reply(`❌ *${toStylistUpper('I need admin.')}*`);
+        if (!isCreator) return await reply(`🔐 *${toStylistUpper('Owner only.')}*`);
         
         let userJid = null;
         
         if (!quoted && (!mentionedJid || mentionedJid.length === 0) && !args[0]) {
-            return await reply("❓ Please mention user, quote, or provide number!");
+            return await reply(`❓ *${toStylistUpper('Please mention user, quote, or provide number!')}*`);
         }
         
         if (mentionedJid && mentionedJid.length > 0) {
@@ -953,14 +971,14 @@ cmd({
             if (num.length >= 10) userJid = num + "@s.whatsapp.net";
         }
         
-        if (!userJid) return await reply("⚠️ Couldn't determine user.");
+        if (!userJid) return await reply(`⚠️ *${toStylistUpper('Couldn\'t determine user.')}*`);
         
         await conn.groupParticipantsUpdate(from, [userJid], "add");
-        await reply(`✅ Added!`, { mentions: [userJid] });
+        await reply(`✅ *${toStylistUpper('Added!')}*`, { mentions: [userJid] });
 
     } catch (err) {
         console.error(err);
-        await reply("❌ Failed to add user.");
+        await reply(`❌ *${toStylistUpper('Failed to add user.')}*`);
     }
 });
 
