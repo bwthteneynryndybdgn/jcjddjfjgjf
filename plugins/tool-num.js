@@ -54,16 +54,16 @@ async function executeTempNumbers(conn, mek, from, quotedMek = mek) {
             return await conn.sendMessage(from, { text: `❌ Temporary numbers ko fetch karne mein nakami hui.` }, { quoted: quotedMek });
         }
 
-        const totalAvailable = resData.data.total || 14000;[span_1](start_span)[span_1](end_span)
+        const totalAvailable = resData.data.total || 14000;
         const numbers = resData.data.numbers.slice(0, 10);
 
         let msg = `> *KAMRAN-MD TEMP NUMBERS* 📱\n\n`;
         msg += `🌐 *Total Available:* ${totalAvailable}\n\n`;
 
         numbers.forEach((item, index) => {
-            msg += `*${index + 1}. Country:* ${item.country} ${item.flag || ''}\n`;
-            msg += `📞 *Code:* +${item.countryCode}\n`;
-            msg += `🔢 *Number:* \`${item.number}\`\n\n`;
+            msg += `*${index + 1}. Country:* ${item.country || 'Unknown'} ${item.flag || ''}\n`;
+            msg += `📞 *Code:* +${item.countryCode || ''}\n`;
+            msg += `🔢 *Number:* \`${item.number || ''}\`\n\n`;
         });
 
         msg += `_Yahan upar diye gaye numbers OTP verification ke liye istemal kiye ja sakte hain!_`;
