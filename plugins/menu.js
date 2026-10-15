@@ -83,7 +83,7 @@ async (conn, mek, m, { from, reply, userConfig }) => {
         const DESCRIPTION = userConfig?.DESCRIPTION || config.DESCRIPTION || "";
         
         // Direct image URL
-        const imageToUse = 'https://i.ibb.co/RTWD9M32/jawadmd.jpg';
+        const imageToUse = 'https://i.ibb.co/VpJ4HStx/848935937-1013301025114309-1591196057358903535-n.jpg';
         
         let dec = `❖ ── ✦ *${toStylistUpper(BOT_NAME)} ᴍᴜʟᴛɪ-ᴅᴇᴠɪᴄᴇ* ✦ ── ❖
 
@@ -107,7 +107,7 @@ ${menuSections}
                 forwardingScore: 999, 
                 isForwarded: true, 
                 forwardedNewsletterMessageInfo: { 
-                    newsletterJid: '120363413585581317@newsletter', 
+                    newsletterJid: '120363418144382782@newsletter', 
                     newsletterName: BOT_NAME, 
                     serverMessageId: 143 
                 } 
