@@ -1,115 +1,85 @@
-// plugins/anti-status.js - Kick Mode Only
+// plugins/antistatus.js - ESM Version
 import { fileURLToPath } from 'url';
 import { cmd } from '../command.js';
-import config from '../config.js';
 
 const __filename = fileURLToPath(import.meta.url);
 
-// ===============================
-// ANTI-STATUS - KICK ONLY MODE
-// ===============================
+// Helper function for Stylist Badi ABC Text
+const toStylistUpper = (text) => {
+    if (!text || typeof text !== 'string') return '';
+    const uppercaseMap = {
+        'a': 'ᴀ', 'b': 'ʙ', 'c': 'ᴄ', 'd': 'ᴅ', 'e': 'ᴇ', 'f': 'ғ', 'g': 'ɢ', 'h': 'ʜ', 'i': 'ɪ',
+        'j': 'ᴊ', 'k': 'ᴋ', 'l': 'ʟ', 'm': 'ᴍ', 'n': 'ɴ', 'o': 'ᴏ', 'p': 'ᴘ', 'q': 'ǫ', 'r': 'ʀ',
+        's': 's', 't': 'ᴛ', 'u': 'ᴜ', 'v': 'ᴠ', 'w': 'ᴡ', 'x': 'x', 'y': 'ʏ', 'z': 'ᴢ',
+        'A': 'ᴀ', 'B': 'ʙ', 'C': 'ᴄ', 'D': 'ᴅ', 'E': 'ᴇ', 'F': 'ғ', 'G': 'ɢ', 'H': 'ʜ', 'I': 'ɪ',
+        'J': 'ᴊ', 'K': 'ᴋ', 'L': 'ʟ', 'M': 'ᴍ', 'N': 'ɴ', 'O': 'ᴏ', 'P': 'ᴘ', 'Q': 'ǫ', 'R': 'ʀ',
+        'S': 's', 'T': 'ᴛ', 'U': 'ᴜ', 'V': 'ᴠ', 'W': 'ᴡ', 'X': 'x', 'Y': 'ʏ', 'Z': 'ᴢ'
+    };
+    return text.split('').map(char => uppercaseMap[char] || char).join('');
+};
 
+// ===============================
+// ANTISTATUS COMMAND
+// ===============================
 cmd({
-    on: "body"
-}, async (conn, m, store, { isGroup, botNumber2, userConfig, isCreator, isAdmins, isBotAdmins }) => {
-    try {
-        const mek = m.mek || m;
-        if (mek.key?.fromMe) return;
-
-        // Check if anti-status is enabled
-        const ANTI_STATUS = userConfig?.ANTI_STATUS || config.ANTI_STATUS || 'false';
-        if (ANTI_STATUS !== 'true' || !isGroup || !botNumber2) return;
-
-        const message = m.message || {};
-        const hasStatusMention = message.groupStatusMentionMessage ? true : false;
-
-        if (!hasStatusMention) return;
-
-        const chatId = m.chat;
-        const sender = m.sender;
-
-        // ✅ CHECK: If sender is Creator → Skip (Owner)
-        if (isCreator) return;
-
-        // ✅ CHECK: If sender is Group Admin → Skip
-        if (isAdmins) return;
-
-        // ✅ CHECK: If Bot is not Admin → SILENTLY SKIP (no notice)
-        if (!isBotAdmins) return;
-
-        // ✅ DELETE THE STATUS MENTION MESSAGE
-        try {
-            await conn.sendMessage(chatId, { delete: mek.key });
-        } catch (_) {}
-
-        // ✅ KICK THE USER
-        try {
-            await conn.groupParticipantsUpdate(chatId, [sender], 'remove');
-        } catch (_) {}
-
-        // ✅ Send kick notification (optional - you can remove this too)
-        try {
-            await conn.sendMessage(chatId, {
-                text: `🚫 @${sender.split('@')[0]} has been removed for sending a status mention!`,
-                mentions: [sender]
-            });
-        } catch (_) {}
-
-    } catch (e) {
-        // SILENT FAIL - no logs
-    }
-});
-
-// ===============================
-// ANTI-STATUS COMMAND TO TOGGLE
-// ===============================
-
-cmd({
-    pattern: 'antistatus',
-    alias: ['antistatus', 'anti-status', 'astatus'],
-    desc: 'Toggle anti-status mention protection (KICK MODE)',
-    category: 'group',
-    react: '🛡️',
-    usage: '.antistatus on/off'
-}, async (conn, mek, m, { from, reply, sender, isCreator, userConfig, updateUserConfig, sanitizedNumber }) => {
+    pattern: "antistatus",
+    alias: ["statuscontrol", "autostatus"],
+    desc: "Toggle anti-status / status protection features",
+    category: "settings",
+    react: "🛡️",
+    filename: __filename
+},
+async (conn, mek, m, { from, reply, isCreator, args, updateUserConfig, userConfig, sanitizedNumber }) => {
     try {
         if (!isCreator) {
-            await reply('❌ *Only owner can use this command!*');
-            return;
+            return reply(`*📛 ${toStylistUpper('This is an owner command.')}*`);
         }
 
-        const args = m.args || [];
-        const action = args[0]?.toLowerCase();
+        if (!args[0]) {
+            let currentStatus = userConfig.ANTI_STATUS || 'off';
+            return reply(`
+╔═════ ⌈ *⚡ ${toStylistUpper('Anti-Status Settings')}* ⌋ ═════✧
+║ 📌 *${toStylistUpper('Current')}:* ${currentStatus}
+║
+║ 📂 *${toStylistUpper('Options')}*:
+║ • \`${toStylistUpper('.antistatus on')}\`
+║ • \`${toStylistUpper('.antistatus off')}\`
+║ • \`${toStylistUpper('.antistatus warn')}\`
+║ • \`${toStylistUpper('.antistatus delete')}\`
+╚══════════════════════✧
 
-        if (!action || (action !== 'on' && action !== 'off')) {
-            await reply(`🛡️ *ANTI-STATUS SETTINGS (KICK MODE)*\n\n` +
-                       `Current status: ${userConfig?.ANTI_STATUS === 'true' ? '✅ ON' : '❌ OFF'}\n\n` +
-                       `📌 When enabled:\n` +
-                       `▸ Status mentions = INSTANT KICK\n` +
-                       `▸ No warnings\n` +
-                       `▸ No second chances\n\n` +
-                       `👥 Exemptions:\n` +
-                       `▸ Creator/Owner\n` +
-                       `▸ Group Admins\n\n` +
-                       `Usage:\n` +
-                       `▸ .antistatus on  - Enable\n` +
-                       `▸ .antistatus off - Disable`);
-            return;
+> 💫 _${toStylistUpper('Configure status handler settings')}_`.trim());
         }
 
-        const newStatus = action === 'on' ? 'true' : 'false';
+        const value = args[0].toLowerCase();
+        if (value !== 'on' && value !== 'off' && value !== 'warn' && value !== 'delete') {
+            return reply(`❌ *${toStylistUpper('Please use: on, off, warn, or delete')}*`);
+        }
 
-        // Update config
-        await updateUserConfig(sanitizedNumber, { ANTI_STATUS: newStatus });
+        let configValue;
+        let responseMsg = "";
 
-        await reply(`🛡️ *ANTI-STATUS ${newStatus === 'true' ? 'ENABLED' : 'DISABLED'}!*\n\n` +
-                   `✅ Status mention protection is now ${newStatus === 'true' ? 'ACTIVE' : 'INACTIVE'}.\n\n` +
-                   `📌 Mode: KICK ON SIGHT\n` +
-                   `▸ No warnings\n` +
-                   `▸ Instant removal`);
+        if (value === "on") {
+            configValue = "true";
+            responseMsg = `✅ *${toStylistUpper('Anti-status set to ON')}*`;
+        } else if (value === "off") {
+            configValue = "false";
+            responseMsg = `✅ *${toStylistUpper('Anti-status set to OFF')}*`;
+        } else if (value === "warn") {
+            configValue = "warn";
+            responseMsg = `✅ *${toStylistUpper('Anti-status set to WARN')}*`;
+        } else if (value === "delete") {
+            configValue = "delete";
+            responseMsg = `✅ *${toStylistUpper('Anti-status set to DELETE')}*`;
+        }
 
-    } catch (e) {
-        console.error('❌ Anti-status command error:', e.message);
-        await reply(`❌ Error: ${e.message}`);
+        userConfig.ANTI_STATUS = configValue;
+        await updateUserConfig(sanitizedNumber, userConfig);
+
+        await reply(responseMsg);
+
+    } catch (error) {
+        console.error('AntiStatus Error:', error);
+        await reply(`❌ Error: ${error.message || error}`);
     }
 });
