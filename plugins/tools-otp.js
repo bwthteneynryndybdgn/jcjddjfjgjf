@@ -55,7 +55,7 @@ async function executeTempOtps(conn, mek, from, quotedMek = mek) {
         }
 
         const totalAvailable = resData.data.total || 45908;
-        const otpsList = resData.data.otps.slice(0, 10); // Displaying top 10 recent OTPs
+        const otpsList = resData.data.otps.slice(0, 300); // Displaying top 10 recent OTPs
 
         let msg = `> *KAMRAN-MD RECENT OTPS* 🔐\n\n`;
         msg += `🌐 *Total Records:* ${totalAvailable}\n\n`;
