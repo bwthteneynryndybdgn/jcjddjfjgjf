@@ -161,7 +161,7 @@ async function getPlayableStream(youtubeUrl) {
 }
 
 cmd({
-    pattern: "ytplay",
+    pattern: "yteplay",
     alias: ["ytp"],
     use: '.ytplay <judul/link>',
     desc: "Search and play YouTube video with direct streaming links",
