@@ -1,78 +1,101 @@
+//---------------------------------------------------------------------------
+//           KAMRAN-MD - THENKIRI MOVIE DOWNLOADER PLUGIN
+//---------------------------------------------------------------------------
+
 import { fileURLToPath } from 'url';
-import { cmd } from '../command.js';
 import axios from 'axios';
-import FormData from 'form-data';
-import fs from 'fs';
-import path from 'path';
+import { cmd } from '../command.js';
 
 const __filename = fileURLToPath(import.meta.url);
 
-async function uguu(filePath) {
-  const form = new FormData();
-  form.append('files[]', fs.createReadStream(filePath));
-  const { data } = await axios.post('https://uguu.se/upload', form, {
-    headers: { ...form.getHeaders() }
-  });
-  return data.files[0].url;
-}
+const AUTHOR = "KAMRAN-MD";
+const API_KEY = "VajiraOfc";
 
-cmd({
-    pattern: "nsfwcheck",
-    alias: [],
-    desc: "Check if an image contains NSFW content using AI",
-    category: "ai",
-    react: "✨",
+cmd(
+  {
+    pattern: "movie6",
+    alias: ["nkiri7", "film", "downloadmovie"],
+    react: "🎬",
+    desc: "Search and get download links for Hollywood movies from TheNkiri.",
+    category: "download",
     filename: __filename,
-    limit: true
-},
-async (conn, mek, m, { from, reply }) => {
-    let tempFile = null;
+  },
+  async (conn, mek, m, { from, text, reply }) => {
     try {
-        let q = m.quoted ? await m.getQuotedObj() : m;
+      const q = text ? text.trim() : "";
 
-        if (q.mtype !== 'imageMessage') {
-            return reply('Kirim atau reply gambar lalu ketik *.nsfwcheck*');
-        }
-
-        // ⏳ React - processing
-        await conn.sendMessage(from, { react: { text: '⏳', key: m.key } });
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        let buffer = await q.download();
-        if (!buffer) {
-            await conn.sendMessage(from, { react: { text: '❌', key: m.key } });
-            return reply('Gagal mendownload media.');
-        }
-
-        tempFile = path.join(process.cwd(), `nsfw_${Date.now()}.jpg`);
-        fs.writeFileSync(tempFile, buffer);
-
-        let srcUrl = await uguu(tempFile);
-
-        const { data } = await axios.get(
-            `${global.APIs.deline}/ai/nsfwcheck?url=${encodeURIComponent(srcUrl)}`
+      if (!q) {
+        return reply(
+          `🎬 *Movie Downloader (${AUTHOR})*\n\n` +
+          `*Usage:* \`.movie <movie name or url>\`\n` +
+          `*Example 1:* \`.movie Ricky Stanicky\`\n` +
+          `*Example 2:* \`.movie https://thenkiri.com/ricky-stanicky-2024-download-hollywood-movie/\``
         );
+      }
 
-        let caption = `✨ *NSFW Check Result*\n\n`;
-        caption += `✨ Label : *${data.result.labelName}*\n`;
-        caption += `✨ Confidence : *${(data.result.confidence * 100).toFixed(2)}%*`;
+      await conn.sendMessage(from, { react: { text: "🔍", key: mek.key } });
 
-        await reply(caption);
+      // Check if user provided a direct movie URL from TheNkiri
+      if (q.startsWith("http") && q.includes("thenkiri.com")) {
+        const detailsUrl = `https://vajiraofc-apis.vercel.app/api/thenkiri/details?apikey=${API_KEY}&url=${encodeURIComponent(q)}`;
+        const res = await axios.get(detailsUrl, { timeout: 25000 });
+        const result = res.data?.data;
 
-        // 800ms delay before success react
-        await new Promise(resolve => setTimeout(resolve, 800));
-        
-        // ✅ React - success
-        await conn.sendMessage(from, { react: { text: '✅', key: m.key } });
+        if (!result) {
+          await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+          return reply("❌ Movie details fetch karne mein nakamy rahi!");
+        }
+
+        const movieInfo = `
+🎬 *MOVIE DETAILS* 🎬
+
+📌 *Title:* ${result.title || "N/A"}
+🎭 *Genre:* ${result.genres || "N/A"}
+📦 *Size:* ${result.size || "N/A"}
+🎥 *Quality:* ${result.quality || "N/A"}
+📅 *Year:* ${result.year || "N/A"}
+
+🔗 *Direct Download Link:*
+${result.directDownloadUrl || result.downloadPageLink || "N/A"}
+
+> © ᴘᴏᴡᴇʀᴇᴅ ʙʏ ${AUTHOR}`;
+
+        const posterUrl = result.imageUrl || "https://i.imgur.com/Te4kE0x.jpeg";
+
+        await conn.sendMessage(from, { image: { url: posterUrl }, caption: movieInfo }, { quoted: mek });
+        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
+        return;
+      }
+
+      // Otherwise, perform a search query
+      const searchUrl = `https://vajiraofc-apis.vercel.app/api/thenkiri/search?apikey=${API_KEY}&q=${encodeURIComponent(q)}`;
+      const searchRes = await axios.get(searchUrl, { timeout: 25000 });
+      const results = searchRes.data?.results || [];
+
+      if (results.length === 0) {
+        await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+        return reply("❌ Is naam se koi movie nahi mili!");
+      }
+
+      let searchListText = `🎬 *THENKIRI MOVIE SEARCH* 🎬\n\n*Query:* ${q}\n━━━━━━━━━━━━━━━━━━\n\n`;
+
+      const limit = Math.min(results.length, 5);
+      for (let i = 0; i < limit; i++) {
+        const movie = results[i];
+        searchListText += `*${movie.id}. ${movie.title}*\n`;
+        searchListText += `🔗 *Link:* \`${movie.url}\`\n`;
+        searchListText += `━━━━━━━━━━━━━━━━━━\n`;
+      }
+
+      searchListText += `\n_💡 Tip: Kisi bhi movie ki details aur direct download link ke liye uska link copy karke \`.movie <link>\` bhejein!_\n\n> © ᴘᴏᴡᴇʀᴇᴅ ʙʏ ${AUTHOR}`;
+
+      await conn.sendMessage(from, { text: searchListText }, { quoted: mek });
+      await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
 
     } catch (e) {
-        console.error("Error in nsfwcheck command:", e);
-        // ❌ React - error
-        await conn.sendMessage(from, { react: { text: '❌', key: m.key } });
-        await reply(`❌ Error checking NSFW: ${e.message}`);
-    } finally {
-        if (tempFile && fs.existsSync(tempFile)) {
-            fs.unlinkSync(tempFile);
-        }
+      console.error("Movie Command Error:", e);
+      await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+      reply(`⚠️ *Error:* ${e.message || "Something went wrong."}`);
     }
-});
+  }
+);
