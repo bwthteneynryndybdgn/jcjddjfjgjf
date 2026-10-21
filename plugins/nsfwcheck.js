@@ -82,8 +82,8 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
         listText += `⚡ *Reply with the item number* to view movie details[span_1](start_span)[span_1](end_span).\n\n`;
         listText += `> *© ${AUTHOR} ッ*`;
 
-        // Fixed working image URL so photo appears correctly without breaking
-        const searchPoster = "https://i.imgur.com/Te4kE0x.jpeg";
+        // 100% Working Stable Image URL
+        const searchPoster = "https://raw.githubusercontent.com/SecktorBot/Branding/main/media/image/Logo.jpg";
 
         const sentSearch = await client.sendMessage(from, {
             image: { url: searchPoster },
