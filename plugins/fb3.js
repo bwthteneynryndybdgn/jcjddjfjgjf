@@ -12,20 +12,10 @@ const __dirname = path.dirname(__filename);
 
 const AUTHOR = "KAMRAN-MINI-BOT";
 
-async function getThumbnailBuffer(url) {
-  if (!url) return null;
-  try {
-    const { data } = await axios.get(url, { responseType: "arraybuffer" });
-    return Buffer.from(data);
-  } catch (err) {
-    return null;
-  }
-}
-
 cmd({
     pattern: "fbsearch",
-    alias: ["facebook2", "fbdlch"],
-    desc: "Search and download Facebook videos via Omegatech API",
+    alias: ["facebookch", "fbdlsearch"],
+    desc: "Search and download Facebook videos via dr API",
     category: "download",
     filename: __filename
 },
@@ -80,7 +70,7 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
         }
 
         listText += `└─────────────────────┘\n\n`;
-        listText += `⚡ *Reply with the item number* to download as Document.\n\n`;
+        listText += `⚡ *Reply with the item number* to download video.\n\n`;
         listText += `> *© ${AUTHOR} ッ*`;
 
         const sentSearch = await client.sendMessage(from, {
@@ -130,9 +120,6 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
 
                 await client.sendMessage(from, { react: { text: "📥", key: msg.key } });
 
-                const videoTitleClean = (selected.title || "Facebook_Video").replace(/[^a-zA-Z0-9 ]/g, "_");
-                const cleanFileName = `${videoTitleClean}_${resolveRes.data.data?.quality || 'HD'}.mp4`;
-
                 let finalCaption = `┏━━━━━━━━━━━━━━━━━━━━━━━━┓\n`;
                 finalCaption += `┃ 🎬 *${selected.title || 'Facebook Video'}*\n`;
                 finalCaption += `┗━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n`;
@@ -140,14 +127,13 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
                 finalCaption += `┗━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n`;
                 finalCaption += `> *© ${AUTHOR} ッ*`;
 
-                let documentPayload = {
-                    document: { url: directUrl },
-                    mimetype: "video/mp4",
-                    fileName: cleanFileName,
-                    caption: finalCaption
-                };
+                // Sending as native WhatsApp Video so it plays directly in chat
+                await client.sendMessage(from, {
+                    video: { url: directUrl },
+                    caption: finalCaption,
+                    mimetype: "video/mp4"
+                }, { quoted: msg });
 
-                await client.sendMessage(from, documentPayload, { quoted: msg });
                 await client.sendMessage(from, { react: { text: "✅", key: msg.key } });
 
             } catch (detErr) {
