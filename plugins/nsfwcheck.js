@@ -1,5 +1,5 @@
 //---------------------------------------------------------------------------
-//           KAMRAN-MD - THENKIRI INTERACTIVE MOVIE SELECTOR
+//           KAMRAN-MD - THENKIRI MOVIE INTERACTIVE (FIXED)
 //---------------------------------------------------------------------------
 
 import { fileURLToPath } from 'url';
@@ -11,13 +11,13 @@ const __filename = fileURLToPath(import.meta.url);
 const AUTHOR = "KAMRAN-MD";
 const API_KEY = "VajiraOfc";
 
-// Temporary memory store for search results (per chat)
-const searchSession = {};
+// Global cache to store search results for chats
+const globalSessions = global.movieSessions || (global.movieSessions = {});
 
 cmd(
   {
-    pattern: "movie6",
-    alias: ["nkiri6", "film", "downloadmovie"],
+    pattern: "movie",
+    alias: ["nkiri", "film", "downloadmovie"],
     react: "🎬",
     desc: "Search movies and download by selecting number.",
     category: "download",
@@ -37,10 +37,10 @@ cmd(
 
       await conn.sendMessage(from, { react: { text: "🔍", key: mek.key } });
 
-      // Agar user ne koi number select kiya hai aur session mein movies maujood hain
-      if (/^\d+$/.test(q) && searchSession[from]) {
+      // Check if user replied with a number and active session exists
+      if (/^\d+$/.test(q) && globalSessions[from]) {
         const index = parseInt(q) - 1;
-        const moviesList = searchSession[from];
+        const moviesList = globalSessions[from];
 
         if (index < 0 || index >= moviesList.length) {
           await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
@@ -88,13 +88,13 @@ cmd(
           { quoted: mek }
         );
 
-        // Clear session after download
-        delete searchSession[from];
+        // Clear session after successful download
+        delete globalSessions[from];
         await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
         return;
       }
 
-      // Nayi search query ke liye results fetch karna
+      // New Search Query
       const searchUrl = `https://vajiraofc-apis.vercel.app/api/thenkiri/search?apikey=${API_KEY}&q=${encodeURIComponent(q)}`;
       const searchRes = await axios.get(searchUrl, { timeout: 25000 });
       const results = searchRes.data?.results || [];
@@ -105,12 +105,12 @@ cmd(
       }
 
       const limit = Math.min(results.length, 5);
-      searchSession[from] = results.slice(0, limit);
+      globalSessions[from] = results.slice(0, limit);
 
       let searchListText = `🎬 *THENKIRI MOVIE SEARCH RESULTS* 🎬\n\n*Query:* ${q}\n━━━━━━━━━━━━━━━━━━\n\n`;
 
       for (let i = 0; i < limit; i++) {
-        searchListText += `*${i + 1}.* ${searchSession[from][i].title}\n`;
+        searchListText += `*${i + 1}.* ${globalSessions[from][i].title}\n`;
       }
 
       searchListText += `\n━━━━━━━━━━━━━━━━━━\n_💡 Reply with the number (e.g. \`1\`, \`2\`, etc.) to download that movie as a Document!_\n\n> © ᴘᴏᴡᴇʀᴇᴅ ʙʏ ${AUTHOR}`;
