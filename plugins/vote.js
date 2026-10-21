@@ -13,7 +13,6 @@ const __dirname = path.dirname(__filename);
 const AUTHOR = "KAMRAN-MINI-BOT";
 const API_KEY = "VajiraOfc";
 
-// Helper function to clean foreign/Sinhala characters from title
 function cleanTitle(title) {
   if (!title) return "Unknown Title";
   return title.replace(/සිංහල.*$/gi, "").replace(/හඩකැවූ.*$/gi, "").replace(/[^\x00-\x7F]/g, "").trim() || title;
@@ -46,7 +45,7 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
             return reply(
                 "❌ *Opps! Title Missing* ❌\n\n" +
                 "Please provide an animation movie name to search!\n" +
-                "📌 *Example:* `.animost New` ya `.animost Ron`"
+                "📌 *Example:* `.animost New`"
             );
         }
 
@@ -98,7 +97,6 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
         const searchMsgId = sentSearch.key.id;
         let detailsTimeout;
 
-        // ================= INTERACTIVE STEP: DETAILS & QUALITY HANDLER =================
         const detailsHandler = async (update) => {
             try {
                 const msg = update.messages[0];
@@ -131,11 +129,14 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
                 }
 
                 const movieData = detailResponse.data.data || {};
-                const downloadLinks = movieData.download_links || [];
+                let downloadLinks = movieData.download_links || [];
+
+                // Filter out non-video links (like subtitles text files) to ensure only valid video downloads are shown
+                downloadLinks = downloadLinks.filter(dl => dl.url && (dl.url.includes(".mp4") || dl.url.includes("workers.dev") || dl.quality !== "Download Subtitles"));
 
                 if (downloadLinks.length === 0) {
                     await react("❌");
-                    return reply("❌ *Sorry:* No downloadable video links were located for this selection.");
+                    return reply("❌ *Sorry:* No valid video download links were located for this selection.");
                 }
 
                 const movieTitleClean = cleanTitle(movieData.title || selected.title);
@@ -168,7 +169,6 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
                 const detailMsgId = sentDetail.key.id;
                 let downloadTimeout;
 
-                // ================= INTERACTIVE STEP: DOWNLOAD HANDLER =================
                 const downloadHandler = async (up) => {
                     try {
                         const dlMsg = up.messages[0];
