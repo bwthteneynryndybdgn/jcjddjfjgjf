@@ -10,7 +10,7 @@ import { cmd } from '../command.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const AUTHOR = "KAMRAN-MINI-BOT";
+const AUTHOR = "KAMRAN-MD";
 const API_KEY = "VajiraOfc";
 
 async function getThumbnailBuffer(url) {
@@ -24,7 +24,7 @@ async function getThumbnailBuffer(url) {
 }
 
 cmd({
-    pattern: "movie",
+    pattern: "movie6",
     alias: ["nkiri", "film", "downloadmovie"],
     desc: "Search and download movies from TheNkiri via API",
     category: "download",
@@ -79,13 +79,14 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
         });
 
         listText += `└─────────────────────┘\n\n`;
-        listText += `⚡ *Reply with the item number* to view movie details[span_2](start_span)[span_2](end_span).\n\n`;
+        listText += `⚡ *Reply with the item number* to view movie details[span_1](start_span)[span_1](end_span).\n\n`;
         listText += `> *© ${AUTHOR} ッ*`;
 
-        const firstImage = "https://placehold.co/600x400?text=TheNkiri+Movies";
+        // Fixed working image URL so photo appears correctly without breaking
+        const searchPoster = "https://i.imgur.com/Te4kE0x.jpeg";
 
         const sentSearch = await client.sendMessage(from, {
-            image: { url: firstImage },
+            image: { url: searchPoster },
             caption: listText
         }, { quoted: mek });
 
@@ -146,7 +147,7 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
                 finalCaption += `┗━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n`;
                 finalCaption += `> *© ${AUTHOR} ッ*`;
 
-                const thumbBuffer = await getThumbnailBuffer(movieDetails.imageUrl);
+                const thumbBuffer = await getThumbnailBuffer(movieDetails.imageUrl || searchPoster);
                 
                 let documentPayload = {
                     document: { url: directUrl },
