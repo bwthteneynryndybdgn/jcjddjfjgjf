@@ -10,13 +10,26 @@ import { cmd } from '../command.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const AUTHOR = "KAMRAN-MINI-BOT";
+const AUTHOR = "KAMRAN-MD";
 const API_KEY = "VajiraOfc";
+
+// Helper function for Stylist Badi ABC Text
+const toStylistUpper = (text) => {
+    if (!text || typeof text !== 'string') return '';
+    const uppercaseMap = {
+        'a': 'ᴀ', 'b': 'ʙ', 'c': 'ᴄ', 'd': 'ᴅ', 'e': 'ᴇ', 'f': 'ғ', 'g': 'ɢ', 'h': 'ʜ', 'i': 'ɪ',
+        'j': 'ᴊ', 'k': 'ᴋ', 'l': 'ʟ', 'm': 'ᴍ', 'n': 'ɴ', 'o': 'ᴏ', 'p': 'ᴘ', 'q': 'ǫ', 'r': 'ʀ',
+        's': 's', 't': 'ᴛ', 'u': 'ᴜ', 'v': 'ᴠ', 'w': 'ᴡ', 'x': 'x', 'y': 'ʏ', 'z': 'ᴢ',
+        'A': 'ᴀ', 'B': 'ʙ', 'C': 'ᴄ', 'D': 'ᴅ', 'E': 'ᴇ', 'F': 'ғ', 'G': 'ɢ', 'H': 'ʜ', 'I': 'ɪ',
+        'J': 'ᴊ', 'K': 'ᴋ', 'L': 'ʟ', 'M': 'ᴍ', 'N': 'ɴ', 'O': 'ᴏ', 'P': 'ᴘ', 'Q': 'ǫ', 'R': 'ʀ',
+        'S': 's', 'T': 'ᴛ', 'U': 'ᴜ', 'V': 'ᴠ', 'W': 'ᴡ', 'X': 'x', 'Y': 'ʏ', 'Z': 'ᴢ'
+    };
+    return text.split('').map(char => uppercaseMap[char] || char).join('');
+};
 
 // Helper function to clean foreign/Sinhala characters from title
 function cleanTitle(title) {
   if (!title) return "Unknown Title";
-  // Remove non-English/Sinhala junk text or clean up using regex if needed, keeping English letters, numbers & brackets
   return title.replace(/සිංහල උපසිරැසි සමඟ.*$/gi, "").replace(/[^\x00-\x7F]/g, "").trim() || title;
 }
 
@@ -45,14 +58,14 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
 
         if (!q) {
             return reply(
-                "❌ *Opps! Title Missing* ❌\n\n" +
-                "Please provide a movie name to search!\n" +
-                "📌 *Example:* `.cinesubz 2026`"
+                `❌ *${toStylistUpper('Opps! Title Missing')}* ❌\n\n` +
+                `${toStylistUpper('Please provide a movie name to search!')}\n` +
+                `📌 *${toStylistUpper('Example')}:* \`.cinesubz 2026\``
             );
         }
 
         await react("🔍");
-        await reply(`🔍 _Searching for *"${q}"* on CineSubz servers..._`);
+        await reply(`🔍 _${toStylistUpper('Searching for')} *"${q}"* ${toStylistUpper('on CineSubz servers')}..._`);
 
         const searchApiUrl = `https://vajiraofc-apis.vercel.app/api/cinesubz/search`;
         const response = await axios.get(searchApiUrl, {
@@ -62,21 +75,20 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
 
         if (response.status !== 200 || !response.data || !response.data.success) {
             await react("❌");
-            return reply("🛸 *API Error:* Server responded with an invalid status.");
+            return reply(`🛸 *${toStylistUpper('API Error')}:* ${toStylistUpper('Server responded with an invalid status.')}`);
         }
 
         const results = response.data.results || [];
         if (results.length === 0) {
             await react("❌");
-            return reply(`🛸 *No Results Found!*\nCinesubz par *"${q}"* naam ki koi movie nahi mili.`);
+            return reply(`🛸 *${toStylistUpper('No Results Found!')}*\n${toStylistUpper('Cinesubz par')} *"${q}"* ${toStylistUpper('naam ki koi movie nahi mili.')}`);
         }
 
-        let listText = `┏━━━━━━━━━━━━━━━━━━━━━━┓\n`;
-        listText += `┃ 🎬  *CINESUBZ SEARCH*  🎬 ┃\n`;
-        listText += `┗━━━━━━━━━━━━━━━━━━━━━━┛\n\n`;
-        listText += `🔎 *Query:* \`${q.toUpperCase()}\`\n`;
-        listText += `✨ *Results Found:* ${results.length}\n\n`;
-        listText += `┌─────────────────────┐\n`;
+        let listText = `╔═════ ⌈ *⚡ ${toStylistUpper('Cinesubz Search')}* ⌋ ═════✧\n`;
+        listText += `║ 🔎 *${toStylistUpper('Query')}:* \`${q.toUpperCase()}\`\n`;
+        listText += `║ ✨ *${toStylistUpper('Results Found')}:* ${results.length}\n`;
+        listText += `╚══════════════════════✧\n\n`;
+        listText += `╔═════ ⌈ *📂 ${toStylistUpper('Select Item')}* ⌋ ═════✧\n`;
 
         const limit = Math.min(results.length, 10);
         for (let i = 0; i < limit; i++) {
@@ -84,13 +96,13 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
             const rawTitle = v.title || 'Unknown Title';
             const title = cleanTitle(rawTitle);
             const displayTitle = title.length > 45 ? title.substring(0, 45) + '...' : title;
-            listText += `┃ 🎥 *[${i + 1}]* _${displayTitle}_\n`;
-            if (i !== limit - 1) listText += `┃─────────────────────┃\n`;
+            listText += `║ 🎥 *[${i + 1}]* _${displayTitle}_\n`;
+            if (i !== limit - 1) listText += `║─────────────────────║\n`;
         }
 
-        listText += `└─────────────────────┘\n\n`;
-        listText += `⚡ *Reply with the item number* to view movie details.\n\n`;
-        listText += `> *© ${AUTHOR} ッ*`;
+        listText += `╚══════════════════════✧\n\n`;
+        listText += `⚡ *${toStylistUpper('Reply with the item number to view movie details.')}*\n\n`;
+        listText += `> 💫 _${toStylistUpper('Powered by Kamran-Md')}_`;
 
         const sentSearch = await client.sendMessage(from, {
             text: listText
@@ -128,7 +140,7 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
 
                 if (detailResponse.status !== 200 || !detailResponse.data || !detailResponse.data.success) {
                     await react("❌");
-                    return reply("❌ *Error:* Failed to pull details for this item.");
+                    return reply(`❌ *${toStylistUpper('Error')}:* ${toStylistUpper('Failed to pull details for this item.')}`);
                 }
 
                 const resData = detailResponse.data;
@@ -137,31 +149,29 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
 
                 if (players.length === 0) {
                     await react("❌");
-                    return reply("❌ *Sorry:* No downloadable video links were located for this selection.");
+                    return reply(`❌ *${toStylistUpper('Sorry')}:* ${toStylistUpper('No downloadable video links were located for this selection.')}`);
                 }
 
                 const movieTitleClean = cleanTitle(movieData.title || selected.title);
 
-                let cap = `┏━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n`;
-                cap += `┃ 🎥 *${movieTitleClean}*\n`;
-                cap += `┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n`;
+                let cap = `❖ ── ✦ *${toStylistUpper(movieTitleClean)}* ✦ ── ❖\n\n`;
                 
-                if (movieData.info?.year) cap += `📅 *Year:* ${movieData.info.year}\n`;
-                if (movieData.meta?.language) cap += `🗣️ *Language:* ${movieData.meta.language}\n`;
-                if (movieData.genres && movieData.genres.length > 0) cap += `🎭 *Genres:* ${movieData.genres.join(', ')}\n\n`;
+                if (movieData.info?.year) cap += `📅 *${toStylistUpper('Year')}:* ${movieData.info.year}\n`;
+                if (movieData.meta?.language) cap += `🗣️ *${toStylistUpper('Language')}:* ${movieData.meta.language}\n`;
+                if (movieData.genres && movieData.genres.length > 0) cap += `🎭 *${toStylistUpper('Genres')}:* ${movieData.genres.join(', ')}\n\n`;
 
-                cap += `┌───────── QUALITIES ─────────┐\n`;
+                cap += `╔═════ ⌈ *⚡ ${toStylistUpper('Available Qualities')}* ⌋ ═════✧\n`;
                 
                 players.forEach((pl, i) => {
                     const qlty = pl.quality || 'HD';
                     const sz = pl.size_mb ? `${(pl.size_mb / 1024).toFixed(2)} GB` : (pl.size || 'Unknown Size');
-                    cap += `┃ 🔥 *[${i + 1}]* Quality: \`${qlty}\` | Size: \`${sz}\`\n`;
-                    if (i !== players.length - 1) cap += `┃─────────────────────┃\n`;
+                    cap += `║ 🔥 *[${i + 1}]* ${toStylistUpper('Quality')}: \`${qlty}\` | ${toStylistUpper('Size')}: \`${sz}\`\n`;
+                    if (i !== players.length - 1) cap += `║─────────────────────║\n`;
                 });
 
-                cap += `└─────────────────────────────┘\n\n`;
-                cap += `⚡ *Reply with a quality number* to download as Document.\n\n`;
-                cap += `> *© ${AUTHOR} ッ*`;
+                cap += `╚══════════════════════✧\n\n`;
+                cap += `⚡ *${toStylistUpper('Reply with a quality number to download as Document.')}*\n\n`;
+                cap += `> 💫 _${toStylistUpper('Powered by Kamran-Md')}_`;
 
                 const detailImg = movieData.poster || selected.poster || "https://i.imgur.com/Te4kE0x.jpeg";
 
@@ -197,15 +207,14 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
                         const targetFileUrl = selectedPlayer.url;
                         const cleanFileName = `${movieTitleClean.replace(/[^a-zA-Z0-9 ]/g, "_")}_${selectedPlayer.quality || 'HD'}.mp4`;
 
-                        await reply(`🚀 *Processing CineSubz File...* \nUploading document. Please wait!`);
+                        await reply(`🚀 *${toStylistUpper('Processing CineSubz File')}...* \n${toStylistUpper('Uploading document. Please wait!')}`);
 
-                        let finalCaption = `┏━━━━━━━━━━━━━━━━━━━━━━━━┓\n`;
-                        finalCaption += `┃ 🎬 *${movieTitleClean}*\n`;
-                        finalCaption += `┗━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n`;
-                        finalCaption += `┃ 🌟 *Quality:* ${selectedPlayer.quality || 'HD'}\n`;
-                        finalCaption += `┃ 📦 *Size:* ${selectedPlayer.size_mb ? `${(selectedPlayer.size_mb / 1024).toFixed(2)} GB` : (selectedPlayer.size || 'N/A')}\n`;
-                        finalCaption += `┗━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n`;
-                        finalCaption += `> *© ${AUTHOR} ッ*`;
+                        let finalCaption = `❖ ── ✦ *${toStylistUpper(movieTitleClean)}* ✦ ── ❖\n\n`;
+                        finalCaption += `╔═════ ⌈ *⚡ ${toStylistUpper('File Info')}* ⌋ ═════✧\n`;
+                        finalCaption += `║ 🌟 *${toStylistUpper('Quality')}:* ${selectedPlayer.quality || 'HD'}\n`;
+                        finalCaption += `║ 📦 *${toStylistUpper('Size')}:* ${selectedPlayer.size_mb ? `${(selectedPlayer.size_mb / 1024).toFixed(2)} GB` : (selectedPlayer.size || 'N/A')}\n`;
+                        finalCaption += `╚══════════════════════✧\n\n`;
+                        finalCaption += `> 💫 _${toStylistUpper('Powered by Kamran-Md')}_`;
 
                         const thumbBuffer = await getThumbnailBuffer(detailImg);
                         
@@ -225,7 +234,7 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
 
                     } catch (dlErr) {
                         console.error("CineSubz download failed:", dlErr.message);
-                        reply(`❌ An error occurred during file delivery: ${dlErr.message}`);
+                        reply(`❌ ${toStylistUpper('An error occurred during file delivery')}: ${dlErr.message}`);
                     }
                 };
 
@@ -237,7 +246,7 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
 
             } catch (detErr) {
                 console.error("CineSubz details failed:", detErr.message);
-                reply(`❌ An error occurred while loading details: ${detErr.message}`);
+                reply(`❌ ${toStylistUpper('An error occurred while loading details')}: ${detErr.message}`);
             }
         };
 
@@ -250,6 +259,6 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
     } catch (e) {
         console.error("CineSubz Downloader error:", e.message);
         await react("❌");
-        return reply(`❌ *Error Processing Request:* ${e.message}`);
+        return reply(`❌ *${toStylistUpper('Error Processing Request')}:* ${e.message}`);
     }
 });
