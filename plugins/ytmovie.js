@@ -13,6 +13,13 @@ const __dirname = path.dirname(__filename);
 const AUTHOR = "KAMRAN-MINI-BOT";
 const API_KEY = "VajiraOfc";
 
+// Helper function to clean foreign/Sinhala characters from title
+function cleanTitle(title) {
+  if (!title) return "Unknown Title";
+  // Remove non-English/Sinhala junk text or clean up using regex if needed, keeping English letters, numbers & brackets
+  return title.replace(/සිංහල උපසිරැසි සමඟ.*$/gi, "").replace(/[^\x00-\x7F]/g, "").trim() || title;
+}
+
 async function getThumbnailBuffer(url) {
   if (!url) return null;
   try {
@@ -24,9 +31,9 @@ async function getThumbnailBuffer(url) {
 }
 
 cmd({
-    pattern: "cinesubz7",
+    pattern: "cinesubz",
     alias: ["cs", "cinesubzdl"],
-    desc: "Search and download movies with Sinhala subtitles from CineSubz",
+    desc: "Search and download movies from CineSubz",
     category: "download",
     filename: __filename
 },
@@ -74,7 +81,8 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
         const limit = Math.min(results.length, 10);
         for (let i = 0; i < limit; i++) {
             const v = results[i];
-            const title = v.title || 'Unknown Title';
+            const rawTitle = v.title || 'Unknown Title';
+            const title = cleanTitle(rawTitle);
             const displayTitle = title.length > 45 ? title.substring(0, 45) + '...' : title;
             listText += `┃ 🎥 *[${i + 1}]* _${displayTitle}_\n`;
             if (i !== limit - 1) listText += `┃─────────────────────┃\n`;
@@ -123,7 +131,6 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
                     return reply("❌ *Error:* Failed to pull details for this item.");
                 }
 
-                // Handling response structure (movie or episode data)
                 const resData = detailResponse.data;
                 const movieData = resData.movie || resData.details || {};
                 const players = movieData.players || resData.downloads || [];
@@ -133,8 +140,10 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
                     return reply("❌ *Sorry:* No downloadable video links were located for this selection.");
                 }
 
+                const movieTitleClean = cleanTitle(movieData.title || selected.title);
+
                 let cap = `┏━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n`;
-                cap += `┃ 🎥 *${movieData.title || selected.title}*\n`;
+                cap += `┃ 🎥 *${movieTitleClean}*\n`;
                 cap += `┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n`;
                 
                 if (movieData.info?.year) cap += `📅 *Year:* ${movieData.info.year}\n`;
@@ -186,12 +195,12 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
                         await client.sendMessage(from, { react: { text: "📥", key: dlMsg.key } });
                         
                         const targetFileUrl = selectedPlayer.url;
-                        const cleanFileName = `${(movieData.title || selected.title || "Movie").replace(/[^a-zA-Z0-9 ]/g, "_")}_${selectedPlayer.quality || 'HD'}.mp4`;
+                        const cleanFileName = `${movieTitleClean.replace(/[^a-zA-Z0-9 ]/g, "_")}_${selectedPlayer.quality || 'HD'}.mp4`;
 
                         await reply(`🚀 *Processing CineSubz File...* \nUploading document. Please wait!`);
 
                         let finalCaption = `┏━━━━━━━━━━━━━━━━━━━━━━━━┓\n`;
-                        finalCaption += `┃ 🎬 *${movieData.title || selected.title}*\n`;
+                        finalCaption += `┃ 🎬 *${movieTitleClean}*\n`;
                         finalCaption += `┗━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n`;
                         finalCaption += `┃ 🌟 *Quality:* ${selectedPlayer.quality || 'HD'}\n`;
                         finalCaption += `┃ 📦 *Size:* ${selectedPlayer.size_mb ? `${(selectedPlayer.size_mb / 1024).toFixed(2)} GB` : (selectedPlayer.size || 'N/A')}\n`;
