@@ -87,7 +87,7 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
         }
 
         listText += `└─────────────────────┘\n\n`;
-        listText += `⚡ *Reply with the item number* to view cartoon details.\n\n`;
+        listText += `⚡ *Reply with the item number* to download as Document.\n\n`;
         listText += `> *© ${AUTHOR} ッ*`;
 
         const sentSearch = await client.sendMessage(from, {
@@ -116,117 +116,74 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
                 clearTimeout(detailsTimeout);
 
                 await react("⏳");
+                await reply(`🚀 *Processing CartoonLK File...* \nFetching download link. Please wait!`);
 
-                // Fetching download/quality options using the download endpoint or details
-                const downloadApiUrl = `https://vajiraofc-apis.vercel.app/api/cartoonlk/download`;
-                const detailResponse = await axios.get(downloadApiUrl, {
+                // Step 1: Get Details / Download info
+                const detailsApiUrl = `https://vajiraofc-apis.vercel.app/api/cartoonlk/details`;
+                const detailResponse = await axios.get(detailsApiUrl, {
                     params: { apikey: API_KEY, url: selected.url },
                     timeout: 30000
                 });
 
-                if (detailResponse.status !== 200 || !detailResponse.data) {
+                if (detailResponse.status !== 200 || !detailResponse.data || !detailResponse.data.success) {
                     await react("❌");
-                    return reply("❌ *Error:* Failed to pull download links for this item.");
+                    return reply("❌ *Error:* Failed to pull details for this item.");
                 }
 
-                const resData = detailResponse.data;
-                const downloadLinks = resData.downloadLinks || resData.downloads || resData.data?.download_links || [];
+                const movieData = detailResponse.data.data || {};
+                const cartoonTitleClean = cleanTitle(movieData.title || selected.title);
+                const posterImg = movieData.image || selected.poster || "https://i.imgur.com/Te4kE0x.jpeg";
 
-                if (downloadLinks.length === 0) {
-                    await react("❌");
-                    return reply("❌ *Sorry:* No downloadable video links were located for this selection.");
-                }
-
-                const cartoonTitleClean = cleanTitle(selected.title);
-
-                let cap = `┏━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n`;
-                cap += `┃ 🎥 *${cartoonTitleClean}*\n`;
-                cap += `┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n`;
-                cap += `┌───────── QUALITIES ─────────┐\n`;
-                
-                downloadLinks.forEach((dl, i) => {
-                    cap += `┃ 🔥 *[${i + 1}]* Quality: \`${dl.quality || 'HD'}\` | Size: \`${dl.size || 'Unknown'}\`\n`;
-                    if (i !== downloadLinks.length - 1) cap += `┃─────────────────────┃\n`;
+                // Step 2: Get Direct Download URL using download endpoint
+                const downloadApiUrl = `https://vajiraofc-apis.vercel.app/api/cartoonlk/download`;
+                const dlResponse = await axios.get(downloadApiUrl, {
+                    params: { apikey: API_KEY, url: selected.url },
+                    timeout: 30000
                 });
 
-                cap += `└─────────────────────────────┘\n\n`;
-                cap += `⚡ *Reply with a quality number* to download as Document.\n\n`;
-                cap += `> *© ${AUTHOR} ッ*`;
+                if (dlResponse.status !== 200 || !dlResponse.data || !dlResponse.data.success) {
+                    await react("❌");
+                    return reply("❌ *Error:* Failed to generate direct download link.");
+                }
 
-                const detailImg = selected.poster || "https://i.imgur.com/Te4kE0x.jpeg";
+                const directDownloadUrl = dlResponse.data.data?.download_url || dlResponse.data.download_url;
 
-                const sentDetail = await client.sendMessage(from, {
-                    image: { url: detailImg },
-                    caption: cap
-                }, { quoted: msg });
+                if (!directDownloadUrl) {
+                    await react("❌");
+                    return reply("❌ *Sorry:* Direct download link could not be resolved.");
+                }
 
-                const detailMsgId = sentDetail.key.id;
-                let downloadTimeout;
+                await client.sendMessage(from, { react: { text: "📥", key: msg.key } });
 
-                const downloadHandler = async (up) => {
-                    try {
-                        const dlMsg = up.messages[0];
-                        if (!dlMsg?.message || dlMsg.key.remoteJid !== from) return;
+                const cleanFileName = `${cartoonTitleClean.replace(/[^a-zA-Z0-9 ]/g, "_")}.mp4`;
 
-                        const dlCtx = dlMsg.message.extendedTextMessage?.contextInfo || dlMsg.message.conversation?.contextInfo;
-                        if (dlCtx?.stanzaId !== detailMsgId) return;
+                let finalCaption = `┏━━━━━━━━━━━━━━━━━━━━━━━━┓\n`;
+                finalCaption += `┃ 🎬 *${cartoonTitleClean}*\n`;
+                finalCaption += `┗━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n`;
+                if (movieData.quality) finalCaption += `┃ 🌟 *Quality:* ${movieData.quality}\n`;
+                if (movieData.size) finalCaption += `┃ 📦 *Size:* ${movieData.size}\n`;
+                finalCaption += `┗━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n`;
+                finalCaption += `> *© ${AUTHOR} ッ*`;
 
-                        const pick = (dlMsg.message.conversation || dlMsg.message.extendedTextMessage?.text || "").trim();
-                        const dlNum = parseInt(pick);
-                        if (isNaN(dlNum) || dlNum < 1 || dlNum > downloadLinks.length) return;
-
-                        const selectedLink = downloadLinks[dlNum - 1];
-                        if (!selectedLink || !selectedLink.url) return;
-
-                        client.ev.off("messages.upsert", downloadHandler);
-                        clearTimeout(downloadTimeout);
-
-                        await client.sendMessage(from, { react: { text: "📥", key: dlMsg.key } });
-                        
-                        const targetFileUrl = selectedLink.url;
-                        const cleanFileName = `${cartoonTitleClean.replace(/[^a-zA-Z0-9 ]/g, "_")}_${selectedLink.quality || 'HD'}.mp4`;
-
-                        await reply(`🚀 *Processing CartoonLK File...* \nUploading document. Please wait!`);
-
-                        let finalCaption = `┏━━━━━━━━━━━━━━━━━━━━━━━━┓\n`;
-                        finalCaption += `┃ 🎬 *${cartoonTitleClean}*\n`;
-                        finalCaption += `┗━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n`;
-                        finalCaption += `┃ 🌟 *Quality:* ${selectedLink.quality || 'HD'}\n`;
-                        finalCaption += `┃ 📦 *Size:* ${selectedLink.size || 'N/A'}\n`;
-                        finalCaption += `┗━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n`;
-                        finalCaption += `> *© ${AUTHOR} ッ*`;
-
-                        const thumbBuffer = await getThumbnailBuffer(detailImg);
-                        
-                        let documentPayload = {
-                            document: { url: targetFileUrl },
-                            mimetype: "video/mp4",
-                            fileName: cleanFileName,
-                            caption: finalCaption
-                        };
-
-                        if (thumbBuffer && Buffer.isBuffer(thumbBuffer)) {
-                            documentPayload.jpegThumbnail = thumbBuffer;
-                        }
-
-                        await client.sendMessage(from, documentPayload, { quoted: dlMsg });
-                        await client.sendMessage(from, { react: { text: "✅", key: dlMsg.key } });
-
-                    } catch (dlErr) {
-                        console.error("CartoonLK download failed:", dlErr.message);
-                        reply(`❌ An error occurred during file delivery: ${dlErr.message}`);
-                    }
+                const thumbBuffer = await getThumbnailBuffer(posterImg);
+                
+                let documentPayload = {
+                    document: { url: directDownloadUrl },
+                    mimetype: "video/mp4",
+                    fileName: cleanFileName,
+                    caption: finalCaption
                 };
 
-                client.ev.on("messages.upsert", downloadHandler);
-                
-                downloadTimeout = setTimeout(() => {
-                    client.ev.off("messages.upsert", downloadHandler);
-                }, 300000);
+                if (thumbBuffer && Buffer.isBuffer(thumbBuffer)) {
+                    documentPayload.jpegThumbnail = thumbBuffer;
+                }
+
+                await client.sendMessage(from, documentPayload, { quoted: msg });
+                await client.sendMessage(from, { react: { text: "✅", key: msg.key } });
 
             } catch (detErr) {
-                console.error("CartoonLK details failed:", detErr.message);
-                reply(`❌ An error occurred while loading details: ${detErr.message}`);
+                console.error("CartoonLK process failed:", detErr.message);
+                reply(`❌ An error occurred: ${detErr.message}`);
             }
         };
 
