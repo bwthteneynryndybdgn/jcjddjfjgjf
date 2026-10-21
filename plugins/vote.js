@@ -1,297 +1,250 @@
+//---------------------------------------------------------------------------
+//           KAMRAN-MD - ANIMOSTLK INTERACTIVE DOWNLOADER PLUGIN
+//---------------------------------------------------------------------------
+
 import { fileURLToPath } from 'url';
-import { cmd } from '../command.js';
-import { spawn } from 'node:child_process';
-import fs from 'node:fs';
-import path from 'node:path';
-import os from 'node:os';
+import path from 'path';
 import axios from 'axios';
+import { cmd } from '../command.js';
 
 const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-// ==================== YOUTUBE SEARCH FUNCTION ====================
-async function searchYoutube(query) {
-  const url = 'https://www.youtube.com/youtubei/v1/search?prettyPrint=false';
-  const payload = {
-    context: {
-      client: {
-        clientName: 'WEB',
-        clientVersion: '2.20240514.01.00',
-        hl: 'en',
-        gl: 'US',
-      }
-    },
-    query: query
-  };
+const AUTHOR = "KAMRAN-MINI-BOT";
+const API_KEY = "VajiraOfc";
 
+// Helper function to clean foreign/Sinhala characters from title
+function cleanTitle(title) {
+  if (!title) return "Unknown Title";
+  return title.replace(/සිංහල.*$/gi, "").replace(/හඩකැවූ.*$/gi, "").replace(/[^\x00-\x7F]/g, "").trim() || title;
+}
+
+async function getThumbnailBuffer(url) {
+  if (!url) return null;
   try {
-    const response = await axios.post(url, payload, {
-      headers: {
-        'Content-Type': 'application/json',
-        'X-YouTube-Client-Name': '1',
-        'X-YouTube-Client-Version': '2.20240514.01.00',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      },
-      timeout: 10000
-    });
-
-    const data = response.data;
-    const results = [];
-    const contents = data?.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents;
-    
-    if (contents && Array.isArray(contents)) {
-      for (const section of contents) {
-        const items = section.itemSectionRenderer?.contents || section.richGridRenderer?.contents;
-        if (items && Array.isArray(items)) {
-          for (const item of items) {
-            const videoRenderer = item.videoRenderer || item.richItemRenderer?.content?.videoRenderer;
-            if (videoRenderer && videoRenderer.videoId) {
-              const videoId = videoRenderer.videoId;
-              results.push({
-                title: videoRenderer.title?.runs?.map(r => r.text).join('') || 'No Title',
-                channel: videoRenderer.ownerText?.runs?.map(r => r.text).join('') || 'Unknown',
-                views: videoRenderer.viewCountText?.simpleText || '0 views',
-                duration: videoRenderer.lengthText?.simpleText || 'LIVE',
-                url: `https://www.youtube.com/watch?v=${videoId}`,
-                thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
-              });
-            }
-          }
-        }
-      }
-    }
-    return results;
-  } catch (error) {
-    console.error('Search Error:', error.message);
-    throw error;
+    const { data } = await axios.get(url, { responseType: "arraybuffer" });
+    return Buffer.from(data);
+  } catch (err) {
+    return null;
   }
 }
 
-// ==================== ULTRA-FAST YMCDN SCRAPER FUNCTIONS ====================
-function extractVideoId(url) {
-    if (!url) return null;
-    let match = null;
-    
-    if (url.includes('youtube.com/shorts/') || url.includes('youtu.be/')) {
-        match = /\/([a-zA-Z0-9\-_]{11})/.exec(url);
-    } else if (url.includes('youtube.com')) {
-        match = /v=([a-zA-Z0-9\-_]{11})/.exec(url);
-    } else {
-        match = /[a-zA-Z0-9\-_]{11}/.exec(url);
-    }
-    
-    return match ? match[1] : null;
-}
-
-async function scrapeYtmp3(youtubeUrl, format = 'mp4') {
-    const videoId = extractVideoId(youtubeUrl);
-    if (!videoId) {
-        throw new Error('Invalid YouTube URL: Could not extract video ID.');
-    }
-    
-    const lowerFormat = format.toLowerCase();
-    const headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': '*/*',
-        'Origin': 'https://id.ytmp3.mobi',
-        'Referer': 'https://id.ytmp3.mobi/',
-        'Sec-Fetch-Dest': 'empty',
-        'Sec-Fetch-Mode': 'cors',
-        'Sec-Fetch-Site': 'cross-site'
-    };
-
-    try {
-        const initUrl = `https://a.ymcdn.org/api/v1/init?p=y&23=1llum1n471&_=${Math.random()}`;
-        const initRes = await fetch(initUrl, { headers });
-        
-        if (!initRes.ok) {
-            throw new Error(`Init request failed with status code ${initRes.status}`);
-        }
-        
-        const initJson = await initRes.json();
-        if (initJson.error > 0) {
-            throw new Error(`Init API returned error: ${initJson.error}`);
-        }
-
-        let convertUrl = initJson.convertURL;
-        let convertRequestUrl = `${convertUrl}&v=${videoId}&f=${lowerFormat}&_=${Math.random()}`;
-        let convertJson;
-        
-        while (true) {
-            const convertRes = await fetch(convertRequestUrl, { headers });
-            if (!convertRes.ok) {
-                throw new Error(`Convert request failed with status code ${convertRes.status}`);
-            }
-            
-            convertJson = await convertRes.json();
-            if (convertJson.error > 0) {
-                throw new Error(`Convert API returned error: ${convertJson.error}`);
-            }
-            
-            if (convertJson.redirect > 0 && convertJson.redirectURL) {
-                convertRequestUrl = `${convertJson.redirectURL}&v=${videoId}&f=${lowerFormat}&_=${Math.random()}`;
-                continue;
-            }
-            break;
-        }
-
-        const progressUrl = convertJson.progressURL;
-        const downloadUrl = convertJson.downloadURL;
-        let title = convertJson.title || 'YouTube';
-
-        if (!progressUrl || !downloadUrl) {
-            throw new Error('API conversion response is missing progress or download URL.');
-        }
-
-        let progress = 0;
-        let pollCount = 0;
-        const maxPolls = 300;
-        
-        while (progress < 3 && pollCount < maxPolls) {
-            await new Promise(resolve => setTimeout(resolve, 300));
-            pollCount++;
-            
-            const progressRes = await fetch(progressUrl, { headers });
-            if (!progressRes.ok) continue;
-            
-            const progressJson = await progressRes.json();
-            if (progressJson.error > 0) continue;
-            
-            progress = progressJson.progress;
-            if (progressJson.title) {
-                title = progressJson.title;
-            }
-        }
-
-        if (progress < 3) {
-            throw new Error('Conversion process timed out.');
-        }
-
-        return {
-            status: 'success',
-            videoId,
-            title,
-            format: lowerFormat,
-            downloadUrl
-        };
-    } catch (error) {
-        return {
-            status: 'error',
-            message: error?.message || String(error)
-        };
-    }
-}
-
-function cleanName(name = 'file') {
-    return String(name)
-        .replace(/[\\/:*?"<>|]/g, '')
-        .replace(/\s+/g, ' ')
-        .trim()
-        .slice(0, 150);
-}
-
-// ==================== COMMAND: .CARTOON (STYLISH CARTOON DOWNLOAD) ====================
 cmd({
-    pattern: "cartoon",
-    alias: ["playcartoon", "dlcartoon"],
-    desc: "Fast auto search with stylish info card and download cartoon video as document safely",
-    category: "downloader",
-    react: "🧸",
+    pattern: "animost",
+    alias: ["animestlk", "animostlk", "anime"],
+    desc: "Search and download animation movies from AnimostLK",
+    category: "download",
     filename: __filename
-}, async (conn, mek, m, extra) => {
-    const { from, text, reply } = extra;
-
-    let tempFile = null;
+},
+async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
+    const client = socket || sock || conn;
 
     try {
-        if (!text) {
+        const q = text ? text.trim() : "";
+
+        if (!q) {
             return reply(
-                `🧸 *KAMRAN-MD CARTOON DOWNLOADER*\n\n` +
-                `❌ *Please provide a cartoon name or YouTube link!*\n\n` +
-                `💡 *Example:* \`.cartoon tom and jerry funny episodes\``
+                "❌ *Opps! Title Missing* ❌\n\n" +
+                "Please provide an animation movie name to search!\n" +
+                "📌 *Example:* `.animost New` ya `.animost Ron`"
             );
         }
 
-        await conn.sendMessage(from, { react: { text: "⚡", key: mek.key } });
+        await react("🔍");
+        await reply(`🔍 _Searching for *"${q}"* on AnimostLK servers..._`);
 
-        let cartoonUrl = text.trim();
-        let cartoonInfo = null;
-
-        if (!cartoonUrl.includes("youtube.com") && !cartoonUrl.includes("youtu.be")) {
-            const searchResults = await searchYoutube(cartoonUrl);
-            
-            if (!searchResults || searchResults.length === 0) {
-                await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-                return reply(`❌ No cartoon found for "${cartoonUrl}".`);
-            }
-            
-            cartoonInfo = searchResults[0];
-            cartoonUrl = cartoonInfo.url;
-
-            let infoText = `🧸 *CARTOON DOWNLOADER*\n\n`;
-            infoText += `🗂 *Title:* ${cartoonInfo.title}\n`;
-            infoText += `📺 *Channel:* ${cartoonInfo.channel}\n`;
-            infoText += `⏱ *Duration:* ${cartoonInfo.duration}\n\n`;
-            infoText += `_Status: Downloading Cartoon..._\n\n`;
-            infoText += `> Powered by KAMRAN-MD`;
-
-            await conn.sendMessage(from, {
-                image: { url: cartoonInfo.thumbnail },
-                caption: infoText
-            }, { quoted: mek });
-        } else {
-            await reply('_⚡ Fast downloading cartoon via YMCDN, please wait..._');
-        }
-
-        const res = await scrapeYtmp3(cartoonUrl, 'mp4');
-        if (res.status === 'error') {
-            throw new Error(res.message);
-        }
-
-        const { title, downloadUrl } = res;
-        const safeTitle = cleanName(title || 'Cartoon');
-
-        tempFile = path.join(os.tmpdir(), `cartoon_${Date.now()}.mp4`);
-        
-        const response = await axios({
-            method: 'GET',
-            url: downloadUrl,
-            responseType: 'stream',
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
-                'Referer': 'https://id.ytmp3.mobi/'
-            }
+        const searchApiUrl = `https://vajiraofc-apis.vercel.app/api/animostlk/search`;
+        const response = await axios.get(searchApiUrl, {
+            params: { apikey: API_KEY, q: q },
+            timeout: 30000
         });
 
-        const writer = fs.createWriteStream(tempFile);
-        response.data.pipe(writer);
+        if (response.status !== 200 || !response.data || !response.data.success) {
+            await react("❌");
+            return reply("🛸 *API Error:* Server responded with an invalid status.");
+        }
 
-        await new Promise((resolve, reject) => {
-            writer.on('finish', resolve);
-            writer.on('error', reject);
-        });
+        const results = response.data.results || [];
+        if (results.length === 0) {
+            await react("❌");
+            return reply(`🛸 *No Results Found!*\nAnimostLK par *"${q}"* naam ki koi animation nahi mili.`);
+        }
 
-        await conn.sendMessage(from, {
-            document: { url: tempFile },
-            mimetype: 'video/mp4',
-            fileName: `${safeTitle}.mp4`,
-            caption: `🧸 *${title}*\n\n> Powered by KAMRAN-MD`
+        let listText = `┏━━━━━━━━━━━━━━━━━━━━━━┓\n`;
+        listText += `┃ 🎬  *ANIMOSTLK SEARCH*  🎬 ┃\n`;
+        listText += `┗━━━━━━━━━━━━━━━━━━━━━━┛\n\n`;
+        listText += `🔎 *Query:* \`${q.toUpperCase()}\`\n`;
+        listText += `✨ *Results Found:* ${results.length}\n\n`;
+        listText += `┌─────────────────────┐\n`;
+
+        const limit = Math.min(results.length, 10);
+        for (let i = 0; i < limit; i++) {
+            const v = results[i];
+            const rawTitle = v.title || 'Unknown Title';
+            const title = cleanTitle(rawTitle);
+            const displayTitle = title.length > 45 ? title.substring(0, 45) + '...' : title;
+            listText += `┃ 🎥 *[${i + 1}]* _${displayTitle}_\n`;
+            if (i !== limit - 1) listText += `┃─────────────────────┃\n`;
+        }
+
+        listText += `└─────────────────────┘\n\n`;
+        listText += `⚡ *Reply with the item number* to view movie details.\n\n`;
+        listText += `> *© ${AUTHOR} ッ*`;
+
+        const sentSearch = await client.sendMessage(from, {
+            text: listText
         }, { quoted: mek });
 
-        try {
-            if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
-        } catch {}
-        if (global.gc) { global.gc(); }
+        const searchMsgId = sentSearch.key.id;
+        let detailsTimeout;
 
-        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
+        // ================= INTERACTIVE STEP: DETAILS & QUALITY HANDLER =================
+        const detailsHandler = async (update) => {
+            try {
+                const msg = update.messages[0];
+                if (!msg?.message || msg.key.remoteJid !== from) return;
+
+                const ctx = msg.message.extendedTextMessage?.contextInfo || msg.message.conversation?.contextInfo;
+                if (ctx?.stanzaId !== searchMsgId) return;
+
+                const choice = (msg.message.conversation || msg.message.extendedTextMessage?.text || "").trim();
+                const num = parseInt(choice);
+                if (isNaN(num) || num < 1 || num > limit) return;
+                
+                const selected = results[num - 1];
+                if (!selected) return;
+
+                client.ev.off("messages.upsert", detailsHandler);
+                clearTimeout(detailsTimeout);
+
+                await react("⏳");
+
+                const detailsApiUrl = `https://vajiraofc-apis.vercel.app/api/animostlk/details`;
+                const detailResponse = await axios.get(detailsApiUrl, {
+                    params: { apikey: API_KEY, url: selected.url },
+                    timeout: 30000
+                });
+
+                if (detailResponse.status !== 200 || !detailResponse.data || !detailResponse.data.success) {
+                    await react("❌");
+                    return reply("❌ *Error:* Failed to pull details for this item.");
+                }
+
+                const movieData = detailResponse.data.data || {};
+                const downloadLinks = movieData.download_links || [];
+
+                if (downloadLinks.length === 0) {
+                    await react("❌");
+                    return reply("❌ *Sorry:* No downloadable video links were located for this selection.");
+                }
+
+                const movieTitleClean = cleanTitle(movieData.title || selected.title);
+
+                let cap = `┏━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n`;
+                cap += `┃ 🎥 *${movieTitleClean}*\n`;
+                cap += `┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n`;
+                
+                if (movieData.year) cap += `📅 *Year:* ${movieData.year}\n`;
+                if (movieData.duration) cap += `⏱️ *Duration:* ${movieData.duration}\n\n`;
+
+                cap += `┌───────── QUALITIES ─────────┐\n`;
+                
+                downloadLinks.forEach((dl, i) => {
+                    cap += `┃ 🔥 *[${i + 1}]* Quality: \`${dl.quality || 'HD'}\` | Size: \`${dl.size || 'Unknown'}\`\n`;
+                    if (i !== downloadLinks.length - 1) cap += `┃─────────────────────┃\n`;
+                });
+
+                cap += `└─────────────────────────────┘\n\n`;
+                cap += `⚡ *Reply with a quality number* to download as Document.\n\n`;
+                cap += `> *© ${AUTHOR} ッ*`;
+
+                const detailImg = movieData.image || "https://i.imgur.com/Te4kE0x.jpeg";
+
+                const sentDetail = await client.sendMessage(from, {
+                    image: { url: detailImg },
+                    caption: cap
+                }, { quoted: msg });
+
+                const detailMsgId = sentDetail.key.id;
+                let downloadTimeout;
+
+                // ================= INTERACTIVE STEP: DOWNLOAD HANDLER =================
+                const downloadHandler = async (up) => {
+                    try {
+                        const dlMsg = up.messages[0];
+                        if (!dlMsg?.message || dlMsg.key.remoteJid !== from) return;
+
+                        const dlCtx = dlMsg.message.extendedTextMessage?.contextInfo || dlMsg.message.conversation?.contextInfo;
+                        if (dlCtx?.stanzaId !== detailMsgId) return;
+
+                        const pick = (dlMsg.message.conversation || dlMsg.message.extendedTextMessage?.text || "").trim();
+                        const dlNum = parseInt(pick);
+                        if (isNaN(dlNum) || dlNum < 1 || dlNum > downloadLinks.length) return;
+
+                        const selectedLink = downloadLinks[dlNum - 1];
+                        if (!selectedLink || !selectedLink.url) return;
+
+                        client.ev.off("messages.upsert", downloadHandler);
+                        clearTimeout(downloadTimeout);
+
+                        await client.sendMessage(from, { react: { text: "📥", key: dlMsg.key } });
+                        
+                        const targetFileUrl = selectedLink.url;
+                        const cleanFileName = `${movieTitleClean.replace(/[^a-zA-Z0-9 ]/g, "_")}_${selectedLink.quality || 'HD'}.mp4`;
+
+                        await reply(`🚀 *Processing AnimostLK File...* \nUploading document. Please wait!`);
+
+                        let finalCaption = `┏━━━━━━━━━━━━━━━━━━━━━━━━┓\n`;
+                        finalCaption += `┃ 🎬 *${movieTitleClean}*\n`;
+                        finalCaption += `┗━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n`;
+                        finalCaption += `┃ 🌟 *Quality:* ${selectedLink.quality || 'HD'}\n`;
+                        finalCaption += `┃ 📦 *Size:* ${selectedLink.size || 'N/A'}\n`;
+                        finalCaption += `┗━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n`;
+                        finalCaption += `> *© ${AUTHOR} ッ*`;
+
+                        const thumbBuffer = await getThumbnailBuffer(detailImg);
+                        
+                        let documentPayload = {
+                            document: { url: targetFileUrl },
+                            mimetype: "video/mp4",
+                            fileName: cleanFileName,
+                            caption: finalCaption
+                        };
+
+                        if (thumbBuffer && Buffer.isBuffer(thumbBuffer)) {
+                            documentPayload.jpegThumbnail = thumbBuffer;
+                        }
+
+                        await client.sendMessage(from, documentPayload, { quoted: dlMsg });
+                        await client.sendMessage(from, { react: { text: "✅", key: dlMsg.key } });
+
+                    } catch (dlErr) {
+                        console.error("AnimostLK download failed:", dlErr.message);
+                        reply(`❌ An error occurred during file delivery: ${dlErr.message}`);
+                    }
+                };
+
+                client.ev.on("messages.upsert", downloadHandler);
+                
+                downloadTimeout = setTimeout(() => {
+                    client.ev.off("messages.upsert", downloadHandler);
+                }, 300000);
+
+            } catch (detErr) {
+                console.error("AnimostLK details failed:", detErr.message);
+                reply(`❌ An error occurred while loading details: ${detErr.message}`);
+            }
+        };
+
+        client.ev.on("messages.upsert", detailsHandler);
+        
+        detailsTimeout = setTimeout(() => {
+            client.ev.off("messages.upsert", detailsHandler);
+        }, 300000);
 
     } catch (e) {
-        console.error('[CARTOON ERROR]', e);
-        try {
-            if (tempFile && fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
-        } catch {}
-        if (global.gc) { global.gc(); }
-
-        reply(`❌ Error: ${e?.message || e}`);
-        await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+        console.error("AnimostLK Downloader error:", e.message);
+        await react("❌");
+        return reply(`❌ *Error Processing Request:* ${e.message}`);
     }
 });
