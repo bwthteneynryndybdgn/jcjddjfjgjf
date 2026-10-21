@@ -10,7 +10,7 @@ import { cmd } from '../command.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const AUTHOR = "KAMRAN-MD";
+const AUTHOR = "KAMRAN-MINI-BOT";
 const API_KEY = "VajiraOfc";
 
 async function getThumbnailBuffer(url) {
@@ -26,7 +26,7 @@ async function getThumbnailBuffer(url) {
 cmd({
     pattern: "movie6",
     alias: ["nkiri", "film", "downloadmovie"],
-    desc: "Search and download movies from TheNkiri via API",
+    desc: "Search and download movies from dr via API",
     category: "download",
     filename: __filename
 },
@@ -79,15 +79,12 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
         });
 
         listText += `└─────────────────────┘\n\n`;
-        listText += `⚡ *Reply with the item number* to view movie details[span_1](start_span)[span_1](end_span).\n\n`;
+        listText += `⚡ *Reply with the item number* to view movie details.\n\n`;
         listText += `> *© ${AUTHOR} ッ*`;
 
-        // 100% Working Stable Image URL
-        const searchPoster = "https://raw.githubusercontent.com/SecktorBot/Branding/main/media/image/Logo.jpg";
-
+        // Send text message directly without image dependency to avoid fetch errors
         const sentSearch = await client.sendMessage(from, {
-            image: { url: searchPoster },
-            caption: listText
+            text: listText
         }, { quoted: mek });
 
         const searchMsgId = sentSearch.key.id;
@@ -147,7 +144,7 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
                 finalCaption += `┗━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n`;
                 finalCaption += `> *© ${AUTHOR} ッ*`;
 
-                const thumbBuffer = await getThumbnailBuffer(movieDetails.imageUrl || searchPoster);
+                const thumbBuffer = await getThumbnailBuffer(movieDetails.imageUrl);
                 
                 let documentPayload = {
                     document: { url: directUrl },
