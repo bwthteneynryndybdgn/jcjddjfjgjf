@@ -1,5 +1,5 @@
 //---------------------------------------------------------------------------
-//           KAMRAN-MD - THENKIRI MOVIE DOWNLOADER PLUGIN
+//           KAMRAN-MD - THENKIRI MOVIE DOCUMENT DOWNLOADER
 //---------------------------------------------------------------------------
 
 import { fileURLToPath } from 'url';
@@ -14,9 +14,9 @@ const API_KEY = "VajiraOfc";
 cmd(
   {
     pattern: "movie6",
-    alias: ["nkiri7", "film", "downloadmovie"],
-    react: "🎬",
-    desc: "Search and get download links for Hollywood movies from TheNkiri.",
+    alias: ["nkiri6", "film5", "downloadmovie"],
+    react: "📥",
+    desc: "Search movie and send as document file.",
     category: "download",
     filename: __filename,
   },
@@ -26,74 +26,78 @@ cmd(
 
       if (!q) {
         return reply(
-          `🎬 *Movie Downloader (${AUTHOR})*\n\n` +
+          `🎬 *Movie Document Downloader (${AUTHOR})*\n\n` +
           `*Usage:* \`.movie <movie name or url>\`\n` +
-          `*Example 1:* \`.movie Ricky Stanicky\`\n` +
-          `*Example 2:* \`.movie https://thenkiri.com/ricky-stanicky-2024-download-hollywood-movie/\``
+          `*Example:* \`.movie Ricky Stanicky\``
         );
       }
 
       await conn.sendMessage(from, { react: { text: "🔍", key: mek.key } });
 
-      // Check if user provided a direct movie URL from TheNkiri
-      if (q.startsWith("http") && q.includes("thenkiri.com")) {
-        const detailsUrl = `https://vajiraofc-apis.vercel.app/api/thenkiri/details?apikey=${API_KEY}&url=${encodeURIComponent(q)}`;
-        const res = await axios.get(detailsUrl, { timeout: 25000 });
-        const result = res.data?.data;
+      let targetDetailsUrl = "";
 
-        if (!result) {
+      // If user provided a direct link
+      if (q.startsWith("http") && q.includes("thenkiri.com")) {
+        targetDetailsUrl = `https://vajiraofc-apis.vercel.app/api/thenkiri/details?apikey=${API_KEY}&url=${encodeURIComponent(q)}`;
+      } else {
+        // Step 1: Search movie first
+        const searchUrl = `https://vajiraofc-apis.vercel.app/api/thenkiri/search?apikey=${API_KEY}&q=${encodeURIComponent(q)}`;
+        const searchRes = await axios.get(searchUrl, { timeout: 25000 });
+        const results = searchRes.data?.results || [];
+
+        if (results.length === 0) {
           await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-          return reply("❌ Movie details fetch karne mein nakamy rahi!");
+          return reply("❌ Is naam se koi movie nahi mili!");
         }
 
-        const movieInfo = `
-🎬 *MOVIE DETAILS* 🎬
+        // Step 2: Automatically select the first search result
+        const firstMovieUrl = results[0].url;
+        targetDetailsUrl = `https://vajiraofc-apis.vercel.app/api/thenkiri/details?apikey=${API_KEY}&url=${encodeURIComponent(firstMovieUrl)}`;
+      }
 
-📌 *Title:* ${result.title || "N/A"}
+      // Step 3: Fetch movie details and direct download link
+      const detailsRes = await axios.get(targetDetailsUrl, { timeout: 25000 });
+      const result = detailsRes.data?.data;
+
+      if (!result || !result.directDownloadUrl) {
+        await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+        return reply("❌ Movie ka direct download link nahi mil saka!");
+      }
+
+      const movieTitle = result.title || "Movie";
+      const downloadUrl = result.directDownloadUrl;
+      const posterUrl = result.imageUrl || "https://i.imgur.com/Te4kE0x.jpeg";
+
+      const captionText = `
+🎬 *MOVIE DOWNLOADED* 🎬
+
+📌 *Title:* ${movieTitle}
 🎭 *Genre:* ${result.genres || "N/A"}
 📦 *Size:* ${result.size || "N/A"}
 🎥 *Quality:* ${result.quality || "N/A"}
-📅 *Year:* ${result.year || "N/A"}
-
-🔗 *Direct Download Link:*
-${result.directDownloadUrl || result.downloadPageLink || "N/A"}
 
 > © ᴘᴏᴡᴇʀᴇᴅ ʙʏ ${AUTHOR}`;
 
-        const posterUrl = result.imageUrl || "https://i.imgur.com/Te4kE0x.jpeg";
+      // Send Poster Image first with caption info
+      await conn.sendMessage(from, { image: { url: posterUrl }, caption: captionText }, { quoted: mek });
+      await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
-        await conn.sendMessage(from, { image: { url: posterUrl }, caption: movieInfo }, { quoted: mek });
-        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
-        return;
-      }
+      // Send file as Document
+      await conn.sendMessage(
+        from,
+        {
+          document: { url: downloadUrl },
+          mimetype: "video/mp4",
+          fileName: `${movieTitle}.mp4`,
+          caption: `✅ *${movieTitle}*\n\n*🚀 Powered by ${AUTHOR}*`
+        },
+        { quoted: mek }
+      );
 
-      // Otherwise, perform a search query
-      const searchUrl = `https://vajiraofc-apis.vercel.app/api/thenkiri/search?apikey=${API_KEY}&q=${encodeURIComponent(q)}`;
-      const searchRes = await axios.get(searchUrl, { timeout: 25000 });
-      const results = searchRes.data?.results || [];
-
-      if (results.length === 0) {
-        await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-        return reply("❌ Is naam se koi movie nahi mili!");
-      }
-
-      let searchListText = `🎬 *THENKIRI MOVIE SEARCH* 🎬\n\n*Query:* ${q}\n━━━━━━━━━━━━━━━━━━\n\n`;
-
-      const limit = Math.min(results.length, 5);
-      for (let i = 0; i < limit; i++) {
-        const movie = results[i];
-        searchListText += `*${movie.id}. ${movie.title}*\n`;
-        searchListText += `🔗 *Link:* \`${movie.url}\`\n`;
-        searchListText += `━━━━━━━━━━━━━━━━━━\n`;
-      }
-
-      searchListText += `\n_💡 Tip: Kisi bhi movie ki details aur direct download link ke liye uska link copy karke \`.movie <link>\` bhejein!_\n\n> © ᴘᴏᴡᴇʀᴇᴅ ʙʏ ${AUTHOR}`;
-
-      await conn.sendMessage(from, { text: searchListText }, { quoted: mek });
       await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
 
     } catch (e) {
-      console.error("Movie Command Error:", e);
+      console.error("Movie Document Error:", e);
       await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
       reply(`⚠️ *Error:* ${e.message || "Something went wrong."}`);
     }
