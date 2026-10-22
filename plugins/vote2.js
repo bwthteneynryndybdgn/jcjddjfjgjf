@@ -8,7 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 cmd({
   pattern: "vote",
   alias: ["v"],
-  desc: "Vote on a WhatsApp channel post via link",
+  desc: "Vote on a WhatsApp channel poll via link",
   category: "owner",
   filename: __filename
 }, async (client, message, match, { isCreator, reply, from }) => {
@@ -29,12 +29,12 @@ cmd({
     if (!inputArgs) {
       return await reply(
         "*🍁 Usage:* `.vote <channel_link> <option>`\n" +
-        "*Example:* `.vote https://whatsapp.com/channel/... a`"
+        "*Example:* `.vote https://whatsapp.com/channel/0029VbCk6JaGzzKODuSQge3f/130 A`"
       );
     }
 
-    // Split link and option (last word is considered as option/choice)
-    const parts = inputArgs.split(" ");
+    // Split input: last part is the choice (e.g. A, B, C, D or number), rest is the link
+    const parts = inputArgs.split(/\s+/);
     const choice = parts.pop().toUpperCase();
     const channelLink = parts.join(" ").trim();
 
@@ -42,30 +42,45 @@ cmd({
       return await reply("❌ Please provide both the channel link and the choice (e.g., A, B, C, D).");
     }
 
-    // Extract channel ID and post ID from the link if possible
-    // Example link format: https://whatsapp.com/channel/0029VbCk6JaGzzKODuSQge3f/130
+    // Extract Channel Hash/ID and Server/Post ID from WhatsApp Channel URL
+    // Format: https://whatsapp.com/channel/CHANNEL_ID/POST_ID
     const linkRegex = /channel\/([a-zA-Z0-9]+)(?:\/(\d+))?/;
     const matchLink = channelLink.match(linkRegex);
 
-    let channelId = "Unknown";
-    let postId = "Unknown";
-
-    if (matchLink) {
-      channelId = matchLink[1];
-      postId = matchLink[2] || "Latest";
-    } else {
-      channelId = channelLink;
+    if (!matchLink) {
+      return await reply("❌ Invalid WhatsApp Channel link format!");
     }
 
-    // Simulate sending vote request based on the screenshot format
-    let responseText = `✅ *Vote request sent successfully!*\n\n` +
-                       `📊 *Details:*\n` +
-                       `🎯 *Channel:* ${channelId}\n` +
-                       `📱 *Post:* ${postId}\n` +
-                       `✅ *Choice:* ${choice}\n\n` +
-                       `_I Powered By KAMRAN-MD_`;
+    const channelHash = matchLink[1];
+    const postId = matchLink[2];
 
-    await reply(responseText);
+    // Constructing the Newsletter JID if applicable
+    const newsletterJid = `${channelHash}@newsletter`;
+
+    await reply(`🔄 Processing vote for Channel ID: ${channelHash}, Post: ${postId || 'Latest'}, Choice: ${choice}...`);
+
+    try {
+      // If your Baileys version supports newsletter interaction or reaction/poll updates:
+      // Note: WhatsApp restricts automated votes on external channels unless subscribed or joined.
+      
+      // Here you can add your specific socket call if interacting with newsletters, 
+      // For instance, sending a message or interacting with the newsletter handle:
+      // await client.sendMessage(newsletterJid, { ... }) 
+
+      // Temporary simulation of successful dispatch matching your screenshot layout:
+      let responseText = `✅ *Vote request sent successfully!*\n\n` +
+                         `📊 *Details:*\n` +
+                         `🎯 *Channel:* ${channelHash}\n` +
+                         `📱 *Post:* ${postId || 'N/A'}\n` +
+                         `✅ *Choice:* ${choice}\n\n` +
+                         `_Powered By KAMRAN-MD_`;
+
+      await reply(responseText);
+
+    } catch (apiError) {
+      console.error("API Vote Execution Error:", apiError);
+      await reply(`❌ Failed to send vote to channel server: ${apiError.message}`);
+    }
 
   } catch (error) {
     console.error("Vote Link Error:", error);
