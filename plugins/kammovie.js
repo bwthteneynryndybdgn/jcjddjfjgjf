@@ -1,5 +1,5 @@
 //---------------------------------------------------------------------------
-//           KAMRAN-MD - BAISCOPES INTERACTIVE DOWNLOADER PLUGIN
+//           KAMRAN-MD - CHITHRAPATA INTERACTIVE DOWNLOADER PLUGIN
 //---------------------------------------------------------------------------
 
 import { fileURLToPath } from 'url';
@@ -29,9 +29,9 @@ async function getThumbnailBuffer(url) {
 }
 
 cmd({
-    pattern: "baiscopes3",
-    alias: ["bais4", "baiscope5"],
-    desc: "Search and download movies from Baiscopes via API",
+    pattern: "chithrapata",
+    alias: ["cp", "chithra", "chithrapatadl"],
+    desc: "Search and download movies from Chithrapata via API",
     category: "download",
     filename: __filename
 },
@@ -44,15 +44,15 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
         if (!q) {
             return reply(
                 "❌ *Opps! Query Missing* ❌\n\n" +
-                "භාවිතා කරන ආකාරය: \`.baiscopes New\`\n" +
-                "தயவுசெய்து தேட வேண்டிய திரைப்படத்தின் பெயரை வழங்கவும்!"
+                "Please provide a movie name to search!\n" +
+                "📌 *Example:* `.chithrapata New`"
             );
         }
 
         await react("🔍");
-        await reply(`🔍 _Searching for *"${q}"* on Baiscopes servers..._`);
+        await reply(`🔍 _Searching for *"${q}"* on Chithrapata servers..._`);
 
-        const searchApiUrl = `https://supunofc.site/api/movie/baiscopes/search`;
+        const searchApiUrl = `https://supunofc.site/api/movie/chithrapata/search`;
         let response;
         try {
             response = await axios.get(searchApiUrl, {
@@ -69,14 +69,14 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
             return reply("🛸 *API Error:* Server responded with an invalid status.");
         }
 
-        const results = response.data.result || [];
+        const results = response.data.result?.results || [];
         if (results.length === 0) {
             await react("❌");
-            return reply(`🛸 *No Results Found!*\nBaiscopes වෙතින් *"${q}"* සඳහා කිසිදු ප්‍රතිඵලයක් හමු නොවීය.`);
+            return reply(`🛸 *No Results Found!*\nChithrapata par *"${q}"* se related kuch nahi mila.`);
         }
 
         let listText = `┏━━━━━━━━━━━━━━━━━━━━━━┓\n`;
-        listText += `┃ 🎬  *BAISCOPES SEARCH* 🎬 ┃\n`;
+        listText += `┃ 🎬  *CHITHRAPATA SEARCH* 🎬 ┃\n`;
         listText += `┗━━━━━━━━━━━━━━━━━━━━━━┛\n\n`;
         listText += `🔎 *Query:* \`${q.toUpperCase()}\`\n`;
         listText += `✨ *Results Found:* ${results.length}\n\n`;
@@ -85,7 +85,7 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
         const limit = Math.min(results.length, 10);
         for (let i = 0; i < limit; i++) {
             const v = results[i];
-            const rawTitle = v.title || 'Unknown Title';
+            const rawTitle = v.cleanTitle || v.title || 'Unknown Title';
             const title = cleanTitle(rawTitle);
             const displayTitle = title.length > 40 ? title.substring(0, 40) + '...' : title;
             listText += `┃ 🎥 *[${i + 1}]* _${displayTitle} [${v.year || ''}]_\n`;
@@ -122,9 +122,9 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
                 clearTimeout(detailsTimeout);
 
                 await client.sendMessage(from, { react: { text: "⏳", key: msg.key } });
-                await client.sendMessage(from, { text: `🚀 *Fetching Baiscopes Details...* Please wait!` }, { quoted: msg });
+                await client.sendMessage(from, { text: `🚀 *Fetching Chithrapata Details...* Please wait!` }, { quoted: msg });
 
-                const detailApiUrl = `https://supunofc.site/api/movie/baiscopes/details`;
+                const detailApiUrl = `https://supunofc.site/api/movie/chithrapata/details`;
                 let detailResponse;
                 try {
                     detailResponse = await axios.get(detailApiUrl, {
@@ -142,35 +142,35 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
                 }
 
                 const movieData = detailResponse.data.result || {};
-                const links = movieData.links || [];
+                const downloads = movieData.downloads || [];
 
-                if (links.length === 0) {
+                if (downloads.length === 0) {
                     await client.sendMessage(from, { react: { text: "❌", key: msg.key } });
                     return client.sendMessage(from, { text: "❌ *Sorry:* No download links were located for this selection." }, { quoted: msg });
                 }
 
-                const movieTitleClean = cleanTitle(movieData.title || selected.title);
+                const movieTitleClean = cleanTitle(movieData.cleanTitle || movieData.title || selected.title);
 
                 let cap = `┏━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n`;
                 cap += `┃ 🎥 *${movieTitleClean}*\n`;
                 cap += `┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n`;
                 
-                if (movieData.releaseDate) cap += `📅 *Release:* ${movieData.releaseDate}\n`;
-                if (movieData.ratings?.imdb?.rating) cap += `⭐ *IMDb:* ${movieData.ratings.imdb.rating}/10\n`;
-                if (movieData.runtimeMin) cap += `⏱️ *Runtime:* ${movieData.runtimeMin} mins\n\n`;
+                if (movieData.year) cap += `📅 *Year:* ${movieData.year}\n`;
+                if (movieData.imdb) cap += `⭐ *IMDb:* ${movieData.imdb}/10\n`;
+                if (movieData.runtime) cap += `⏱️ *Runtime:* ${movieData.runtime}\n\n`;
 
-                cap += `┌───────── DOWNLOAD LINKS ─────────┐\n`;
+                cap += `┌───────── QUALITIES ─────────┐\n`;
                 
-                links.forEach((lnk, i) => {
-                    cap += `┃ 🔥 *[${i + 1}]* Size: \`${lnk.size || 'N/A'}\` | Type: \`${lnk.kind || 'Download'}\`\n`;
-                    if (i !== links.length - 1) cap += `┃─────────────────────────────┃\n`;
+                downloads.forEach((dl, i) => {
+                    cap += `┃ 🔥 *[${i + 1}]* Quality: \`${dl.quality || 'HD'}\` | Size: \`${dl.size || 'N/A'}\`\n`;
+                    if (i !== downloads.length - 1) cap += `┃─────────────────────────────┃\n`;
                 });
 
-                cap += `└──────────────────────────────────┘\n\n`;
-                cap += `⚡ *Reply with a link number* to download as Document.\n\n`;
+                cap += `└─────────────────────────────┘\n\n`;
+                cap += `⚡ *Reply with a quality number* to download as Document.\n\n`;
                 cap += `> *© ${AUTHOR} ッ*`;
 
-                const detailImg = movieData.poster || selected.image || "https://i.imgur.com/Te4kE0x.jpeg";
+                const detailImg = movieData.poster || selected.thumbnail || "https://i.imgur.com/Te4kE0x.jpeg";
                 const thumbBuffer = await getThumbnailBuffer(detailImg);
 
                 let messagePayload = {
@@ -196,10 +196,10 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
 
                         const pick = (dlMsg.message.conversation || dlMsg.message.extendedTextMessage?.text || "").trim();
                         const dlNum = parseInt(pick);
-                        if (isNaN(dlNum) || dlNum < 1 || dlNum > links.length) return;
+                        if (isNaN(dlNum) || dlNum < 1 || dlNum > downloads.length) return;
 
-                        const selectedLink = links[dlNum - 1];
-                        if (!selectedLink || !selectedLink.url) return;
+                        const selectedDownload = downloads[dlNum - 1];
+                        if (!selectedDownload || !selectedDownload.url) return;
 
                         client.ev.off("messages.upsert", downloadHandler);
                         clearTimeout(downloadTimeout);
@@ -207,11 +207,11 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
                         await client.sendMessage(from, { react: { text: "📥", key: dlMsg.key } });
                         await client.sendMessage(from, { text: `🚀 *Resolving Direct File Link...* Please wait!` }, { quoted: dlMsg });
 
-                        const dlApiUrl = `https://supunofc.site/api/movie/baiscopes/dl`;
+                        const dlApiUrl = `https://supunofc.site/api/movie/chithrapata/dl`;
                         let dlRes;
                         try {
                             dlRes = await axios.get(dlApiUrl, {
-                                params: { apikey: API_KEY, url: selectedLink.url },
+                                params: { apikey: API_KEY, url: selectedDownload.url },
                                 timeout: 30000
                             });
                         } catch (apiErr) {
@@ -224,23 +224,24 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
                             return client.sendMessage(from, { text: "❌ *Error:* Failed to resolve direct file download link." }, { quoted: dlMsg });
                         }
 
-                        const downloadUrl = dlRes.data.result?.downloadUrl;
-                        if (!downloadUrl) {
+                        const finalDownloadUrl = dlRes.data.result?.finalUrl;
+                        if (!finalDownloadUrl) {
                             await client.sendMessage(from, { react: { text: "❌", key: dlMsg.key } });
                             return client.sendMessage(from, { text: "❌ *Sorry:* Direct download URL not found." }, { quoted: dlMsg });
                         }
 
-                        const cleanFileName = `${movieTitleClean.replace(/[^a-zA-Z0-9 ]/g, "_")}_${selectedLink.size || 'HD'}.mp4`;
+                        const cleanFileName = `${movieTitleClean.replace(/[^a-zA-Z0-9 ]/g, "_")}_${selectedDownload.quality || 'HD'}.mp4`;
 
                         let finalCaption = `┏━━━━━━━━━━━━━━━━━━━━━━━━┓\n`;
                         finalCaption += `┃ 🎬 *${movieTitleClean}*\n`;
                         finalCaption += `┗━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n`;
-                        finalCaption += `┃ 📦 *Size:* ${selectedLink.size || 'N/A'}\n`;
+                        finalCaption += `┃ 🌟 *Quality:* ${selectedDownload.quality || 'HD'}\n`;
+                        finalCaption += `┃ 📦 *Size:* ${selectedDownload.size || 'N/A'}\n`;
                         finalCaption += `┗━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n`;
                         finalCaption += `> *© ${AUTHOR} ッ*`;
 
                         let documentPayload = {
-                            document: { url: downloadUrl },
+                            document: { url: finalDownloadUrl },
                             mimetype: "video/mp4",
                             fileName: cleanFileName,
                             caption: finalCaption
@@ -254,7 +255,7 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
                         await client.sendMessage(from, { react: { text: "✅", key: dlMsg.key } });
 
                     } catch (dlErr) {
-                        console.error("Baiscopes download failed:", dlErr.message);
+                        console.error("Chithrapata download failed:", dlErr.message);
                         await client.sendMessage(from, { react: { text: "❌", key: up.messages[0].key } });
                         client.sendMessage(from, { text: `❌ *An error occurred during download:* ${dlErr.message}` }, { quoted: up.messages[0] });
                     }
@@ -267,7 +268,7 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
                 }, 300000);
 
             } catch (detErr) {
-                console.error("Baiscopes details failed:", detErr.message);
+                console.error("Chithrapata details failed:", detErr.message);
                 client.sendMessage(from, { text: `❌ An error occurred while loading details: ${detErr.message}` }, { quoted: msg });
             }
         };
@@ -279,7 +280,7 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
         }, 300000);
 
     } catch (e) {
-        console.error("Baiscopes Downloader error:", e.message);
+        console.error("Chithrapata Downloader error:", e.message);
         await react("❌");
         return reply(`❌ *Error Processing Request:* ${e.message}`);
     }
