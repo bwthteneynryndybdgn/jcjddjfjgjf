@@ -458,9 +458,12 @@ async function showEpisodeSelector(conn, chatId, movieData, seasonNum, query, us
     }
 }
 
-const handler = async (m, { conn, text, usedPrefix, command }) => {
+const handler = async (conn, mek, m, { from, text, usedPrefix, command, reply }) => {
+    const chatId = from || m.chat;
+    const sender = m.sender;
+
     if (!text) {
-        return m.reply(`🎬 *Movie & Series Stream*\n\nSearch and stream movies/series.\n\n📝 *Usage:*\n${usedPrefix + command} <query>\n\n📌 *Example:*\n${usedPrefix + command} Inception`);
+        return reply(`🎬 *Movie & Series Stream*\n\nSearch and stream movies/series.\n\n📝 *Usage:*\n${usedPrefix + command} <query>\n\n📌 *Example:*\n${usedPrefix + command} Inception`);
     }
 
     try {
@@ -479,12 +482,12 @@ const handler = async (m, { conn, text, usedPrefix, command }) => {
         if (episodeMatch) { query = episodeMatch[1].trim(); episodeNum = parseInt(episodeMatch[2]); }
 
         if (selectIndex !== null) {
-            const searchData = global.db.data.movieSearch?.[m.sender];
-            if (!searchData || !searchData.results) return m.reply('⚠️ No search results found. Please search again.');
+            const searchData = global.db.data.movieSearch?.[sender];
+            if (!searchData || !searchData.results) return reply('⚠️ No search results found. Please search again.');
             const selected = searchData.results[selectIndex];
-            if (!selected) return m.reply('❌ Invalid selection.');
+            if (!selected) return reply('❌ Invalid selection.');
 
-            await m.reply(`⏳ Fetching details for "${selected.title}"...`);
+            await reply(`⏳ Fetching details for "${selected.title}"...`);
 
             const detail = await getMovieDetail(selected.subjectId, selected.detailPath);
             const subject = detail.subject;
@@ -492,7 +495,7 @@ const handler = async (m, { conn, text, usedPrefix, command }) => {
             const isSeries = subject.subjectType === 2;
 
             if (!global.db.data.movieData) global.db.data.movieData = {};
-            global.db.data.movieData[m.sender] = {
+            global.db.data.movieData[sender] = {
                 subjectId: selected.subjectId,
                 detailPath: selected.detailPath,
                 title: subject.title,
@@ -505,13 +508,13 @@ const handler = async (m, { conn, text, usedPrefix, command }) => {
             };
 
             if (isSeries && seasons.length > 0) {
-                await showSeasonEpisodeSelector(conn, m.chat, {
+                await showSeasonEpisodeSelector(conn, chatId, {
                     title: subject.title,
                     year: subject.releaseDate ? subject.releaseDate.split('-')[0] : 'N/A',
                     rating: subject.imdbRatingValue || 'N/A',
                     poster: subject.cover?.url || CLOUDINARY_IMAGE,
                     seasons: seasons
-                }, query, usedPrefix, command, [m.sender]);
+                }, query, usedPrefix, command, [sender]);
                 return;
             }
 
@@ -520,7 +523,7 @@ const handler = async (m, { conn, text, usedPrefix, command }) => {
             let defaultQuality = qualities.find(q => q.quality === '480p') || qualities[0] || {};
             let streamUrl = defaultQuality.streamUrl || qualities[0]?.streamUrl || streamData.bestQualityUrl;
 
-            if (!streamUrl) return m.reply('❌ No stream URL available for this title.');
+            if (!streamUrl) return reply('❌ No stream URL available for this title.');
 
             let posterBase64 = '';
             if (subject.cover?.url) {
@@ -544,28 +547,28 @@ const handler = async (m, { conn, text, usedPrefix, command }) => {
                 qualities: qualities
             });
 
-            await sendHtmlPlayer(conn, m.chat, html);
-            await m.reply('✅ Streaming started!');
+            await sendHtmlPlayer(conn, chatId, html);
+            await reply('✅ Streaming started!');
             return;
         }
 
         if (seasonNum !== null && episodeNum === null) {
-            const movieData = global.db.data.movieData?.[m.sender];
-            if (!movieData) return m.reply('⚠️ No movie data found. Please search first.');
-            await showEpisodeSelector(conn, m.chat, movieData, seasonNum, query, usedPrefix, command, [m.sender]);
+            const movieData = global.db.data.movieData?.[sender];
+            if (!movieData) return reply('⚠️ No movie data found. Please search first.');
+            await showEpisodeSelector(conn, chatId, movieData, seasonNum, query, usedPrefix, command, [sender]);
             return;
         }
 
         if (seasonNum !== null && episodeNum !== null) {
-            const movieData = global.db.data.movieData?.[m.sender];
-            if (!movieData) return m.reply('⚠️ No movie data found. Please search first.');
+            const movieData = global.db.data.movieData?.[sender];
+            if (!movieData) return reply('⚠️ No movie data found. Please search first.');
 
             const streamData = await getStreamData(movieData.subjectId, movieData.detailPath, seasonNum, episodeNum);
             const qualities = streamData.qualities || [];
             let defaultQuality = qualities.find(q => q.quality === '480p') || qualities[0] || {};
             let streamUrl = defaultQuality.streamUrl || qualities[0]?.streamUrl || streamData.bestQualityUrl;
 
-            if (!streamUrl) return m.reply('❌ No stream URL available for this episode.');
+            if (!streamUrl) return reply('❌ No stream URL available for this episode.');
 
             let posterBase64 = '';
             if (movieData.poster) {
@@ -589,22 +592,22 @@ const handler = async (m, { conn, text, usedPrefix, command }) => {
                 qualities: qualities
             });
 
-            await sendHtmlPlayer(conn, m.chat, html);
-            await m.reply(`✅ Season ${seasonNum} Episode ${episodeNum} streaming started!`);
+            await sendHtmlPlayer(conn, chatId, html);
+            await reply(`✅ Season ${seasonNum} Episode ${episodeNum} streaming started!`);
             return;
         }
 
         const searchResult = await searchMovies(text);
         const items = searchResult?.raw?.items || [];
-        if (items.length === 0) return m.reply(`❌ No results found for *${text}*`);
+        if (items.length === 0) return reply(`❌ No results found for *${text}*`);
 
         if (!global.db.data.movieSearch) global.db.data.movieSearch = {};
-        global.db.data.movieSearch[m.sender] = { results: items, query: text, timestamp: Date.now() };
+        global.db.data.movieSearch[sender] = { results: items, query: text, timestamp: Date.now() };
 
-        await showSearchResults(conn, m.chat, text, items, usedPrefix, command, [m.sender]);
+        await showSearchResults(conn, chatId, text, items, usedPrefix, command, [sender]);
     } catch (e) {
         console.error('Movie error:', e);
-        await m.reply(`❌ Error: ${e.message || 'Unknown error'}`);
+        await reply(`❌ Error: ${e.message || 'Unknown error'}`);
     }
 };
 
