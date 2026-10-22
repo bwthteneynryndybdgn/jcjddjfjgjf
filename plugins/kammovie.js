@@ -29,8 +29,8 @@ async function getThumbnailBuffer(url) {
 }
 
 cmd({
-    pattern: "baiscopes4",
-    alias: ["bais4", "baiscope4"],
+    pattern: "baiscopes3",
+    alias: ["bais4", "baiscope5"],
     desc: "Search and download movies from Baiscopes via API",
     category: "download",
     filename: __filename
