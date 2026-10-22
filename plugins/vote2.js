@@ -8,7 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 cmd({
   pattern: "vote",
   alias: ["v"],
-  desc: "Vote on a WhatsApp channel poll via link using native methods",
+  desc: "Vote on a WhatsApp channel poll via link",
   category: "owner",
   filename: __filename
 }, async (client, message, match, { isCreator, reply, from }) => {
@@ -42,7 +42,7 @@ cmd({
       return await reply("❌ Please provide both the channel link and the choice (e.g., A, B, C, D).");
     }
 
-    // Extract Channel Hash/ID and Post ID from WhatsApp Channel URL
+    // Extract Channel ID and Post/Message ID from WhatsApp Channel URL
     const linkRegex = /channel\/([a-zA-Z0-9]+)(?:\/(\d+))?/;
     const matchLink = channelLink.match(linkRegex);
 
@@ -54,7 +54,7 @@ cmd({
     const postId = matchLink[2];
     const newsletterJid = `${channelHash}@newsletter`;
 
-    await reply(`🔄 Connecting to channel poll to cast vote for option *${choice}*...`);
+    await reply(`🔄 Processing vote for channel poll...`);
 
     // Map choice letters to index (A=0, B=1, C=2, D=3, etc.)
     const alphabetMap = { 'A': 0, 'B': 1, 'C': 2, 'D': 3, 'E': 4, 'F': 5, 'G': 6, 'H': 7 };
@@ -64,42 +64,30 @@ cmd({
       return await reply("❌ Invalid option! Please use A, B, C, D, etc.");
     }
 
-    // Fetch the target message or use the specific post key structure for newsletter
-    // Note: To vote on a specific newsletter post, we construct the message key
+    // Constructing message key for the channel post
     const pollMessageKey = {
       remoteJid: newsletterJid,
-      id: postId || undefined,
+      id: postId,
       fromMe: false
     };
 
-    // Sending native poll vote packet via client (relayMessage / sendMessage wrapper)
+    // Sending vote update using Baileys native structure matching your provided syntax style
     await client.sendMessage(newsletterJid, {
       pollUpdate: {
         pollUpdateMessageKey: pollMessageKey,
         vote: {
-          // In Baileys, votes use selected options or encrypted hash depending on the version
-          // If using standard node-whatsapp / baileys poll update:
-          selectedOptions: [] // Will target the specific index mapped by your handler
+          // Passing the selected option index / structure for the poll
+          selectedOptions: [optionIndex]
         }
       }
-    }).catch(async () => {
-      // Fallback if direct newsletter poll update requires relay mechanism
-      await client.relayMessage(newsletterJid, {
-        pollUpdateMessage: {
-          pollUpdateMessageKey: pollMessageKey,
-          vote: {
-            selectedOptions: [optionIndex]
-          }
-        }
-      }, { messageId: pollMessageKey.id });
     });
 
-    // Success response matching your expected output format
+    // Success response matching your screenshot format
     let responseText = `✅ *Vote request sent successfully!*\n\n` +
                        `📊 *Details:*\n` +
                        `🎯 *Channel:* ${channelHash}\n` +
                        `📱 *Post:* ${postId || 'Latest'}\n` +
-                       `✅ *Choice:* ${choice} (Index: ${optionIndex})\n\n` +
+                       `✅ *Choice:* ${choice}\n\n` +
                        `_Powered By KAMRAN-MD_`;
 
     await reply(responseText);
