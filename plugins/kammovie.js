@@ -29,8 +29,8 @@ async function getThumbnailBuffer(url) {
 }
 
 cmd({
-    pattern: "cinesubz",
-    alias: ["cs", "cinesubzdl"],
+    pattern: "cinesubz09",
+    alias: ["cs09", "cinesubzdl09"],
     desc: "Search and download movies/series from CineSubz via API",
     category: "download",
     filename: __filename
