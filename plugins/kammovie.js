@@ -1,5 +1,5 @@
 //---------------------------------------------------------------------------
-//           KAMRAN-MD - CINESUBZ INTERACTIVE DOWNLOADER PLUGIN
+//           KAMRAN-MD - CINESUBZ INTERACTIVE DOWNLOADER PLUGIN (FIXED)
 //---------------------------------------------------------------------------
 
 import { fileURLToPath } from 'url';
@@ -21,7 +21,7 @@ function cleanTitle(title) {
 async function getThumbnailBuffer(url) {
   if (!url) return null;
   try {
-    const { data } = await axios.get(url, { responseType: "arraybuffer" });
+    const { data } = await axios.get(url, { responseType: "arraybuffer", timeout: 15000 });
     return Buffer.from(data);
   } catch (err) {
     return null;
@@ -29,8 +29,8 @@ async function getThumbnailBuffer(url) {
 }
 
 cmd({
-    pattern: "cinesubz67",
-    alias: ["cs3", "cinesubzdl6"],
+    pattern: "cinesubz",
+    alias: ["cs", "cinesubzdl"],
     desc: "Search and download movies/series from CineSubz via API",
     category: "download",
     filename: __filename
@@ -193,14 +193,20 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
                         await client.sendMessage(from, { react: { text: "📥", key: dlMsg.key } });
                         await client.sendMessage(from, { text: `🚀 *Resolving Direct File Link...* Please wait!` }, { quoted: dlMsg });
 
-                        // Fetching direct download mirrors using /dl endpoint
+                        // Fetching direct download mirrors using /dl endpoint with strict timeout and try-catch
                         const dlApiUrl = `https://supunofc.site/api/movie/cinesubz/dl`;
-                        const dlRes = await axios.get(dlApiUrl, {
-                            params: { apikey: API_KEY, url: selectedDownload.href },
-                            timeout: 30000
-                        });
+                        let dlRes;
+                        try {
+                            dlRes = await axios.get(dlApiUrl, {
+                                params: { apikey: API_KEY, url: selectedDownload.href },
+                                timeout: 30000
+                            });
+                        } catch (apiErr) {
+                            await client.sendMessage(from, { react: { text: "❌", key: dlMsg.key } });
+                            return client.sendMessage(from, { text: `❌ *API Request Failed:* ${apiErr.message}` }, { quoted: dlMsg });
+                        }
 
-                        if (dlRes.status !== 200 || !dlRes.data || !dlRes.data.success) {
+                        if (!dlRes || dlRes.status !== 200 || !dlRes.data || !dlRes.data.success) {
                             await client.sendMessage(from, { react: { text: "❌", key: dlMsg.key } });
                             return client.sendMessage(from, { text: "❌ *Error:* Failed to resolve direct file download link." }, { quoted: dlMsg });
                         }
@@ -238,7 +244,8 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
 
                     } catch (dlErr) {
                         console.error("CineSubz download failed:", dlErr.message);
-                        client.sendMessage(from, { text: `❌ An error occurred during download: ${dlErr.message}` }, { quoted: dlMsg });
+                        await client.sendMessage(from, { react: { text: "❌", key: up.messages[0].key } });
+                        client.sendMessage(from, { text: `❌ *An error occurred during download:* ${dlErr.message}` }, { quoted: up.messages[0] });
                     }
                 };
 
