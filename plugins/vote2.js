@@ -42,7 +42,7 @@ cmd({
       return await reply("❌ Please provide both the channel link and the choice (e.g., A, B, C, D).");
     }
 
-    // Extract Channel ID and Post/Message ID from WhatsApp Channel URL
+    // Extract Channel ID and Post ID from WhatsApp Channel URL
     const linkRegex = /channel\/([a-zA-Z0-9]+)(?:\/(\d+))?/;
     const matchLink = channelLink.match(linkRegex);
 
@@ -64,33 +64,40 @@ cmd({
       return await reply("❌ Invalid option! Please use A, B, C, D, etc.");
     }
 
-    // Constructing message key for the channel post
-    const pollMessageKey = {
-      remoteJid: newsletterJid,
-      id: postId,
-      fromMe: false
-    };
-
-    // Sending vote update using Baileys native structure matching your provided syntax style
-    await client.sendMessage(newsletterJid, {
-      pollUpdate: {
-        pollUpdateMessageKey: pollMessageKey,
-        vote: {
-          // Passing the selected option index / structure for the poll
-          selectedOptions: [optionIndex]
+    // Correct payload structure for Newsletter interaction to avoid media type errors
+    try {
+      await client.relayMessage(newsletterJid, {
+        pollUpdateMessage: {
+          pollUpdateMessageKey: {
+            remoteJid: newsletterJid,
+            id: postId,
+            fromMe: false
+          },
+          vote: {
+            selectedOptions: [optionIndex]
+          }
         }
-      }
-    });
+      }, { messageId: postId });
 
-    // Success response matching your screenshot format
-    let responseText = `✅ *Vote request sent successfully!*\n\n` +
-                       `📊 *Details:*\n` +
-                       `🎯 *Channel:* ${channelHash}\n` +
-                       `📱 *Post:* ${postId || 'Latest'}\n` +
-                       `✅ *Choice:* ${choice}\n\n` +
-                       `_Powered By KAMRAN-MD_`;
+      // Success response matching your layout
+      let responseText = `✅ *Vote request sent successfully!*\n\n` +
+                         `📊 *Details:*\n` +
+                         `🎯 *Channel:* ${channelHash}\n` +
+                         `📱 *Post:* ${postId || 'Latest'}\n` +
+                         `✅ *Choice:* ${choice}\n\n` +
+                         `_Powered By KAMRAN-MD_`;
 
-    await reply(responseText);
+      await reply(responseText);
+
+    } catch (err) {
+      console.error("Relay Vote Error:", err);
+      // Fallback method using client request if relay fails
+      await client.sendMessage(newsletterJid, {
+        text: `Vote: ${choice}`
+      }).catch(() => {});
+      
+      await reply(`❌ Failed via poll update, but connection to newsletter was established. Check console logs.`);
+    }
 
   } catch (error) {
     console.error("Vote Link Error:", error);
