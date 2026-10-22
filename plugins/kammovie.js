@@ -1,5 +1,5 @@
 //---------------------------------------------------------------------------
-//           KAMRAN-MD - PRIME VIDEO INTERACTIVE PLUGIN
+//           KAMRAN-MD - PRIME VIDEO INTERACTIVE PLUGIN (FIXED)
 //---------------------------------------------------------------------------
 
 import { fileURLToPath } from 'url';
@@ -76,12 +76,12 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
             const v = results[i];
             const title = v.title || 'Unknown Title';
             const displayTitle = title.length > 45 ? title.substring(0, 45) + '...' : title;
-            listText += `┃ 🎥 *[${i + 1}]* _${displayTitle} [${v.releaseYear || ''}]_\n`;
+            listText += `┃ 🎥 *[${i + 1}]* _${displayTitle}_\n`;
             if (i !== limit - 1) listText += `┃─────────────────────┃\n`;
         }
 
         listText += `└─────────────────────┘\n\n`;
-        listText += `⚡ *Reply with the item number* to view details[span_0](start_span)[span_0](end_span).\n\n`;
+        listText += `⚡ *Reply with the item number* to view details.\n\n`;
         listText += `> *© ${AUTHOR} ッ*`;
 
         const sentSearch = await client.sendMessage(from, {
@@ -97,7 +97,7 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
                 if (!msg?.message || msg.key.remoteJid !== from) return;
 
                 const ctx = msg.message.extendedTextMessage?.contextInfo || msg.message.conversation?.contextInfo;
-                if (ctx?.stanzaId !== searchMsgId) return;
+                if (!ctx || ctx.stanzaId !== searchMsgId) return;
 
                 const choice = (msg.message.conversation || msg.message.extendedTextMessage?.text || "").trim();
                 const num = parseInt(choice);
@@ -109,8 +109,8 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
                 client.ev.off("messages.upsert", detailsHandler);
                 clearTimeout(detailsTimeout);
 
-                await react("⏳");
-                await reply(`🚀 *Fetching Prime Video Details...* Please wait!`);
+                await client.sendMessage(from, { react: { text: "⏳", key: msg.key } });
+                await client.sendMessage(from, { text: `🚀 *Fetching Prime Video Details for "${selected.title}"...* Please wait!` }, { quoted: msg });
 
                 const detailsApiUrl = `https://supunofc.site/api/movie/primemv/details`;
                 const detailResponse = await axios.get(detailsApiUrl, {
@@ -119,8 +119,8 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
                 });
 
                 if (detailResponse.status !== 200 || !detailResponse.data || !detailResponse.data.success) {
-                    await react("❌");
-                    return reply("❌ *Error:* Failed to pull details for this item.");
+                    await client.sendMessage(from, { react: { text: "❌", key: msg.key } });
+                    return client.sendMessage(from, { text: "❌ *Error:* Failed to pull details for this item." }, { quoted: msg });
                 }
 
                 const itemData = detailResponse.data.result || {};
@@ -130,10 +130,10 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
                 cap += `┃ 🎥 *${itemData.title || selected.title}*\n`;
                 cap += `┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n`;
                 
-                if (itemData.releaseYear) cap += `📅 *Year:* ${itemData.releaseYear}[span_1](start_span)[span_1](end_span)\n`;
-                if (itemData.imdbRating) cap += `⭐ *IMDb:* ${itemData.imdbRating}[span_2](start_span)[span_2](end_span)\n`;
-                if (itemData.ageRating) cap += `🔞 *Age Rating:* ${itemData.ageRating}[span_3](start_span)[span_3](end_span)\n`;
-                if (itemData.runtime) cap += `⏱️ *Runtime:* ${itemData.runtime}[span_4](start_span)[span_4](end_span)\n\n`;
+                if (itemData.releaseYear) cap += `📅 *Year:* ${itemData.releaseYear}\n`;
+                if (itemData.imdbRating && itemData.imdbRating !== "N/A") cap += `⭐ *IMDb:* ${itemData.imdbRating}\n`;
+                if (itemData.ageRating && itemData.ageRating !== "N/A") cap += `🔞 *Age Rating:* ${itemData.ageRating}\n`;
+                if (itemData.runtime && itemData.runtime !== "N/A") cap += `⏱️ *Runtime:* ${itemData.runtime}\n\n`;
                 
                 if (itemData.synopsis) {
                     const syn = itemData.synopsis.length > 200 ? itemData.synopsis.substring(0, 200) + '...' : itemData.synopsis;
@@ -167,7 +167,7 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
 
             } catch (detErr) {
                 console.error("Prime Video details failed:", detErr.message);
-                reply(`❌ An error occurred: ${detErr.message}`);
+                client.sendMessage(from, { text: `❌ An error occurred: ${detErr.message}` }, { quoted: msg });
             }
         };
 
