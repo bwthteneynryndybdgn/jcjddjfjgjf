@@ -1,5 +1,5 @@
 //---------------------------------------------------------------------------
-//           KAMRAN-MD - KMMOVIES INTERACTIVE DOWNLOADER PLUGIN
+//           KAMRAN-MD - PRIME VIDEO INTERACTIVE PLUGIN
 //---------------------------------------------------------------------------
 
 import { fileURLToPath } from 'url';
@@ -24,9 +24,9 @@ async function getThumbnailBuffer(url) {
 }
 
 cmd({
-    pattern: "kmmovies",
-    alias: ["km", "kmmovie", "kmsearch"],
-    desc: "Search and download movies from KMMovies via API",
+    pattern: "prime",
+    alias: ["primevideo", "primemv", "pv"],
+    desc: "Search movies and series from Prime Video via API",
     category: "download",
     filename: __filename
 },
@@ -39,15 +39,15 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
         if (!q) {
             return reply(
                 "❌ *Opps! Query Missing* ❌\n\n" +
-                "Please provide a movie name to search!\n" +
-                "📌 *Example:* `.kmmovies New hindi`"
+                "Please provide a title to search on Prime Video!\n" +
+                "📌 *Example:* `.prime New hindi`"
             );
         }
 
         await react("🔍");
-        await reply(`🔍 _Searching for *"${q}"* on KMMovies servers..._`);
+        await reply(`🔍 _Searching for *"${q}"* on Prime Video servers..._`);
 
-        const searchApiUrl = `https://supunofc.site/api/movie/kmmovie/search`;
+        const searchApiUrl = `https://supunofc.site/api/movie/primemv/search`;
         const response = await axios.get(searchApiUrl, {
             params: { apikey: API_KEY, q: q },
             timeout: 30000
@@ -61,11 +61,11 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
         const results = response.data.result || [];
         if (results.length === 0) {
             await react("❌");
-            return reply(`🛸 *No Results Found!*\nKMMovies par *"${q}"* naam ki koi movie nahi mili.`);
+            return reply(`🛸 *No Results Found!*\nPrime Video par *"${q}"* se related kuch nahi mila.`);
         }
 
         let listText = `┏━━━━━━━━━━━━━━━━━━━━━━┓\n`;
-        listText += `┃ 🎬  *KMMOVIES SEARCH*  🎬 ┃\n`;
+        listText += `┃ 🎬  *PRIME VIDEO SEARCH* 🎬 ┃\n`;
         listText += `┗━━━━━━━━━━━━━━━━━━━━━━┛\n\n`;
         listText += `🔎 *Query:* \`${q.toUpperCase()}\`\n`;
         listText += `✨ *Results Found:* ${results.length}\n\n`;
@@ -76,12 +76,12 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
             const v = results[i];
             const title = v.title || 'Unknown Title';
             const displayTitle = title.length > 45 ? title.substring(0, 45) + '...' : title;
-            listText += `┃ 🎥 *[${i + 1}]* _${displayTitle}_\n`;
+            listText += `┃ 🎥 *[${i + 1}]* _${displayTitle} [${v.releaseYear || ''}]_\n`;
             if (i !== limit - 1) listText += `┃─────────────────────┃\n`;
         }
 
         listText += `└─────────────────────┘\n\n`;
-        listText += `⚡ *Reply with the item number* to download as Document.\n\n`;
+        listText += `⚡ *Reply with the item number* to view details[span_0](start_span)[span_0](end_span).\n\n`;
         listText += `> *© ${AUTHOR} ッ*`;
 
         const sentSearch = await client.sendMessage(from, {
@@ -110,41 +110,63 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
                 clearTimeout(detailsTimeout);
 
                 await react("⏳");
-                await reply(`🚀 *Processing KMMovies File...* \nUploading document. Please wait!`);
+                await reply(`🚀 *Fetching Prime Video Details...* Please wait!`);
 
-                const targetUrl = selected.url;
+                const detailsApiUrl = `https://supunofc.site/api/movie/primemv/details`;
+                const detailResponse = await axios.get(detailsApiUrl, {
+                    params: { apikey: API_KEY, url: selected.url },
+                    timeout: 30000
+                });
 
-                await client.sendMessage(from, { react: { text: "📥", key: msg.key } });
+                if (detailResponse.status !== 200 || !detailResponse.data || !detailResponse.data.success) {
+                    await react("❌");
+                    return reply("❌ *Error:* Failed to pull details for this item.");
+                }
 
-                const cleanFileName = `${(selected.title || "Movie").replace(/[^a-zA-Z0-9 ]/g, "_")}_${selected.quality || 'HD'}.mp4`;
+                const itemData = detailResponse.data.result || {};
+                const downloader = itemData.downloaderInfo || {};
 
-                let finalCaption = `┏━━━━━━━━━━━━━━━━━━━━━━━━┓\n`;
-                finalCaption += `┃ 🎬 *${selected.title}*\n`;
-                finalCaption += `┗━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n`;
-                if (selected.year) finalCaption += `┃ 📅 *Year:* ${selected.year}\n`;
-                if (selected.quality) finalCaption += `┃ 🌟 *Quality:* ${selected.quality}\n`;
-                finalCaption += `┗━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n`;
-                finalCaption += `> *© ${AUTHOR} ッ*`;
-
-                const thumbBuffer = await getThumbnailBuffer(selected.poster);
+                let cap = `┏━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n`;
+                cap += `┃ 🎥 *${itemData.title || selected.title}*\n`;
+                cap += `┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n`;
                 
-                // Sending as Document file for fast and reliable download
-                let documentPayload = {
-                    document: { url: targetUrl },
-                    mimetype: "video/mp4",
-                    fileName: cleanFileName,
-                    caption: finalCaption
+                if (itemData.releaseYear) cap += `📅 *Year:* ${itemData.releaseYear}[span_1](start_span)[span_1](end_span)\n`;
+                if (itemData.imdbRating) cap += `⭐ *IMDb:* ${itemData.imdbRating}[span_2](start_span)[span_2](end_span)\n`;
+                if (itemData.ageRating) cap += `🔞 *Age Rating:* ${itemData.ageRating}[span_3](start_span)[span_3](end_span)\n`;
+                if (itemData.runtime) cap += `⏱️ *Runtime:* ${itemData.runtime}[span_4](start_span)[span_4](end_span)\n\n`;
+                
+                if (itemData.synopsis) {
+                    const syn = itemData.synopsis.length > 200 ? itemData.synopsis.substring(0, 200) + '...' : itemData.synopsis;
+                    cap += `📝 *Synopsis:* _${syn}_\n\n`;
+                }
+
+                if (downloader.streamType) {
+                    cap += `🔒 *Stream Type:* \`${downloader.streamType}\`\n`;
+                }
+                if (downloader.videoResolutions) {
+                    cap += `📺 *Resolutions:* ${downloader.videoResolutions.join(', ')}\n`;
+                }
+
+                cap += `\n🔗 *Official Watch URL:*\n_${itemData.url || selected.url}_\n\n`;
+                cap += `> *© ${AUTHOR} ッ*`;
+
+                const posterUrl = itemData.poster || selected.poster || "https://i.imgur.com/Te4kE0x.jpeg";
+                const thumbBuffer = await getThumbnailBuffer(posterUrl);
+
+                let messagePayload = {
+                    image: { url: posterUrl },
+                    caption: cap
                 };
 
                 if (thumbBuffer && Buffer.isBuffer(thumbBuffer)) {
-                    documentPayload.jpegThumbnail = thumbBuffer;
+                    messagePayload.jpegThumbnail = thumbBuffer;
                 }
 
-                await client.sendMessage(from, documentPayload, { quoted: msg });
+                await client.sendMessage(from, messagePayload, { quoted: msg });
                 await client.sendMessage(from, { react: { text: "✅", key: msg.key } });
 
             } catch (detErr) {
-                console.error("KMMovies process failed:", detErr.message);
+                console.error("Prime Video details failed:", detErr.message);
                 reply(`❌ An error occurred: ${detErr.message}`);
             }
         };
@@ -156,7 +178,7 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
         }, 300000);
 
     } catch (e) {
-        console.error("KMMovies Downloader error:", e.message);
+        console.error("Prime Video error:", e.message);
         await react("❌");
         return reply(`❌ *Error Processing Request:* ${e.message}`);
     }
