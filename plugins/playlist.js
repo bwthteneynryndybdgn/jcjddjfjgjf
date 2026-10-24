@@ -14,7 +14,7 @@ const AUTHOR = "KAMRAN-MINI-BOT";
 
 cmd({
     pattern: "playlist",
-    alias: ["playlist2", "ytlist", "ytslist", "songlist"],
+    alias: ["play", "ytsearch", "yts", "song"],
     desc: "Search YouTube songs and download as Audio/Video Document",
     category: "downloader",
     filename: __filename
@@ -44,7 +44,7 @@ async (conn, mek, m, { from, text, reply, react, socket, sock, usedPrefix, comma
             response = await axios.get(searchUrl, { timeout: 30000 });
         } catch (err) {
             await react("❌");
-            return reply(`❌ *Search API Error:* ${err.message}`);
+            return reply(`❌ *Search API Connection Failed:* ${err.message}`);
         }
 
         if (!response || !response.data) {
@@ -52,16 +52,15 @@ async (conn, mek, m, { from, text, reply, react, socket, sock, usedPrefix, comma
             return reply("🛸 *API Error:* Server responded with an empty response.");
         }
 
-        // Support both .success and .status formats from API
         const apiData = response.data;
-        const isSuccess = apiData.success === true || apiData.status === true;
-        const results = apiData.result || apiData.data || [];
+        const results = apiData.result || apiData.data || (Array.isArray(apiData) ? apiData : []);
 
-        if (!isSuccess || results.length === 0) {
+        if (results.length === 0) {
             await react("❌");
             return reply(`🛸 *No Results Found!*\n*"${q}"* se related kuch nahi mila.`);
         }
 
+        if (!global.db.data) global.db.data = {};
         if (!global.db.data.ytSearchCache) global.db.data.ytSearchCache = {};
         global.db.data.ytSearchCache[sender] = results;
 
@@ -149,7 +148,14 @@ async (conn, mek, m, { from, text, reply, react, socket, sock, usedPrefix, comma
                             ? `https://api.azbry.com/api/download/ytmp4?url=${encodeURIComponent(targetUrl)}`
                             : `https://api.azbry.com/api/download/ytmp3?url=${encodeURIComponent(targetUrl)}`;
 
-                        const apiRes = await axios.get(apiUrl, { timeout: 60000 });
+                        let apiRes;
+                        try {
+                            apiRes = await axios.get(apiUrl, { timeout: 60000 });
+                        } catch (dlApiErr) {
+                            await client.sendMessage(chatId, { react: { text: "❌", key: dlMsg.key } });
+                            return client.sendMessage(chatId, { text: `❌ *Download API Error:* ${dlApiErr.message}` }, { quoted: dlMsg });
+                        }
+
                         if (!apiRes || !apiRes.data) {
                             await client.sendMessage(chatId, { react: { text: "❌", key: dlMsg.key } });
                             return client.sendMessage(chatId, { text: "❌ *Error:* Failed to fetch download URL from API." }, { quoted: dlMsg });
