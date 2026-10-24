@@ -10,11 +10,11 @@ import { cmd } from '../command.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const AUTHOR = "KAMRAN-MD";
+const AUTHOR = "KAMRAN-MINI-BOT";
 
 cmd({
     pattern: "playlist",
-    alias: ["ytlist", "ytslist", "slist"],
+    alias: ["playlist2", "ytlist", "ytslist", "songlist"],
     desc: "Search YouTube songs and download as Audio/Video Document",
     category: "downloader",
     filename: __filename
@@ -31,7 +31,7 @@ async (conn, mek, m, { from, text, reply, react, socket, sock, usedPrefix, comma
             return reply(
                 "❌ *Opps! Query Missing* ❌\n\n" +
                 "Kripya gaane ka naam likhein!\n" +
-                `📌 *Example:* \`${usedPrefix + command} Song pal\``
+                `📌 *Example:* \`${usedPrefix + command} song pal\``
             );
         }
 
@@ -47,13 +47,17 @@ async (conn, mek, m, { from, text, reply, react, socket, sock, usedPrefix, comma
             return reply(`❌ *Search API Error:* ${err.message}`);
         }
 
-        if (!response || !response.data || !response.data.success) {
+        if (!response || !response.data) {
             await react("❌");
-            return reply("🛸 *API Error:* Server responded with an invalid status.");
+            return reply("🛸 *API Error:* Server responded with an empty response.");
         }
 
-        const results = response.data.result || [];
-        if (results.length === 0) {
+        // Support both .success and .status formats from API
+        const apiData = response.data;
+        const isSuccess = apiData.success === true || apiData.status === true;
+        const results = apiData.result || apiData.data || [];
+
+        if (!isSuccess || results.length === 0) {
             await react("❌");
             return reply(`🛸 *No Results Found!*\n*"${q}"* se related kuch nahi mila.`);
         }
@@ -71,7 +75,7 @@ async (conn, mek, m, { from, text, reply, react, socket, sock, usedPrefix, comma
         const limit = Math.min(results.length, 20);
         for (let i = 0; i < limit; i++) {
             const v = results[i];
-            const title = v.title.length > 35 ? v.title.substring(0, 35) + '...' : v.title;
+            const title = (v.title || 'Unknown').length > 35 ? (v.title || 'Unknown').substring(0, 35) + '...' : (v.title || 'Unknown');
             listText += `┃ 🎶 *[${i + 1}]* _${title}_\n`;
             listText += `┃      ⏱️ ${v.duration || 'N/A'} | 👁️ ${v.views || 'N/A'}\n`;
             if (i !== limit - 1) listText += `┃─────────────────────┃\n`;
@@ -106,7 +110,7 @@ async (conn, mek, m, { from, text, reply, react, socket, sock, usedPrefix, comma
                 await client.sendMessage(chatId, { react: { text: "⏳", key: msg.key } });
 
                 let formatText = `┏━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n`;
-                formatText += `┃ 🎬 *${selectedSong.title}*\n`;
+                formatText += `┃ 🎬 *${selectedSong.title || 'Selected Song'}*\n`;
                 formatText += `┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n`;
                 formatText += `⏱️ *Duration:* ${selectedSong.duration || 'N/A'}\n`;
                 formatText += `👁️ *Views:* ${selectedSong.views || 'N/A'}\n\n`;
@@ -140,18 +144,26 @@ async (conn, mek, m, { from, text, reply, react, socket, sock, usedPrefix, comma
                         await client.sendMessage(chatId, { react: { text: "📥", key: dlMsg.key } });
                         await client.sendMessage(chatId, { text: `🚀 *Downloading ${isVideo ? 'MP4 Video' : 'MP3 Audio'} as Document...* Please wait!` }, { quoted: dlMsg });
 
+                        const targetUrl = selectedSong.url || selectedSong.link;
                         const apiUrl = isVideo 
-                            ? `https://api.azbry.com/api/download/ytmp4?url=${encodeURIComponent(selectedSong.url)}`
-                            : `https://api.azbry.com/api/download/ytmp3?url=${encodeURIComponent(selectedSong.url)}`;
+                            ? `https://api.azbry.com/api/download/ytmp4?url=${encodeURIComponent(targetUrl)}`
+                            : `https://api.azbry.com/api/download/ytmp3?url=${encodeURIComponent(targetUrl)}`;
 
                         const apiRes = await axios.get(apiUrl, { timeout: 60000 });
-                        if (!apiRes || !apiRes.data || !apiRes.data.success) {
+                        if (!apiRes || !apiRes.data) {
                             await client.sendMessage(chatId, { react: { text: "❌", key: dlMsg.key } });
                             return client.sendMessage(chatId, { text: "❌ *Error:* Failed to fetch download URL from API." }, { quoted: dlMsg });
                         }
 
-                        const downloadUrl = apiRes.data.result?.download;
-                        const fileTitle = apiRes.data.result?.title || selectedSong.title;
+                        const resData = apiRes.data.result || apiRes.data;
+                        const downloadUrl = resData?.download;
+                        const fileTitle = resData?.title || selectedSong.title || 'media';
+                        
+                        if (!downloadUrl) {
+                            await client.sendMessage(chatId, { react: { text: "❌", key: dlMsg.key } });
+                            return client.sendMessage(chatId, { text: "❌ *Error:* Download link not found in API response." }, { quoted: dlMsg });
+                        }
+
                         const cleanFileName = `${fileTitle.replace(/[^a-zA-Z0-9 ]/g, "_")}.${isVideo ? 'mp4' : 'mp3'}`;
 
                         let documentPayload = {
