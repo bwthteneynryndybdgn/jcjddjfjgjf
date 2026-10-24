@@ -8,7 +8,7 @@ cmd({
     pattern: "drama54",
     alias: ["pakdrama", "dramas54"],
     use: '.drama <drama name>',
-    desc: "Search exact drama and directly download the full episode as Video Document",
+    desc: "Search exact drama and directly download the full episode as Video",
     category: "downloader",
     react: "📺",
     filename: __filename
@@ -44,12 +44,11 @@ async (conn, mek, m, { from, text, reply }) => {
             return true;
         });
 
-        // Agar filter ke baad bhi koi na mile toh raw result ka pehla item utha lein
         const selectedDrama = validEpisodes.length > 0 ? validEpisodes[0] : rawResults[0];
         const videoUrl = selectedDrama.url || `https://youtube.com/watch?v=${selectedDrama.id}`;
         const dramaTitle = selectedDrama.title || query;
 
-        await conn.sendMessage(from, { text: `> *KAMRAN-MD DRAMA DOWNLOADER* 📺\n\n📌 *Found:* ${dramaTitle}\n_Drama document download ho raha hai, barae meharbani intezar karein..._` }, { quoted: mek });
+        await conn.sendMessage(from, { text: `> *KAMRAN-MD DRAMA DOWNLOADER* 📺\n\n📌 *Found:* ${dramaTitle}\n_Video download ho rahi hai, barae meharbani intezar karein..._` }, { quoted: mek });
 
         // Fetch direct download link using VajiraOfc YTMP4 API
         const api = `https://vajiraofc-apis.vercel.app/api/ytmp4?apikey=VajiraOfc&url=${encodeURIComponent(videoUrl)}&quality=360`;
@@ -69,11 +68,10 @@ async (conn, mek, m, { from, text, reply }) => {
             return reply(`❌ Drama download link nahi mila: ${finalTitle}`);
         }
 
-        // Send strictly as Document format
+        // Send strictly as Direct Video message format
         await conn.sendMessage(from, {
-            document: { url: downloadUrl },
+            video: { url: downloadUrl },
             mimetype: 'video/mp4',
-            fileName: `${finalTitle.replace(/[/\\?%*:|"<>]/g, '').trim()}.mp4`,
             caption: `📺 *${finalTitle}*`
         }, { quoted: mek });
 
