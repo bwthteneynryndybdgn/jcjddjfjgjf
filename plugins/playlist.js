@@ -6,11 +6,11 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import axios from 'axios';
+import { fileURLToPath } from 'url';
 import { cmd } from '../command.js';
 
-const __filename = fileURLToPath ? fileURLToPath(import.meta.url) : '';
-const __dirname = path.dirname ? path.dirname(__filename) : '';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 function extractVideoId(url) {
     if (!url) return null;
@@ -228,8 +228,8 @@ function compressMP4(inputBuffer) {
 }
 
 cmd({
-    pattern: "ytmp365",
-    alias: ["ytyta", "ytvyt", "ytmp4play"],
+    pattern: "ytmp364",
+    alias: ["yta76", "ytv76", "ytmp4play", "ytmp365"],
     desc: "Download YouTube audio or video via ymcdn scraper",
     category: "downloader",
     filename: __filename
@@ -249,7 +249,7 @@ async (conn, mek, m, { from, text, reply, command, socket, sock }) => {
     await reply('_✨ otw downloading..._');
 
     try {
-        const isVideo = /^(ytv|ytmp4)$/i.test(command);
+        const isVideo = /^(ytv|ytmp4|ytmp4play)$/i.test(command);
         const format = isVideo ? 'mp4' : 'mp3';
 
         const res = await scrapeYtmp3(text.trim(), format);
