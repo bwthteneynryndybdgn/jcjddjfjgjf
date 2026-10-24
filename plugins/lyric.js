@@ -1,4 +1,3 @@
-// plugins/video.js - ESM Version
 import { fileURLToPath } from 'url';
 import { cmd } from '../command.js';
 import axios from 'axios';
@@ -6,100 +5,75 @@ import yts from 'yt-search';
 
 const __filename = fileURLToPath(import.meta.url);
 
-function extractVideoId(input) {
-  const shortMatch = input.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
-  if (shortMatch) return shortMatch[1];
-
-  const watchMatch = input.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
-  if (watchMatch) return watchMatch[1];
-
-  return null;
-}
-
-async function handleVideo(input, client, message, from) {
-  await client.sendMessage(from, { react: { text: "⬇️", key: message.key } });
-  let url = input;
-  let videoInfo = null;
-
-  const id = extractVideoId(input);
-  if (id) {
-    url = `https://www.youtube.com/watch?v=${id}`;
-    try {
-      const info = await yts({ videoId: id });
-      if (info) videoInfo = info;
-    } catch {}
-  } else {
-    const cleanQuery = input.replace(/^[a-zA-Z0-9]+\s+/, "").trim() || input;
-    const search = await yts(cleanQuery);
-    const videos = search?.videos || search?.all || [];
-    if (!videos.length) throw new Error("YouTube par koi result nahi mila.");
-    
-    videoInfo = videos[0];
-    const vid = videoInfo.videoId || extractVideoId(videoInfo.url);
-    if (!vid) throw new Error("Video ID extract nahi ho saki.");
-    
-    url = `https://www.youtube.com/watch?v=${vid}`;
-  }
-
-  const title = videoInfo?.title || "Unknown Video";
-  const duration = videoInfo?.duration?.timestamp || videoInfo?.timestamp || "";
-
-  // NexRay API integration
-  const apiUrl = `https://api.nexray.eu.cc/downloader/v1/ytmp4?url=${encodeURIComponent(url)}&resolusi=1080`;
-  const res = await axios.get(apiUrl, { timeout: 40_000, validateStatus: () => true }).catch(() => null);
-
-  if (!res || !res.data) {
-    throw new Error("Video download API response nahi de rahi.");
-  }
-
-  const data = res.data;
-  const videoUrl = 
-    data?.result?.url || 
-    data?.result?.download || 
-    data?.result?.mp4 || 
-    data?.url || 
-    data?.download;
-
-  if (!videoUrl || typeof videoUrl !== "string" || !videoUrl.startsWith("http")) {
-    throw new Error("Video URL extract nahi ho saka.");
-  }
-
-  await client.sendMessage(
-    from,
-    {
-      video: { url: videoUrl },
-      mimetype: "video/mp4",
-      fileName: `${title.replace(/[^\w\s-]/g, '')}.mp4`,
-      caption: `*🎬 YouTube Video Downloader*\n\n*Title:* ${title}\n*Duration:* ${duration}\n*Link:* ${url}`,
-    },
-    { quoted: message }
-  );
-  await client.sendMessage(from, { react: { text: "✅", key: message.key } });
-}
-
-for (const [commandName, description] of [
-  ["video86", "YouTube se video search aur download karein"],
-  ["ytmp4", "YouTube MP4 downloader"],
-  ["ytv", "YouTube video downloader"],
-  ["mv", "YouTube se music video download karein"],
-]) {
-  cmd({
-    pattern: commandName,
-    alias: commandName === "video86" ? ["ytvideo", "mp4"] : [],
-    react: '🎥',
-    desc: description,
+cmd({
+    pattern: "drama74",
+    alias: ["pakdrama53", "dramas64"],
+    use: '.drama <drama name>',
+    desc: "Search exact drama using yt-search and directly download full episode in 1080p Video using NexRay API",
     category: "downloader",
+    react: "📺",
     filename: __filename
-  }, async (client, message, m, { from, q, prefix, command }) => {
-    if (!q) {
-      return await client.sendMessage(from, { text: `_Istemaal ka tareeqa: .${command} <video ka naam ya YouTube link>_` }, { quoted: message });
-    }
-
+},
+async (conn, mek, m, { from, text, reply }) => {
     try {
-      await handleVideo(q.trim(), client, message, from);
-    } catch (err) {
-      console.error(`[${command.toUpperCase()}]`, err?.message || err);
-      await client.sendMessage(from, { text: `❌ _*Download Fail Ho Gaya*_ : \n\n⚠️ ${err?.message || "Koi unexpected error aa gaya hai."}` }, { quoted: message });
+        const query = String(text || "").trim();
+        if (!query) {
+            return reply(`⚠️ *DRAMA SEARCH*\n\nUsage:\n• .drama <drama name>\nMisal ke tor par: .drama Mohabbat Episode 01`);
+        }
+
+        await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
+
+        // Using yt-search package instead of VajiraOfc search API
+        const searchRes = await yts(query);
+        const rawResults = searchRes?.videos || searchRes || [];
+
+        if (!rawResults || rawResults.length === 0) {
+            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+            return reply(`❌ Is naam ka koyi drama nahi mila.`);
+        }
+
+        // Filter for full episodes (duration >= 20 minutes) to avoid short clips/teasers
+        const validEpisodes = rawResults.filter(item => {
+            const seconds = item.seconds || 0;
+            return seconds >= 1200; // 1200 seconds = 20 minutes
+        });
+
+        const selectedDrama = validEpisodes.length > 0 ? validEpisodes[0] : rawResults[0];
+        const videoUrl = selectedDrama.url || `https://youtube.com/watch?v=${selectedDrama.videoId}`;
+        const dramaTitle = selectedDrama.title || query;
+
+        await conn.sendMessage(from, { text: `> *KAMRAN-MD DRAMA DOWNLOADER* 📺\n\n📌 *Found:* ${dramaTitle}\n_1080p video download ho rahi hai, barae meharbani intezar karein..._` }, { quoted: mek });
+
+        // Fetch direct 1080p download link using NexRay API
+        const api = `https://api.nexray.eu.cc/downloader/v1/ytmp4?url=${encodeURIComponent(videoUrl)}&resolusi=1080`;
+        const { data } = await axios.get(api, { 
+            timeout: 90000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+        });
+
+        const resData = data?.result || data;
+        const downloadUrl = resData?.url || resData?.downloadUrl;
+        const finalTitle = resData?.title || dramaTitle;
+
+        if (!downloadUrl) {
+            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+            return reply(`❌ Drama download link nahi mila: ${finalTitle}`);
+        }
+
+        // Send strictly as Direct Video message format in 1080p
+        await conn.sendMessage(from, {
+            video: { url: downloadUrl },
+            mimetype: 'video/mp4',
+            caption: `📺 *${finalTitle}*`
+        }, { quoted: mek });
+
+        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
+
+    } catch (e) {
+        console.error("[DRAMA ERROR]", e);
+        await conn.sendMessage(from, { react: { text: "❌", key: mek.key } }, { quoted: mek });
+        return reply(`❌ Error: ${e.message}`);
     }
-  });
-}
+});
