@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'url';
 import { cmd } from '../command.js';
 import axios from 'axios';
-import yts from 'ytsearch';
+import yts from 'yt-search';
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -10,10 +10,13 @@ const userSessions = new Map();
 // ==================== INTERACTIVE BODY LISTENER ====================
 cmd({
     on: "body"
-}, async (conn, mek, m, { from, body, sender }) => {
+}, async (conn, mek, m, { from, body }) => {
     try {
         if (!body) return;
         const text = body.trim().toLowerCase();
+        
+        // Get correct sender id (works for both private and group chats)
+        const sender = m.sender || mek.key?.participant || mek.participant || from;
         if (!userSessions.has(sender)) return;
 
         const session = userSessions.get(sender);
@@ -67,7 +70,7 @@ cmd({
     react: "🎶",
     filename: __filename
 },
-async (conn, mek, m, { from, text, reply, sender }) => {
+async (conn, mek, m, { from, text, reply }) => {
     try {
         const query = String(text || "").trim();
         if (!query) {
@@ -76,7 +79,7 @@ async (conn, mek, m, { from, text, reply, sender }) => {
 
         await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
-        // Using ytsearch package
+        // Using yt-search package properly
         const searchRes = await yts(query);
         const results = (searchRes?.videos || searchRes || []).slice(0, 20);
 
@@ -85,6 +88,7 @@ async (conn, mek, m, { from, text, reply, sender }) => {
             return reply(`❌ Koyi video ya drama nahi mila is query ke liye.`);
         }
         
+        const sender = m.sender || mek.key?.participant || mek.participant || from;
         userSessions.set(sender, {
             step: 'select_video',
             playlist: results
@@ -105,7 +109,7 @@ async (conn, mek, m, { from, text, reply, sender }) => {
         await conn.sendMessage(from, { text: listText }, { quoted: mek });
         await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
 
-    } catch (e) {
+    } package (e) {
         console.error("[PLAYLIST ERROR]", e);
         await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
         return reply(`❌ Error: ${e.message}`);
