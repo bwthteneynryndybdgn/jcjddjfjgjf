@@ -5,14 +5,33 @@ import yts from 'yt-search';
 
 const __filename = fileURLToPath(import.meta.url);
 
-// ==================== HELPER FUNCTION FOR DOWNLOAD WITH THUMBNAIL ====================
-async function sendMediaAsDoc(conn, mek, from, selectedMedia, typeName) {
+// ==================== HELPER FUNCTION FOR DETAIL & DOCUMENT ====================
+async function sendMediaWithDetails(conn, mek, from, selectedMedia, typeName) {
     const videoUrl = selectedMedia.url || `https://youtube.com/watch?v=${selectedMedia.videoId}`;
     const mediaTitle = selectedMedia.title || typeName;
     const thumbnail = selectedMedia.thumbnail || selectedMedia.image || "";
+    const duration = selectedMedia.timestamp || selectedMedia.duration || "N/A";
+    const views = selectedMedia.views ? selectedMedia.views.toLocaleString() : "N/A";
+    const authorName = selectedMedia.author?.name || "Unknown Channel";
 
-    await conn.sendMessage(from, { text: `> *KAMRAN-MD ${typeName.toUpperCase()} DOWNLOADER* 📥\n\n📌 *Found:* ${mediaTitle}\n_Document aur thumbnail download ho raha hai, intezar karein..._` }, { quoted: mek });
+    // 1. Pehle detailed card (Thumbnail image aur info ke sath) bhejenge
+    let infoText = `> *KAMRAN-MD ${typeName.toUpperCase()} DETAILS* 📺\n\n`;
+    infoText += `📌 *Title:* ${mediaTitle}\n`;
+    infoText += `👤 *Channel:* ${authorName}\n`;
+    infoText += `⏱️ *Duration:* ${duration}\n`;
+    infoText += `👁️ *Views:* ${views}\n\n`;
+    infoText += `_Document file download ho rahi hai, barae meharbani intezar karein..._`;
 
+    if (thumbnail) {
+        await conn.sendMessage(from, { 
+            image: { url: thumbnail }, 
+            caption: infoText 
+        }, { quoted: mek });
+    } else {
+        await conn.sendMessage(from, { text: infoText }, { quoted: mek });
+    }
+
+    // 2. NexRay API se video download link lena
     const api = `https://api.nexray.eu.cc/downloader/v1/ytmp4?url=${encodeURIComponent(videoUrl)}&resolusi=360`;
     const { data } = await axios.get(api, { 
         timeout: 90000,
@@ -27,7 +46,7 @@ async function sendMediaAsDoc(conn, mek, from, selectedMedia, typeName) {
         return conn.sendMessage(from, { text: `❌ Download link nahi mila: ${finalTitle}` });
     }
 
-    // Sending document with thumbnail preview
+    // 3. Akhir mein strictly Document format mein video bhejna
     let docPayload = {
         document: { url: downloadUrl },
         mimetype: 'video/mp4',
@@ -37,13 +56,12 @@ async function sendMediaAsDoc(conn, mek, from, selectedMedia, typeName) {
 
     if (thumbnail) {
         try {
-            // Fetch thumbnail buffer for preview
             const thumbBuffer = await axios.get(thumbnail, { responseType: 'arraybuffer' }).then(res => res.data);
             if (thumbBuffer) {
                 docPayload.jpegThumbnail = thumbBuffer.toString('base64');
             }
         } catch (err) {
-            console.log("Thumbnail fetch error:", err.message);
+            console.log("Thumbnail error:", err.message);
         }
     }
 
@@ -56,7 +74,7 @@ cmd({
     pattern: "drama",
     alias: ["pakdrama", "dramas"],
     use: '.drama <drama name>',
-    desc: "Search exact drama and download full episode as Document with Thumbnail",
+    desc: "Search drama, show details with photo, and download as Document",
     category: "downloader",
     react: "📺",
     filename: __filename
@@ -74,7 +92,7 @@ async (conn, mek, m, { from, text, reply }) => {
         const validEpisodes = rawResults.filter(item => (item.seconds || 0) >= 1200);
         const selected = validEpisodes.length > 0 ? validEpisodes[0] : rawResults[0];
 
-        await sendMediaAsDoc(conn, mek, from, selected, "drama");
+        await sendMediaWithDetails(conn, mek, from, selected, "drama");
     } catch (e) {
         reply(`❌ Error: ${e.message}`);
     }
@@ -85,7 +103,7 @@ cmd({
     pattern: "cartoon",
     alias: ["cartoons", "kids"],
     use: '.cartoon <cartoon name>',
-    desc: "Search exact cartoon and download full episode as Document with Thumbnail",
+    desc: "Search cartoon, show details with photo, and download as Document",
     category: "downloader",
     react: "🧸",
     filename: __filename
@@ -103,7 +121,7 @@ async (conn, mek, m, { from, text, reply }) => {
         const validEpisodes = rawResults.filter(item => (item.seconds || 0) >= 600);
         const selected = validEpisodes.length > 0 ? validEpisodes[0] : rawResults[0];
 
-        await sendMediaAsDoc(conn, mek, from, selected, "cartoon");
+        await sendMediaWithDetails(conn, mek, from, selected, "cartoon");
     } catch (e) {
         reply(`❌ Error: ${e.message}`);
     }
@@ -114,7 +132,7 @@ cmd({
     pattern: "video",
     alias: ["ytmp4", "song"],
     use: '.video <song or video name>',
-    desc: "Search and download any video or song as Document with Thumbnail",
+    desc: "Search video, show details with photo, and download as Document",
     category: "downloader",
     react: "📥",
     filename: __filename
@@ -130,7 +148,7 @@ async (conn, mek, m, { from, text, reply }) => {
         if (!rawResults.length) return reply(`❌ Koyi video nahi mili.`);
 
         const selected = rawResults[0];
-        await sendMediaAsDoc(conn, mek, from, selected, "video");
+        await sendMediaWithDetails(conn, mek, from, selected, "video");
     } catch (e) {
         reply(`❌ Error: ${e.message}`);
     }
