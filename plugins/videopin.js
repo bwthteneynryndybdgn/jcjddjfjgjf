@@ -57,8 +57,8 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
         await react("🔍");
         await reply(`🔍 _${toStylistUpper('Searching for')} *"${query}"* ${toStylistUpper('on Pinterest servers')}..._`);
 
-        const apiUrl = `https://api.nexray.eu.cc/search/pinterestvideo?q=${encodeURIComponent(query)}`;
-        const response = await axios.get(apiUrl, { timeout: 30000 });
+        const searchApiUrl = `https://api.nexray.eu.cc/search/pinterestvideo?q=${encodeURIComponent(query)}`;
+        const response = await axios.get(searchApiUrl, { timeout: 30000 });
         const resData = response.data;
 
         if (!resData || !resData.status || !resData.result || resData.result.length === 0) {
@@ -106,29 +106,51 @@ async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
                 if (isNaN(num) || num < 1 || num > videos.length) return;
                 
                 const selectedVideo = videos[num - 1];
-                if (!selectedVideo || !selectedVideo.video_url) return;
+                if (!selectedVideo || !selectedVideo.url) return;
 
                 client.ev.off("messages.upsert", downloadHandler);
                 clearTimeout(detailsTimeout);
 
                 await client.sendMessage(from, { react: { text: "📥", key: msg.key } });
-                await reply(`🚀 *${toStylistUpper('Processing Pinterest Video')}...* \n${toStylistUpper('Sending video. Please wait!')}`);
+                await reply(`🚀 *${toStylistUpper('Resolving Pinterest Video')}...* \n${toStylistUpper('Please wait!')}`);
+
+                // Pinterest Downloader API call to get direct playable/downloadable link
+                const dlApiUrl = `https://api.nexray.eu.cc/downloader/pinterest?url=${encodeURIComponent(selectedVideo.url)}`;
+                const dlRes = await axios.get(dlApiUrl, { timeout: 30000 });
+                const dlData = dlRes.data;
+
+                const directVideoUrl = dlData?.result?.url || dlData?.result?.video_url || dlData?.url || selectedVideo.video_url;
+
+                if (!directVideoUrl) {
+                    await client.sendMessage(from, { react: { text: "❌", key: msg.key } });
+                    return reply(`❌ *${toStylistUpper('Failed to fetch direct video download link.')}*`);
+                }
 
                 const videoTitle = selectedVideo.title && selectedVideo.title.trim() ? selectedVideo.title.trim() : 'Pinterest Video';
-                
+                const cleanFileName = `${videoTitle.replace(/[^a-zA-Z0-9 ]/g, "_").trim()}.mp4`;
+
                 let finalCaption = `❖ ── ✦ *${toStylistUpper(videoTitle)}* ✦ ── ❖\n\n`;
                 if (selectedVideo.description && selectedVideo.description.trim()) {
                     finalCaption += `📌 *${toStylistUpper('Description')}:* ${selectedVideo.description.trim()}\n\n`;
                 }
                 finalCaption += `> 💫 _${toStylistUpper('Powered by Kamran-Md')}_`;
 
-                await client.sendMessage(from, {
-                    video: { url: selectedVideo.video_url },
-                    caption: finalCaption,
-                    mimetype: "video/mp4",
-                    contextInfo: { mentionedJid: [msg.sender] }
-                }, { quoted: msg });
+                const thumbBuffer = await getThumbnailBuffer(selectedVideo.thumbnail);
 
+                // Sending as Document to bypass any HLS / streaming encryption or playback errors
+                let documentPayload = {
+                    document: { url: directVideoUrl },
+                    mimetype: "video/mp4",
+                    fileName: cleanFileName,
+                    caption: finalCaption,
+                    contextInfo: { mentionedJid: [msg.sender] }
+                };
+
+                if (thumbBuffer && Buffer.isBuffer(thumbBuffer)) {
+                    documentPayload.jpegThumbnail = thumbBuffer.toString('base64');
+                }
+
+                await client.sendMessage(from, documentPayload, { quoted: msg });
                 await client.sendMessage(from, { react: { text: "✅", key: msg.key } });
 
             } catch (dlErr) {
