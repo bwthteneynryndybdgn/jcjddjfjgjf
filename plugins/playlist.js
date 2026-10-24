@@ -65,7 +65,7 @@ cmd({
     pattern: "playlist",
     alias: ["ytslist", "all-list", "ytsearch"],
     use: '.playlist <drama name>',
-    desc: "Search YouTube properly and download full videos as Document",
+    desc: "Search YouTube properly and download exact videos as Document",
     category: "downloader",
     react: "🎶",
     filename: __filename
@@ -80,16 +80,11 @@ async (conn, mek, m, { from, text, reply }) => {
         await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
         const searchRes = await yts(query);
-        // Filter out very short videos (teasers/shorts under 3 minutes) so we get real full episodes
-        const rawResults = searchRes?.videos || searchRes || [];
-        const results = rawResults.filter(item => {
-            const seconds = item.seconds || 0;
-            return seconds > 180; // Only keep videos longer than 3 minutes
-        }).slice(0, 20);
+        const results = (searchRes?.videos || searchRes || []).slice(0, 20);
 
         if (!results || results.length === 0) {
             await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return reply(`❌ Koyi mukammal episode nahi mila is query ke liye. Kuch behtar naam likhein.`);
+            return reply(`❌ Koyi video nahi mili is query ke liye.`);
         }
         
         const sender = m.sender || mek.key?.participant || mek.participant || from;
@@ -128,11 +123,11 @@ async function downloadVideoDoc(conn, mek, from, video) {
             return conn.sendMessage(from, { text: `❌ Invalid video URL for: ${video.title || 'Unknown'}` });
         }
 
-        // Using VajiraOfc API with higher quality (480p or 720p) so full episodes download correctly with proper size
-        const api = `https://vajiraofc-apis.vercel.app/api/ytmp4?apikey=VajiraOfc&url=${encodeURIComponent(videoUrl)}&quality=480`;
+        // Using VajiraOfc API reliably for downloading exact stream URL
+        const api = `https://vajiraofc-apis.vercel.app/api/ytmp4?apikey=VajiraOfc&url=${encodeURIComponent(videoUrl)}&quality=360`;
         
         const { data } = await axios.get(api, { 
-            timeout: 90000,
+            timeout: 60000,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
@@ -146,7 +141,7 @@ async function downloadVideoDoc(conn, mek, from, video) {
             return conn.sendMessage(from, { text: `❌ Video download link nahi mila: ${title}` });
         }
 
-        // Strictly sending as Document format with correct size & headers
+        // Strictly sending as Document format with proper parameters
         await conn.sendMessage(from, {
             document: { url: downloadUrl },
             mimetype: 'video/mp4',
