@@ -1,200 +1,87 @@
-// plugins/song.js - ESM Version
 import { fileURLToPath } from 'url';
 import { cmd } from '../command.js';
-import config from '../config.js';
 import axios from 'axios';
-import yts from 'yt-search';
 
 const __filename = fileURLToPath(import.meta.url);
 
 cmd({
-    pattern: "song1",
-    alias: ["play1", "audio1", "ytmp31"],
-    react: '🎧',
-    desc: "Search and download songs with options (Audio, Document, Voice Note)",
+    pattern: "drama54",
+    alias: ["pakdrama", "dramas54"],
+    use: '.drama <drama name>',
+    desc: "Search exact drama and directly download the full episode as Video Document",
     category: "downloader",
+    react: "📺",
     filename: __filename
-}, async (client, message, m, { 
-    from, 
-    prefix, 
-    command, 
-    args, 
-    q, 
-    isCreator,
-    userConfig
-}) => {
+},
+async (conn, mek, m, { from, text, reply }) => {
     try {
-        const BOT_NAME = userConfig?.BOT_NAME || config.BOT_NAME || "𝙳𝙲𝚃 𝙽𝙸𝙽𝙹𝙰 𝚇 𝙼𝙳";
-
-        let text = q || (args ? args.join(' ') : '').trim();
-
-        if (!text) {
-            return await client.sendMessage(from, {
-                text: "❌ *Give me a song name!*"
-            }, { quoted: message });
+        const query = String(text || "").trim();
+        if (!query) {
+            return reply(`⚠️ *DRAMA SEARCH*\n\nUsage:\n• .drama <drama name>\nMisal ke tor par: .drama Mohabbat Episode 01`);
         }
 
-        // 🎯 reaction
-        await client.sendMessage(from, {
-            react: { text: '🎧', key: message.key }
+        await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
+
+        // Search strictly using user's query via VajiraOfc Search API
+        const searchApi = `https://vajiraofc-apis.vercel.app/api/ytsearch?apikey=VajiraOfc&q=${encodeURIComponent(query)}`;
+        const { data: searchRes } = await axios.get(searchApi, { timeout: 30000 });
+
+        const rawResults = searchRes?.results || [];
+
+        if (!rawResults || rawResults.length === 0) {
+            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+            return reply(`❌ Is naam ka koyi drama nahi mila.`);
+        }
+
+        // Filter for full episodes (duration >= 20 minutes) to avoid teasers/promos
+        const validEpisodes = rawResults.filter(item => {
+            const durStr = item.description?.duration || "0:00";
+            const parts = durStr.split(":");
+            if (parts.length === 2) {
+                const minutes = parseInt(parts[0]) || 0;
+                return minutes >= 20;
+            }
+            return true;
         });
 
-        // =========================
-        // 🔎 SEARCH VIA YT-SEARCH (Reliable)
-        // =========================
-        const searchResults = await yts(text);
-        const videos = searchResults?.videos || searchResults?.all;
+        // Agar filter ke baad bhi koi na mile toh raw result ka pehla item utha lein
+        const selectedDrama = validEpisodes.length > 0 ? validEpisodes[0] : rawResults[0];
+        const videoUrl = selectedDrama.url || `https://youtube.com/watch?v=${selectedDrama.id}`;
+        const dramaTitle = selectedDrama.title || query;
 
-        if (!videos || videos.length === 0) {
-            return await client.sendMessage(from, {
-                text: "❌ Song not found!"
-            }, { quoted: message });
+        await conn.sendMessage(from, { text: `> *KAMRAN-MD DRAMA DOWNLOADER* 📺\n\n📌 *Found:* ${dramaTitle}\n_Drama document download ho raha hai, barae meharbani intezar karein..._` }, { quoted: mek });
+
+        // Fetch direct download link using VajiraOfc YTMP4 API
+        const api = `https://vajiraofc-apis.vercel.app/api/ytmp4?apikey=VajiraOfc&url=${encodeURIComponent(videoUrl)}&quality=360`;
+        const { data } = await axios.get(api, { 
+            timeout: 60000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+        });
+
+        const resData = data?.data || data;
+        const downloadUrl = resData?.download?.url || resData?.downloadUrl || resData?.url;
+        const finalTitle = resData?.title || dramaTitle;
+
+        if (!downloadUrl) {
+            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+            return reply(`❌ Drama download link nahi mila: ${finalTitle}`);
         }
 
-        const video = videos[0];
-        const videoUrl = video.url;
+        // Send strictly as Document format
+        await conn.sendMessage(from, {
+            document: { url: downloadUrl },
+            mimetype: 'video/mp4',
+            fileName: `${finalTitle.replace(/[/\\?%*:|"<>]/g, '').trim()}.mp4`,
+            caption: `📺 *${finalTitle}*`
+        }, { quoted: mek });
 
-        // =========================
-        // UI MESSAGE
-        // =========================
-        const caption = `
-╭───「 🎧 ${BOT_NAME} 」───◆
-│
-│ 🎵 Title : ${video.title}
-│ ⏱️ Duration : ${video.timestamp}
-│ 👁️ Views : ${video.views}
-│
-╰────────────────────◆
-
-👉 Reply OR click button:
-1️⃣ AUDIO
-2️⃣ DOCUMENT
-3️⃣ VOICE
-`.trim();
-
-        // =========================
-        // SEND BUTTON MESSAGE
-        // =========================
-        await client.sendMessage(from, {
-            image: { url: video.thumbnail },
-            caption,
-            footer: BOT_NAME,
-            buttons: [
-                { buttonId: "song_audio", buttonText: { displayText: "🎧 AUDIO" }, type: 1 },
-                { buttonId: "song_doc", buttonText: { displayText: "📂 DOCUMENT" }, type: 1 },
-                { buttonId: "song_ptt", buttonText: { displayText: "🎤 VOICE" }, type: 1 }
-            ],
-            headerType: 4
-        }, { quoted: message });
-
-        // =========================
-        // LISTENER (BUTTON + NUMBER)
-        // =========================
-        const handler = async ({ messages }) => {
-            const incomingMsg = messages[0];
-            if (!incomingMsg?.message) return;
-
-            if (incomingMsg.key.remoteJid !== from) return;
-
-            let id =
-                incomingMsg.message?.buttonsResponseMessage?.selectedButtonId ||
-                incomingMsg.message?.templateButtonReplyMessage?.selectedId ||
-                incomingMsg.message?.interactiveResponseMessage?.nativeFlowResponseMessage?.paramsJson;
-
-            // parse interactive
-            if (!id && typeof id === "string") {
-                try {
-                    id = JSON.parse(id)?.id;
-                } catch {}
-            }
-
-            // number support
-            const textMsg =
-                incomingMsg.message?.conversation ||
-                incomingMsg.message?.extendedTextMessage?.text ||
-                "";
-
-            if (!id && textMsg) {
-                if (textMsg.trim() === "1") id = "song_audio";
-                if (textMsg.trim() === "2") id = "song_doc";
-                if (textMsg.trim() === "3") id = "song_ptt";
-            }
-
-            if (!id) return;
-
-            let type = null;
-            if (id === "song_audio") type = "audio";
-            if (id === "song_doc") type = "doc";
-            if (id === "song_ptt") type = "ptt";
-
-            if (!type) return;
-
-            client.ev.off("messages.upsert", handler);
-
-            await client.sendMessage(from, {
-                react: { text: '⬇️', key: incomingMsg.key }
-            });
-
-            try {
-                // =========================
-                // 🎧 DOWNLOAD API
-                // =========================
-                const dlApi = `https://www.movanest.xyz/v2/ytdl2?input=${encodeURIComponent(videoUrl)}&format=audio&bitrate=128`;
-
-                const dlRes = await axios.get(dlApi);
-                const downloadUrl = dlRes.data?.result?.download_url || dlRes.data?.download_url;
-
-                if (!downloadUrl) throw new Error("Download URL not found");
-
-                const audioBuffer = await axios.get(downloadUrl, {
-                    responseType: "arraybuffer"
-                });
-
-                const buffer = Buffer.from(audioBuffer.data);
-
-                // =========================
-                // SEND MEDIA
-                // =========================
-                if (type === "doc") {
-                    await client.sendMessage(from, {
-                        document: buffer,
-                        mimetype: "audio/mpeg",
-                        fileName: `${video.title.replace(/[^\w\s-]/g, '')}.mp3`,
-                        caption: `🎧 ${video.title}`
-                    }, { quoted: incomingMsg });
-
-                } else if (type === "ptt") {
-                    await client.sendMessage(from, {
-                        audio: buffer,
-                        mimetype: "audio/mpeg",
-                        ptt: true
-                    }, { quoted: incomingMsg });
-
-                } else {
-                    await client.sendMessage(from, {
-                        audio: buffer,
-                        mimetype: "audio/mpeg"
-                    }, { quoted: incomingMsg });
-                }
-
-                await client.sendMessage(from, {
-                    react: { text: '✅', key: incomingMsg.key }
-                });
-
-            } catch (err) {
-                console.log(err);
-                await client.sendMessage(from, {
-                    text: "❌ Download failed!"
-                }, { quoted: incomingMsg });
-            }
-        };
-
-        client.ev.on("messages.upsert", handler);
+        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
 
     } catch (e) {
-        console.log(e);
-        await client.sendMessage(from, {
-            text: "❌ System error"
-        }, { quoted: message });
+        console.error("[DRAMA ERROR]", e);
+        await conn.sendMessage(from, { react: { text: "❌", key: mek.key } }, { quoted: mek });
+        return reply(`❌ Error: ${e.message}`);
     }
 });
