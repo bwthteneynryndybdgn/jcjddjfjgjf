@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'url';
 import { cmd } from '../command.js';
 import axios from 'axios';
+import yts from 'ytsearch';
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -12,48 +13,43 @@ cmd({
 }, async (conn, mek, m, { from, body, sender }) => {
     try {
         if (!body) return;
-        const text = body.trim();
+        const text = body.trim().toLowerCase();
         if (!userSessions.has(sender)) return;
 
         const session = userSessions.get(sender);
 
-        // Step 1: User selects video number from the 20 playlist list
-        if (session.step === 'select_video' && /^\d+$/.test(text)) {
-            const actualIndex = parseInt(text) - 1;
-            const playlist = session.playlist;
+        if (session.step === 'select_video') {
+            // Agar user "all" likhe toh saari videos ek-ek karke download hongi
+            if (text === 'all' || text === 'sari') {
+                const playlist = session.playlist;
+                userSessions.delete(sender);
 
-            if (actualIndex >= 0 && actualIndex < playlist.length) {
-                const selectedVideo = playlist[actualIndex];
-                
-                userSessions.set(sender, {
-                    step: 'select_format',
-                    selectedVideo: selectedVideo
-                });
+                await conn.sendMessage(from, { text: `> *KAMRAN-MD BATCH DOWNLOADER* 📥\n\nSari ${playlist.length} videos/episodes ek-ek karke video document mein bheji ja rahi hain. Intezar karein!` }, { quoted: mek });
 
-                let msg = `> *KAMRAN-MD DOWNLOAD MANAGER* 📥\n\n`;
-                msg += `📌 *Selected:* ${selectedVideo.title}\n`;
-                msg += `🔗 *URL:* ${selectedVideo.url}\n\n`;
-                msg += `Ab aap kis format mein download karna chahte hain? Niche diye gaye number ka reply karein:\n\n`;
-                msg += `1️⃣ *Audio Document* (MP3)\n`;
-                msg += `2️⃣ *Video Document* (MP4)\n\n`;
-                msg += `_Apna jawab **1** ya **2** likh kar bhejein!_`;
+                for (let i = 0; i < playlist.length; i++) {
+                    await conn.sendMessage(from, { text: `⬇️ *Downloading (${i + 1}/${playlist.length}):* ${playlist[i].title}` }, { quoted: mek });
+                    await downloadVideoDoc(conn, mek, from, playlist[i]);
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                }
 
-                await conn.sendMessage(from, { text: msg }, { quoted: mek });
+                await conn.sendMessage(from, { text: `✅ All episodes successfully downloaded!` }, { quoted: mek });
                 return;
             }
-        }
 
-        // Step 2: User selects format (1 for Audio, 2 for Video)
-        if (session.step === 'select_format') {
-            const selectedVideo = session.selectedVideo;
-            const choice = text.toLowerCase();
+            // Agar user koi aik number select kare (misal: 1, 2, 3...)
+            if (/^\d+$/.test(text)) {
+                const actualIndex = parseInt(text) - 1;
+                const playlist = session.playlist;
 
-            if (choice === '1' || choice === 'audio' || choice === 'mp3') {
-                userSessions.delete(sender);
-                await downloadAudioDoc(conn, mek, from, selectedVideo);
-            } else if (choice === '2' || choice === 'video' || choice === 'mp4') {
-                userSessions.delete(sender);
-                await downloadVideoDoc(conn, mek, from, selectedVideo);
+                if (actualIndex >= 0 && actualIndex < playlist.length) {
+                    const selectedVideo = playlist[actualIndex];
+                    userSessions.delete(sender);
+
+                    await conn.sendMessage(from, { text: `> *KAMRAN-MD DOWNLOAD MANAGER* 📥\n\n📌 *Selected:* ${selectedVideo.title}\n_Video document download ho raha hai, barae meharbani intezar karein..._` }, { quoted: mek });
+                    
+                    await downloadVideoDoc(conn, mek, from, selectedVideo);
+                    return;
+                }
             }
         }
     } catch (err) {
@@ -64,9 +60,9 @@ cmd({
 // ==================== PLAYLIST / SEARCH COMMAND ====================
 cmd({
     pattern: "playlist",
-    alias: ["ytslist", "all-list"],
-    use: '.playlist <song name>',
-    desc: "Search YouTube, show 20 results playlist, then choose format to download as Document",
+    alias: ["ytslist", "all-list", "ytsearch"],
+    use: '.playlist <drama name>',
+    desc: "Search YouTube using ytsearch, show playlist, and download single or all videos as Video Document",
     category: "downloader",
     react: "🎶",
     filename: __filename
@@ -75,35 +71,36 @@ async (conn, mek, m, { from, text, reply, sender }) => {
     try {
         const query = String(text || "").trim();
         if (!query) {
-            return reply(`⚠️ *PLAYLIST SEARCH*\n\nUsage:\n• .playlist <song name>\nMisal ke tor par: .playlist Song pal`);
+            return reply(`⚠️ *PLAYLIST SEARCH*\n\nUsage:\n• .playlist <drama/song name>\nMisal ke tor par: .playlist Ishq Murshid ep 1`);
         }
 
         await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
-        const searchApi = `https://api.azbry.com/api/search/yts?q=${encodeURIComponent(query)}`;
-        const { data: searchRes } = await axios.get(searchApi, { timeout: 30000 });
+        // Using ytsearch package
+        const searchRes = await yts(query);
+        const results = (searchRes?.videos || searchRes || []).slice(0, 20);
 
-        if (!searchRes || !searchRes.result || searchRes.result.length === 0) {
+        if (!results || results.length === 0) {
             await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return reply(`❌ Koyi video nahi mili is query ke liye.`);
+            return reply(`❌ Koyi video ya drama nahi mila is query ke liye.`);
         }
-
-        const results = searchRes.result.slice(0, 20);
         
         userSessions.set(sender, {
             step: 'select_video',
             playlist: results
         });
 
-        let listText = `> *KAMRAN-MD YOUTUBE PLAYLIST (20 RESULTS)* 🎶\n\n`;
+        let listText = `> *KAMRAN-MD DRAMA / YOUTUBE PLAYLIST* 🎬\n\n`;
         listText += `🔍 *Query:* ${query}\n\n`;
 
         results.forEach((item, index) => {
             listText += `*${index + 1}.* ${item.title}\n`;
-            listText += `⏱️ *Duration:* ${item.duration || 'N/A'} | 👁️ *Views:* ${item.views || 'N/A'}\n\n`;
+            listText += `⏱️ *Duration:* ${item.timestamp || item.duration || 'N/A'}\n\n`;
         });
 
-        listText += `_Apni pasand ka number reply karein (**1** se **20** tak), uske baad aapko Audio ya Video Document ka option mil jayega!_`;
+        listText += `_Aapko kya chahiye?_\n`;
+        listText += `• Koyi aik number reply karein (misal: **1**)\n`;
+        listText += `• Ya phir saari videos download karne ke liye **all** likh kar bhejein!`;
 
         await conn.sendMessage(from, { text: listText }, { quoted: mek });
         await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
@@ -115,72 +112,19 @@ async (conn, mek, m, { from, text, reply, sender }) => {
     }
 });
 
-// ==================== HELPER: DOWNLOAD AUDIO DOCUMENT ====================
-async function downloadAudioDoc(conn, mek, from, video) {
-    try {
-        await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
-
-        const api = `https://api.azbry.com/api/download/ytmp3?url=${encodeURIComponent(video.url)}`;
-        const { data } = await axios.get(api, { timeout: 40000 });
-
-        console.log("YTMP3 API Response:", data); // Debugging ke liye
-
-        const downloadUrl = data?.result?.download || data?.download || data?.url;
-        const title = data?.result?.title || video.title || "audio";
-        const thumb = data?.result?.thumbnail || video.thumbnail;
-
-        if (!downloadUrl) {
-            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return conn.sendMessage(from, { text: `❌ Audio download link nahi mila.` }, { quoted: mek });
-        }
-
-        let caption = `> *KAMRAN-MD AUDIO DOCUMENT* 🎧\n\n`;
-        caption += `📌 *Title:* ${title}\n\n`;
-        caption += `_Aapka audio document bheja ja raha hai..._`;
-
-        if (thumb) {
-            await conn.sendMessage(from, { image: { url: thumb }, caption: caption }, { quoted: mek });
-        }
-
-        await conn.sendMessage(from, {
-            document: { url: downloadUrl },
-            mimetype: 'audio/mpeg',
-            fileName: `${title.replace(/[/\\?%*:|"<>]/g, '')}.mp3`,
-            caption: `🎵 ${title}`
-        }, { quoted: mek });
-
-        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
-    } catch (e) {
-        console.error("Audio Download Error:", e);
-        await conn.sendMessage(from, { text: `❌ Error: ${e.message}` }, { quoted: mek });
-    }
-}
-
 // ==================== HELPER: DOWNLOAD VIDEO DOCUMENT ====================
 async function downloadVideoDoc(conn, mek, from, video) {
     try {
-        await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
+        const videoUrl = video.url || `https://youtube.com/watch?v=${video.videoId}`;
+        const api = `https://api.omegatech.app/api/download/yt-dl?action=download&url=${encodeURIComponent(videoUrl)}&quality=360p`;
+        const { data } = await axios.get(api, { timeout: 45000 });
 
-        const api = `https://api.azbry.com/api/download/ytmp4?url=${encodeURIComponent(video.url)}`;
-        const { data } = await axios.get(api, { timeout: 40000 });
-
-        console.log("YTMP4 API Response:", data); // Debugging ke liye
-
-        const downloadUrl = data?.result?.download || data?.download || data?.url;
-        const title = data?.result?.title || video.title || "video";
-        const thumb = data?.result?.thumbnail || video.thumbnail;
+        const resData = data?.data;
+        const downloadUrl = resData?.downloadUrl || resData?.url;
+        const title = resData?.title || video.title || "video";
 
         if (!downloadUrl) {
-            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return conn.sendMessage(from, { text: `❌ Video download link nahi mila.` }, { quoted: mek });
-        }
-
-        let caption = `> *KAMRAN-MD VIDEO DOCUMENT* 📥\n\n`;
-        caption += `📌 *Title:* ${title}\n\n`;
-        caption += `_Aapka video document bheja ja raha hai..._`;
-
-        if (thumb) {
-            await conn.sendMessage(from, { image: { url: thumb }, caption: caption }, { quoted: mek });
+            return conn.sendMessage(from, { text: `❌ Video download link nahi mila: ${title}` }, { quoted: mek });
         }
 
         await conn.sendMessage(from, {
@@ -189,10 +133,8 @@ async function downloadVideoDoc(conn, mek, from, video) {
             fileName: `${title.replace(/[/\\?%*:|"<>]/g, '')}.mp4`,
             caption: `🎬 ${title}`
         }, { quoted: mek });
-
-        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
     } catch (e) {
         console.error("Video Download Error:", e);
-        await conn.sendMessage(from, { text: `❌ Error: ${e.message}` }, { quoted: mek });
+        await conn.sendMessage(from, { text: `❌ Error downloading video: ${e.message}` }, { quoted: mek });
     }
 }
