@@ -15,7 +15,6 @@ cmd({
         if (!body) return;
         const text = body.trim().toLowerCase();
         
-        // Get correct sender id (works for both private and group chats)
         const sender = m.sender || mek.key?.participant || mek.participant || from;
         if (!userSessions.has(sender)) return;
 
@@ -109,7 +108,7 @@ async (conn, mek, m, { from, text, reply }) => {
         await conn.sendMessage(from, { text: listText }, { quoted: mek });
         await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
 
-    } package (e) {
+    } catch (e) {
         console.error("[PLAYLIST ERROR]", e);
         await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
         return reply(`❌ Error: ${e.message}`);
