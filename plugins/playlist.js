@@ -1,7 +1,6 @@
 import { fileURLToPath } from 'url';
 import { cmd } from '../command.js';
 import axios from 'axios';
-import yts from 'yt-search';
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -25,7 +24,7 @@ cmd({
                 const playlist = session.playlist;
                 userSessions.delete(sender);
 
-                await conn.sendMessage(from, { text: `> *KAMRAN-MD BATCH DOWNLOADER* 📥\n\nSari ${playlist.length} videos aaram se 1 minute ke delay ke sath document mein bheji ja rahi hain. Intezar karein!` }, { quoted: mek });
+                await conn.sendMessage(from, { text: `> *KAMRAN-MD BATCH DOWNLOADER* 📥\n\nSari ${playlist.length} episodes aaram se 1 minute ke delay ke sath document mein bheji ja rahi hain. Intezar karein!` }, { quoted: mek });
 
                 for (let i = 0; i < playlist.length; i++) {
                     await conn.sendMessage(from, { text: `⬇️ *Downloading (${i + 1}/${playlist.length}):* ${playlist[i].title}\n_Baraye meharbani intezar karein..._` }, { quoted: mek });
@@ -44,7 +43,6 @@ cmd({
                 const userChoice = parseInt(text);
                 const playlist = session.playlist;
 
-                // Exact index mapping (1-based index to 0-based index)
                 if (userChoice >= 1 && userChoice <= playlist.length) {
                     const selectedVideo = playlist[userChoice - 1];
                     userSessions.delete(sender);
@@ -63,12 +61,12 @@ cmd({
     }
 });
 
-// ==================== PLAYLIST / SEARCH COMMAND ====================
+// ==================== PLAYLIST / SEARCH COMMAND (VajiraOfc Search API) ====================
 cmd({
     pattern: "playlist",
     alias: ["ytslist", "all-list", "ytsearch"],
     use: '.playlist <drama name>',
-    desc: "Search YouTube properly and download exact videos as Document",
+    desc: "Search YouTube using VajiraOfc Search API and download exact videos as Document",
     category: "downloader",
     react: "🎶",
     filename: __filename
@@ -77,17 +75,35 @@ async (conn, mek, m, { from, text, reply }) => {
     try {
         const query = String(text || "").trim();
         if (!query) {
-            return reply(`⚠️ *PLAYLIST SEARCH*\n\nUsage:\n• .playlist <drama/song name>\nMisal ke tor par: .playlist Mohabbat`);
+            return reply(`⚠️ *PLAYLIST SEARCH*\n\nUsage:\n• .playlist <drama/song name>\nMisal ke tor par: .playlist Drama mohabbat`);
         }
 
         await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
-        const searchRes = await yts(query);
-        const results = (searchRes?.videos || searchRes || []).slice(0, 20);
+        // Using VajiraOfc official search API endpoint
+        const searchApi = `https://vajiraofc-apis.vercel.app/api/ytsearch?apikey=VajiraOfc&q=${encodeURIComponent(query)}`;
+        const { data: searchRes } = await axios.get(searchApi, { timeout: 30000 });
 
-        if (!results || results.length === 0) {
+        const rawResults = searchRes?.results || [];
+
+        if (!rawResults || rawResults.length === 0) {
             await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
             return reply(`❌ Koyi video nahi mili is query ke liye.`);
+        }
+
+        // Filter out teasers/promos (duration format check: "MM:SS" or skip short clips under 3 minutes)
+        const results = rawResults.filter(item => {
+            const durStr = item.description?.duration || "0:00";
+            const parts = durStr.split(":");
+            if (parts.length === 2) {
+                const minutes = parseInt(parts[0]) || 0;
+                return minutes >= 3; // Keep only videos >= 3 minutes (full episodes)
+            }
+            return true;
+        }).slice(0, 20);
+
+        if (results.length === 0) {
+            return reply(`❌ Koyi mukammal episode nahi mila. Koshish karein ke poora naam likhein.`);
         }
         
         const sender = m.sender || mek.key?.participant || mek.participant || from;
@@ -101,12 +117,12 @@ async (conn, mek, m, { from, text, reply }) => {
 
         results.forEach((item, index) => {
             listText += `*${index + 1}.* ${item.title}\n`;
-            listText += `⏱️ *Duration:* ${item.timestamp || item.duration || 'N/A'}\n\n`;
+            listText += `⏱️ *Duration:* ${item.description?.duration || 'N/A'} | 👁️ *Views:* ${item.description?.views || 'N/A'}\n\n`;
         });
 
         listText += `_Aapko kya chahiye?_\n`;
-        listText += `• Koyi aik number reply karein (misal: **4**)\n`;
-        listText += `• Ya phir saari videos document mein lene ke liye **all** likh kar bhejein!`;
+        listText += `• Koyi aik number reply karein (misal: **1**)\n`;
+        listText += `• Ya phir saari episodes document mein lene ke liye **all** likh kar bhejein!`;
 
         await conn.sendMessage(from, { text: listText }, { quoted: mek });
         await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
@@ -121,7 +137,7 @@ async (conn, mek, m, { from, text, reply }) => {
 // ==================== HELPER: STRICT VIDEO DOCUMENT DOWNLOAD ====================
 async function downloadVideoDoc(conn, mek, from, video) {
     try {
-        const videoUrl = video.url || (video.videoId ? `https://youtube.com/watch?v=${video.videoId}` : null);
+        const videoUrl = video.url || `https://youtube.com/watch?v=${video.id}`;
         if (!videoUrl) {
             return conn.sendMessage(from, { text: `❌ Invalid video URL for: ${video.title || 'Unknown'}` });
         }
