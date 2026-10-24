@@ -21,24 +21,22 @@ cmd({
         const session = userSessions.get(sender);
 
         if (session.step === 'select_video') {
-            // Agar user "all" likhe toh saari videos ek-ek karke download hongi
             if (text === 'all' || text === 'sari') {
                 const playlist = session.playlist;
                 userSessions.delete(sender);
 
-                await conn.sendMessage(from, { text: `> *KAMRAN-MD BATCH DOWNLOADER* 📥\n\nSari ${playlist.length} videos/episodes ek-ek karke video document mein bheji ja rahi hain. Intezar karein!` }, { quoted: mek });
+                await conn.sendMessage(from, { text: `> *KAMRAN-MD BATCH DOWNLOADER* 📥\n\nSari ${playlist.length} videos/episodes ek-ek karke Document mein bheji ja rahi hain. Intezar karein!` }, { quoted: mek });
 
                 for (let i = 0; i < playlist.length; i++) {
                     await conn.sendMessage(from, { text: `⬇️ *Downloading (${i + 1}/${playlist.length}):* ${playlist[i].title}` }, { quoted: mek });
                     await downloadVideoDoc(conn, mek, from, playlist[i]);
-                    await new Promise(resolve => setTimeout(resolve, 3000));
+                    await new Promise(resolve => setTimeout(resolve, 4000)); // Delay to prevent spam/blocking
                 }
 
-                await conn.sendMessage(from, { text: `✅ All episodes successfully downloaded!` }, { quoted: mek });
+                await conn.sendMessage(from, { text: `✅ All episodes successfully downloaded as Documents!` }, { quoted: mek });
                 return;
             }
 
-            // Agar user koi aik number select kare (misal: 1, 2, 3...)
             if (/^\d+$/.test(text)) {
                 const actualIndex = parseInt(text) - 1;
                 const playlist = session.playlist;
@@ -47,7 +45,7 @@ cmd({
                     const selectedVideo = playlist[actualIndex];
                     userSessions.delete(sender);
 
-                    await conn.sendMessage(from, { text: `> *KAMRAN-MD DOWNLOAD MANAGER* 📥\n\n📌 *Selected:* ${selectedVideo.title}\n_Video document download ho raha hai, barae meharbani intezar karein..._` }, { quoted: mek });
+                    await conn.sendMessage(from, { text: `> *KAMRAN-MD DOWNLOAD MANAGER* 📥\n\n📌 *Selected:* ${selectedVideo.title}\n_Video Document download ho raha hai, barae meharbani intezar karein..._` }, { quoted: mek });
                     
                     await downloadVideoDoc(conn, mek, from, selectedVideo);
                     return;
@@ -64,7 +62,7 @@ cmd({
     pattern: "playlist",
     alias: ["ytslist", "all-list", "ytsearch"],
     use: '.playlist <drama name>',
-    desc: "Search YouTube using ytsearch, show playlist, and download single or all videos as Video Document",
+    desc: "Search YouTube using ytsearch, show playlist, and download single or all videos strictly as Document",
     category: "downloader",
     react: "🎶",
     filename: __filename
@@ -73,12 +71,11 @@ async (conn, mek, m, { from, text, reply }) => {
     try {
         const query = String(text || "").trim();
         if (!query) {
-            return reply(`⚠️ *PLAYLIST SEARCH*\n\nUsage:\n• .playlist <drama/song name>\nMisal ke tor par: .playlist Ishq Murshid ep 1`);
+            return reply(`⚠️ *PLAYLIST SEARCH*\n\nUsage:\n• .playlist <drama/song name>\nMisal ke tor par: .playlist Saza-e-Mohabbat`);
         }
 
         await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
-        // Using yt-search package properly
         const searchRes = await yts(query);
         const results = (searchRes?.videos || searchRes || []).slice(0, 20);
 
@@ -103,7 +100,7 @@ async (conn, mek, m, { from, text, reply }) => {
 
         listText += `_Aapko kya chahiye?_\n`;
         listText += `• Koyi aik number reply karein (misal: **1**)\n`;
-        listText += `• Ya phir saari videos download karne ke liye **all** likh kar bhejein!`;
+        listText += `• Ya phir saari videos document mein lene ke liye **all** likh kar bhejein!`;
 
         await conn.sendMessage(from, { text: listText }, { quoted: mek });
         await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
@@ -115,30 +112,30 @@ async (conn, mek, m, { from, text, reply }) => {
     }
 });
 
-// ==================== HELPER: DOWNLOAD VIDEO DOCUMENT ====================
+// ==================== HELPER: STRICT VIDEO DOCUMENT DOWNLOAD ====================
 async function downloadVideoDoc(conn, mek, from, video) {
     try {
         const videoUrl = video.url || `https://youtube.com/watch?v=${video.videoId}`;
-        // Updated working Omegatech YouTube download API endpoint
         const api = `https://api.omegatech.app/api/download/YouTube?action=download&url=${encodeURIComponent(videoUrl)}`;
-        const { data } = await axios.get(api, { timeout: 45000 });
+        const { data } = await axios.get(api, { timeout: 50000 });
 
         const resData = data?.data || data?.result || data;
         const downloadUrl = resData?.downloadUrl || resData?.url || resData?.download;
         const title = resData?.title || video.title || "video";
 
         if (!downloadUrl) {
-            return conn.sendMessage(from, { text: `❌ Video download link nahi mila: ${title}` }, { quoted: mek });
+            return conn.sendMessage(from, { text: `❌ Video download link nahi mila: ${title}` });
         }
 
+        // Strictly sending as Document format with proper mimetype and filename
         await conn.sendMessage(from, {
             document: { url: downloadUrl },
             mimetype: 'video/mp4',
-            fileName: `${title.replace(/[/\\?%*:|"<>]/g, '')}.mp4`,
-            caption: `🎬 ${title}`
-        }, { quoted: mek });
+            fileName: `${title.replace(/[/\\?%*:|"<>]/g, '').trim()}.mp4`,
+            caption: `🎬 *${title}*`
+        });
     } catch (e) {
-        console.error("Video Download Error:", e);
-        await conn.sendMessage(from, { text: `❌ Error downloading video: ${e.message}` }, { quoted: mek });
+        console.error("Video Document Download Error:", e);
+        await conn.sendMessage(from, { text: `❌ Download failed for: ${video.title || 'Video'}\nReason: ${e.message}` });
     }
 }
