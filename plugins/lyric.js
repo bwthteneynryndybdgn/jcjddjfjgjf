@@ -6,10 +6,10 @@ import yts from 'yt-search';
 const __filename = fileURLToPath(import.meta.url);
 
 cmd({
-    pattern: "drama74",
-    alias: ["pakdrama53", "dramas64"],
+    pattern: "drama637",
+    alias: ["pakdrama53", "dramas"],
     use: '.drama <drama name>',
-    desc: "Search exact drama using yt-search and directly download full episode in 1080p Video using NexRay API",
+    desc: "Search exact drama using yt-search and download full episode using NexRay API",
     category: "downloader",
     react: "📺",
     filename: __filename
@@ -23,7 +23,7 @@ async (conn, mek, m, { from, text, reply }) => {
 
         await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
-        // Using yt-search package instead of VajiraOfc search API
+        // Using yt-search package
         const searchRes = await yts(query);
         const rawResults = searchRes?.videos || searchRes || [];
 
@@ -32,7 +32,7 @@ async (conn, mek, m, { from, text, reply }) => {
             return reply(`❌ Is naam ka koyi drama nahi mila.`);
         }
 
-        // Filter for full episodes (duration >= 20 minutes) to avoid short clips/teasers
+        // Filter for full episodes (duration >= 20 minutes)
         const validEpisodes = rawResults.filter(item => {
             const seconds = item.seconds || 0;
             return seconds >= 1200; // 1200 seconds = 20 minutes
@@ -42,10 +42,10 @@ async (conn, mek, m, { from, text, reply }) => {
         const videoUrl = selectedDrama.url || `https://youtube.com/watch?v=${selectedDrama.videoId}`;
         const dramaTitle = selectedDrama.title || query;
 
-        await conn.sendMessage(from, { text: `> *KAMRAN-MD DRAMA DOWNLOADER* 📺\n\n📌 *Found:* ${dramaTitle}\n_1080p video download ho rahi hai, barae meharbani intezar karein..._` }, { quoted: mek });
+        await conn.sendMessage(from, { text: `> *KAMRAN-MD DRAMA DOWNLOADER* 📺\n\n📌 *Found:* ${dramaTitle}\n_Video download ho rahi hai, barae meharbani intezar karein..._` }, { quoted: mek });
 
-        // Fetch direct 1080p download link using NexRay API
-        const api = `https://api.nexray.eu.cc/downloader/v1/ytmp4?url=${encodeURIComponent(videoUrl)}&resolusi=1080`;
+        // Fetch download link using NexRay API with 360 resolution to prevent upload host failure
+        const api = `https://api.nexray.eu.cc/downloader/v1/ytmp4?url=${encodeURIComponent(videoUrl)}&resolusi=360`;
         const { data } = await axios.get(api, { 
             timeout: 90000,
             headers: {
@@ -62,7 +62,7 @@ async (conn, mek, m, { from, text, reply }) => {
             return reply(`❌ Drama download link nahi mila: ${finalTitle}`);
         }
 
-        // Send strictly as Direct Video message format in 1080p
+        // Send as Direct Video message format
         await conn.sendMessage(from, {
             video: { url: downloadUrl },
             mimetype: 'video/mp4',
