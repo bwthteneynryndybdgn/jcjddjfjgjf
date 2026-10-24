@@ -119,11 +119,12 @@ async (conn, mek, m, { from, text, reply }) => {
 async function downloadVideoDoc(conn, mek, from, video) {
     try {
         const videoUrl = video.url || `https://youtube.com/watch?v=${video.videoId}`;
-        const api = `https://api.omegatech.app/api/download/yt-dl?action=download&url=${encodeURIComponent(videoUrl)}&quality=360p`;
+        // Updated working Omegatech YouTube download API endpoint
+        const api = `https://api.omegatech.app/api/download/YouTube?action=download&url=${encodeURIComponent(videoUrl)}`;
         const { data } = await axios.get(api, { timeout: 45000 });
 
-        const resData = data?.data;
-        const downloadUrl = resData?.downloadUrl || resData?.url;
+        const resData = data?.data || data?.result || data;
+        const downloadUrl = resData?.downloadUrl || resData?.url || resData?.download;
         const title = resData?.title || video.title || "video";
 
         if (!downloadUrl) {
