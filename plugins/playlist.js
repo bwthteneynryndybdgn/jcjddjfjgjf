@@ -1,219 +1,203 @@
-//---------------------------------------------------------------------------
-//           KAMRAN-MD - YOUTUBE INTERACTIVE PLAYLIST & DOWNLOADER
-//---------------------------------------------------------------------------
-
-import axios from 'axios';
 import { fileURLToPath } from 'url';
-import path from 'path';
 import { cmd } from '../command.js';
+import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
-const AUTHOR = "KAMRAN-MINI-BOT";
+// Store user sessions: { senderJid: { step: 'select_video' | 'select_format', playlist: [...], selectedVideo: {...} } }
+const userSessions = new Map();
 
+// ==================== INTERACTIVE BODY LISTENER ====================
 cmd({
-    pattern: "playlist",
-    alias: ["play", "ytsearch", "yts", "song"],
-    desc: "Search YouTube songs and download as Audio/Video Document",
-    category: "downloader",
-    filename: __filename
-},
-async (conn, mek, m, { from, text, reply, react, socket, sock, usedPrefix, command }) => {
-    const client = socket || sock || conn;
-    const chatId = from || m.chat;
-    const sender = m.sender;
-
+    on: "body"
+}, async (conn, mek, m, { from, body, sender }) => {
     try {
-        const q = text ? text.trim() : "";
+        if (!body) return;
+        const text = body.trim();
+        if (!userSessions.has(sender)) return;
 
-        if (!q) {
-            return reply(
-                "❌ *Opps! Query Missing* ❌\n\n" +
-                "Kripya gaane ka naam likhein!\n" +
-                `📌 *Example:* \`${usedPrefix + command} song pal\``
-            );
-        }
+        const session = userSessions.get(sender);
 
-        await react("🔍");
-        await reply(`🔍 _Searching for *"${q}"* on YouTube..._`);
+        // Step 1: User selects video number from the 20 playlist list
+        if (session.step === 'select_video' && /^\d+$/.test(text)) {
+            const index = parseInt(text) -formatIndex(1); // 1-based index
+            const actualIndex = parseInt(text) - 1;
+            const playlist = session.playlist;
 
-        const searchUrl = `https://api.azbry.com/api/search/yts?q=${encodeURIComponent(q)}`;
-        let response;
-        try {
-            response = await axios.get(searchUrl, { timeout: 30000 });
-        } catch (err) {
-            await react("❌");
-            return reply(`❌ *Search API Connection Failed:* ${err.message}`);
-        }
-
-        if (!response || !response.data) {
-            await react("❌");
-            return reply("🛸 *API Error:* Server responded with an empty response.");
-        }
-
-        const apiData = response.data;
-        const results = apiData.result || apiData.data || (Array.isArray(apiData) ? apiData : []);
-
-        if (results.length === 0) {
-            await react("❌");
-            return reply(`🛸 *No Results Found!*\n*"${q}"* se related kuch nahi mila.`);
-        }
-
-        if (!global.db.data) global.db.data = {};
-        if (!global.db.data.ytSearchCache) global.db.data.ytSearchCache = {};
-        global.db.data.ytSearchCache[sender] = results;
-
-        let listText = `┏━━━━━━━━━━━━━━━━━━━━━━┓\n`;
-        listText += `┃ 🎵 *YOUTUBE PLAYLIST* 🎵 ┃\n`;
-        listText += `┗━━━━━━━━━━━━━━━━━━━━━━┛\n\n`;
-        listText += `🔎 *Query:* \`${q.toUpperCase()}\`\n`;
-        listText += `✨ *Results Found:* ${results.length}\n\n`;
-        listText += `┌─────────────────────┐\n`;
-
-        const limit = Math.min(results.length, 20);
-        for (let i = 0; i < limit; i++) {
-            const v = results[i];
-            const title = (v.title || 'Unknown').length > 35 ? (v.title || 'Unknown').substring(0, 35) + '...' : (v.title || 'Unknown');
-            listText += `┃ 🎶 *[${i + 1}]* _${title}_\n`;
-            listText += `┃      ⏱️ ${v.duration || 'N/A'} | 👁️ ${v.views || 'N/A'}\n`;
-            if (i !== limit - 1) listText += `┃─────────────────────┃\n`;
-        }
-
-        listText += `└─────────────────────┘\n\n`;
-        listText += `⚡ *Reply with the song number* to choose download format.\n\n`;
-        listText += `> *© ${AUTHOR} ッ*`;
-
-        const sentSearch = await client.sendMessage(chatId, { text: listText }, { quoted: mek });
-        const searchMsgId = sentSearch.key.id;
-        let formatTimeout;
-
-        const formatHandler = async (update) => {
-            try {
-                const msg = update.messages[0];
-                if (!msg?.message || msg.key.remoteJid !== chatId) return;
-
-                const ctx = msg.message.extendedTextMessage?.contextInfo || msg.message.conversation?.contextInfo;
-                if (!ctx || ctx.stanzaId !== searchMsgId) return;
-
-                const choice = (msg.message.conversation || msg.message.extendedTextMessage?.text || "").trim();
-                const num = parseInt(choice);
-                if (isNaN(num) || num < 1 || num > limit) return;
+            if (actualIndex >= 0 && actualIndex < playlist.length) {
+                const selectedVideo = playlist[actualIndex];
                 
-                const selectedSong = results[num - 1];
-                if (!selectedSong) return;
+                // Update session to next step: format selection
+                userSessions.set(sender, {
+                    step: 'select_format',
+                    selectedVideo: selectedVideo
+                });
 
-                client.ev.off("messages.upsert", formatHandler);
-                clearTimeout(formatTimeout);
+                let msg = `> *KAMRAN-MD DOWNLOAD MANAGER* 📥\n\n`;
+                msg += `📌 *Selected:* ${selectedVideo.title}\n`;
+                msg += `🔗 *URL:* ${selectedVideo.url}\n\n`;
+                msg += `Ab aap kis format mein download karna chahte hain? Niche diye gaye number ya word ka reply karein:\n\n`;
+                msg += `1️⃣ *Audio Document* (MP3)\n`;
+                msg += `2️⃣ *Video Document* (MP4)\n\n`;
+                msg += `_Apna jawab **1** ya **2** likh kar bhejein!_`;
 
-                await client.sendMessage(chatId, { react: { text: "⏳", key: msg.key } });
-
-                let formatText = `┏━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n`;
-                formatText += `┃ 🎬 *${selectedSong.title || 'Selected Song'}*\n`;
-                formatText += `┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n`;
-                formatText += `⏱️ *Duration:* ${selectedSong.duration || 'N/A'}\n`;
-                formatText += `👁️ *Views:* ${selectedSong.views || 'N/A'}\n\n`;
-                formatText += `┌───────── CHOOSE FORMAT ─────────┐\n`;
-                formatText += `┃ 🔥 *[1]* 🎵 Download as MP3 (Audio Document)\n`;
-                formatText += `┃─────────────────────────────┃\n`;
-                formatText += `┃ 🔥 *[2]* 🎬 Download as MP4 (Video Document)\n`;
-                formatText += `└───────────────────────────────┘\n\n`;
-                formatText += `⚡ *Reply '1' for MP3* or *'2' for MP4*.\n\n`;
-                formatText += `> *© ${AUTHOR} ッ*`;
-
-                const sentFormat = await client.sendMessage(chatId, { text: formatText }, { quoted: msg });
-                const formatMsgId = sentFormat.key.id;
-                let downloadTimeout;
-
-                const downloadHandler = async (up) => {
-                    try {
-                        const dlMsg = up.messages[0];
-                        if (!dlMsg?.message || dlMsg.key.remoteJid !== chatId) return;
-
-                        const dlCtx = dlMsg.message.extendedTextMessage?.contextInfo || dlMsg.message.conversation?.contextInfo;
-                        if (!dlCtx || dlCtx.stanzaId !== formatMsgId) return;
-
-                        const opt = (dlMsg.message.conversation || dlMsg.message.extendedTextMessage?.text || "").trim();
-                        if (opt !== '1' && opt !== '2') return;
-
-                        client.ev.off("messages.upsert", downloadHandler);
-                        clearTimeout(downloadTimeout);
-
-                        const isVideo = opt === '2';
-                        await client.sendMessage(chatId, { react: { text: "📥", key: dlMsg.key } });
-                        await client.sendMessage(chatId, { text: `🚀 *Downloading ${isVideo ? 'MP4 Video' : 'MP3 Audio'} as Document...* Please wait!` }, { quoted: dlMsg });
-
-                        const targetUrl = selectedSong.url || selectedSong.link;
-                        const apiUrl = isVideo 
-                            ? `https://api.azbry.com/api/download/ytmp4?url=${encodeURIComponent(targetUrl)}`
-                            : `https://api.azbry.com/api/download/ytmp3?url=${encodeURIComponent(targetUrl)}`;
-
-                        let apiRes;
-                        try {
-                            apiRes = await axios.get(apiUrl, { timeout: 60000 });
-                        } catch (dlApiErr) {
-                            await client.sendMessage(chatId, { react: { text: "❌", key: dlMsg.key } });
-                            return client.sendMessage(chatId, { text: `❌ *Download API Error:* ${dlApiErr.message}` }, { quoted: dlMsg });
-                        }
-
-                        if (!apiRes || !apiRes.data) {
-                            await client.sendMessage(chatId, { react: { text: "❌", key: dlMsg.key } });
-                            return client.sendMessage(chatId, { text: "❌ *Error:* Failed to fetch download URL from API." }, { quoted: dlMsg });
-                        }
-
-                        const resData = apiRes.data.result || apiRes.data;
-                        const downloadUrl = resData?.download;
-                        const fileTitle = resData?.title || selectedSong.title || 'media';
-                        
-                        if (!downloadUrl) {
-                            await client.sendMessage(chatId, { react: { text: "❌", key: dlMsg.key } });
-                            return client.sendMessage(chatId, { text: "❌ *Error:* Download link not found in API response." }, { quoted: dlMsg });
-                        }
-
-                        const cleanFileName = `${fileTitle.replace(/[^a-zA-Z0-9 ]/g, "_")}.${isVideo ? 'mp4' : 'mp3'}`;
-
-                        let documentPayload = {
-                            document: { url: downloadUrl },
-                            mimetype: isVideo ? "video/mp4" : "audio/mpeg",
-                            fileName: cleanFileName,
-                            caption: `🎵 *${fileTitle}*\n\n> *© ${AUTHOR} ッ*`
-                        };
-
-                        if (selectedSong.thumbnail) {
-                            try {
-                                const thumbRes = await axios.get(selectedSong.thumbnail, { responseType: 'arraybuffer', timeout: 10000 });
-                                documentPayload.jpegThumbnail = Buffer.from(thumbRes.data);
-                            } catch (e) {}
-                        }
-
-                        await client.sendMessage(chatId, documentPayload, { quoted: dlMsg });
-                        await client.sendMessage(chatId, { react: { text: "✅", key: dlMsg.key } });
-
-                    } catch (dlErr) {
-                        console.error("Download failed:", dlErr.message);
-                        await client.sendMessage(chatId, { react: { text: "❌", key: up.messages[0].key } });
-                        client.sendMessage(chatId, { text: `❌ *Error during download:* ${dlErr.message}` }, { quoted: up.messages[0] });
-                    }
-                };
-
-                client.ev.on("messages.upsert", downloadHandler);
-                formatTimeout = setTimeout(() => {
-                    client.ev.off("messages.upsert", downloadHandler);
-                }, 300000);
-
-            } catch (detErr) {
-                console.error("Format selection failed:", detErr.message);
+                await conn.sendMessage(from, { text: msg }, { quoted: mek });
+                return;
             }
-        };
+        }
 
-        client.ev.on("messages.upsert", formatHandler);
-        formatTimeout = setTimeout(() => {
-            client.ev.off("messages.upsert", formatHandler);
-        }, 300000);
+        // Step 2: User selects format (1 for Audio, 2 for Video)
+        if (session.step === 'select_format') {
+            const selectedVideo = session.selectedVideo;
+            const choice = text.toLowerCase();
 
-    } catch (e) {
-        console.error("Play command error:", e.message);
-        await react("❌");
-        return reply(`❌ *Error Processing Request:* ${e.message}`);
+            if (choice === '1' || choice === 'audio' || choice === 'mp3') {
+                userSessions.delete(sender); // Clear session
+                await downloadAudioDoc(conn, mek, from, selectedVideo);
+            } else if (choice === '2' || choice === 'video' || choice === 'mp4') {
+                userSessions.delete(sender); // Clear session
+                await downloadVideoDoc(conn, mek, from, selectedVideo);
+            }
+        }
+    } catch (err) {
+        console.error("Playlist Session Error:", err);
     }
 });
+
+// ==================== PLAYLIST / SEARCH COMMAND ====================
+cmd({
+    pattern: "playlist",
+    alias: ["ytslist", "all-list"],
+    use: '.playlist <song name>',
+    desc: "Search YouTube, show 20 results playlist, then choose format to download as Document",
+    category: "downloader",
+    react: "🎶",
+    filename: __filename
+},
+async (conn, mek, m, { from, text, reply, sender }) => {
+    try {
+        const query = String(text || "").trim();
+        if (!query) {
+            return reply(`⚠️ *PLAYLIST SEARCH*\n\nUsage:\n• .playlist <song name>\nMisal ke tor par: .playlist Song pal`);
+        }
+
+        await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
+
+        // Fetch search results (20 playlist items) from API
+        const searchApi = `https://api.azbry.com/api/search/yts?q=${encodeURIComponent(query)}`;
+        const { data: searchRes } = await axios.get(searchApi, { timeout: 30000 });
+
+        if (!searchRes || !searchRes.result || searchRes.result.length === 0) {
+            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+            return reply(`❌ Koyi video nahi mili is query ke liye.`);
+        }
+
+        const results = searchRes.result.slice(0, 20); // Top 20 list
+        
+        // Save session
+        userSessions.set(sender, {
+            step: 'select_video',
+            playlist: results
+        });
+
+        let listText = `> *KAMRAN-MD YOUTUBE PLAYLIST (20 RESULTS)* 🎶\n\n`;
+        listText += `🔍 *Query:* ${query}\n\n`;
+
+        results.forEach((item, index) => {
+            listText += `*${index + 1}.* ${item.title}\n`;
+            listText += `⏱️ *Duration:* ${item.duration || 'N/A'} | 👁️ *Views:* ${item.views || 'N/A'}\n\n`;
+        });
+
+        listText += `_Apni pasand ka number reply karein (**1** se **20** tak), uske baad aapko Audio ya Video Document ka option mil jayega!_`;
+
+        await conn.sendMessage(from, { text: listText }, { quoted: mek });
+        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
+
+    } catch (e) {
+        console.error("[PLAYLIST ERROR]", e);
+        await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+        return reply(`❌ Error: ${e.message}`);
+    }
+});
+
+// ==================== HELPER: DOWNLOAD AUDIO DOCUMENT ====================
+async function downloadAudioDoc(conn, mek, from, video) {
+    try {
+        await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
+
+        const api = `https://api.azbry.com/api/download/ytmp3?url=${encodeURIComponent(video.url)}`;
+        const { data } = await axios.get(api, { timeout: 40000 });
+
+        if (!data || !data.success || !data.result || !data.result.download) {
+            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+            return conn.sendMessage(from, { text: `❌ Audio download link fetch karne mein nakami hui.` }, { quoted: mek });
+        }
+
+        const resData = data.result;
+        let caption = `> *KAMRAN-MD AUDIO DOCUMENT* 🎧\n\n`;
+        caption += `📌 *Title:* ${resData.title}\n`;
+        caption += `👤 *Channel:* ${resData.channel || 'Unknown'}\n`;
+        caption += `⏱️ *Duration:* ${resData.duration || 'N/A'}\n\n`;
+        caption += `_Aapka audio document bheja ja raha hai..._`;
+
+        if (resData.thumbnail) {
+            await conn.sendMessage(from, { image: { url: resData.thumbnail }, caption: caption }, { quoted: mek });
+        }
+
+        await conn.sendMessage(from, {
+            document: { url: resData.download },
+            mimetype: 'audio/mpeg',
+            fileName: `${resData.title.replace(/[/\\?%*:|"<>]/g, '')}.mp3`,
+            caption: `🎵 ${resData.title}`
+        }, { quoted: mek });
+
+        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
+    } catch (e) {
+        console.error("Audio Download Error:", e);
+        await conn.sendMessage(from, { text: `❌ Error: ${e.message}` }, { quoted: mek });
+    }
+}
+
+// ==================== HELPER: DOWNLOAD VIDEO DOCUMENT ====================
+async function downloadVideoDoc(conn, mek, from, video) {
+    try {
+        await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
+
+        const api = `https://api.azbry.com/api/download/ytmp4?url=${encodeURIComponent(video.url)}`;
+        const { data } = await axios.get(api, { timeout: 40000 });
+
+        if (!data || !data.success || !data.result || !data.result.download) {
+            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+            return conn.sendMessage(from, { text: `❌ Video download link fetch karne mein nakami hui.` }, { quoted: mek });
+        }
+
+        const resData = data.result;
+        let caption = `> *KAMRAN-MD VIDEO DOCUMENT* 📥\n\n`;
+        caption += `📌 *Title:* ${resData.title}\n`;
+        caption += `👤 *Author:* ${resData.author || 'Unknown'}\n`;
+        caption += `📺 *Quality:* ${resData.quality || '720p'}\n`;
+        caption += `⏱️ *Duration:* ${resData.duration || 'N/A'}\n\n`;
+        caption += `_Aapka video document bheja ja raha hai..._`;
+
+        if (resData.thumbnail) {
+            await conn.sendMessage(from, { image: { url: resData.thumbnail }, caption: caption }, { quoted: mek });
+        }
+
+        await conn.sendMessage(from, {
+            document: { url: resData.download },
+            mimetype: 'video/mp4',
+            fileName: `${resData.title.replace(/[/\\?%*:|"<>]/g, '')}.mp4`,
+            caption: `🎬 ${resData.title}`
+        }, { quoted: mek });
+
+        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
+    } catch (e) {
+        console.error("Video Download Error:", e);
+        await conn.sendMessage(from, { text: `❌ Error: ${e.message}` }, { quoted: mek });
+    }
+}
+
+// Helper function placeholder for index fix
+function formatIndex(n) {
+    return n;
+}
