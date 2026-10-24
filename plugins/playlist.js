@@ -41,17 +41,20 @@ cmd({
             }
 
             if (/^\d+$/.test(text)) {
-                const actualIndex = parseInt(text) - 1;
+                const userChoice = parseInt(text);
                 const playlist = session.playlist;
 
-                if (actualIndex >= 0 && actualIndex < playlist.length) {
-                    const selectedVideo = playlist[actualIndex];
+                // Exact index mapping (1-based index to 0-based index)
+                if (userChoice >= 1 && userChoice <= playlist.length) {
+                    const selectedVideo = playlist[userChoice - 1];
                     userSessions.delete(sender);
 
                     await conn.sendMessage(from, { text: `> *KAMRAN-MD DOWNLOAD MANAGER* 📥\n\n📌 *Selected:* ${selectedVideo.title}\n_Video Document download ho raha hai, barae meharbani intezar karein..._` }, { quoted: mek });
                     
                     await downloadVideoDoc(conn, mek, from, selectedVideo);
                     return;
+                } else {
+                    return conn.sendMessage(from, { text: `⚠️ Baraye meharbani 1 se ${playlist.length} ke darmiyan koi number select karein.` }, { quoted: mek });
                 }
             }
         }
@@ -74,7 +77,7 @@ async (conn, mek, m, { from, text, reply }) => {
     try {
         const query = String(text || "").trim();
         if (!query) {
-            return reply(`⚠️ *PLAYLIST SEARCH*\n\nUsage:\n• .playlist <drama/song name>\nMisal ke tor par: .playlist Ishq Murshid`);
+            return reply(`⚠️ *PLAYLIST SEARCH*\n\nUsage:\n• .playlist <drama/song name>\nMisal ke tor par: .playlist Mohabbat`);
         }
 
         await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
@@ -102,7 +105,7 @@ async (conn, mek, m, { from, text, reply }) => {
         });
 
         listText += `_Aapko kya chahiye?_\n`;
-        listText += `• Koyi aik number reply karein (misal: **1**)\n`;
+        listText += `• Koyi aik number reply karein (misal: **4**)\n`;
         listText += `• Ya phir saari videos document mein lene ke liye **all** likh kar bhejein!`;
 
         await conn.sendMessage(from, { text: listText }, { quoted: mek });
@@ -123,7 +126,6 @@ async function downloadVideoDoc(conn, mek, from, video) {
             return conn.sendMessage(from, { text: `❌ Invalid video URL for: ${video.title || 'Unknown'}` });
         }
 
-        // Using VajiraOfc API reliably for downloading exact stream URL
         const api = `https://vajiraofc-apis.vercel.app/api/ytmp4?apikey=VajiraOfc&url=${encodeURIComponent(videoUrl)}&quality=360`;
         
         const { data } = await axios.get(api, { 
@@ -141,7 +143,6 @@ async function downloadVideoDoc(conn, mek, from, video) {
             return conn.sendMessage(from, { text: `❌ Video download link nahi mila: ${title}` });
         }
 
-        // Strictly sending as Document format with proper parameters
         await conn.sendMessage(from, {
             document: { url: downloadUrl },
             mimetype: 'video/mp4',
