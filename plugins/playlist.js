@@ -25,14 +25,14 @@ cmd({
                 const playlist = session.playlist;
                 userSessions.delete(sender);
 
-                await conn.sendMessage(from, { text: `> *KAMRAN-MD BATCH DOWNLOADER* 📥\n\nSari ${playlist.length} videos/episodes aaram se 1 minute ke delay ke sath document mein bheji jayengi. Intezar karein!` }, { quoted: mek });
+                await conn.sendMessage(from, { text: `> *KAMRAN-MD BATCH DOWNLOADER* 📥\n\nSari ${playlist.length} videos aaram se 1 minute ke delay ke sath document mein bheji ja rahi hain. Intezar karein!` }, { quoted: mek });
 
                 for (let i = 0; i < playlist.length; i++) {
                     await conn.sendMessage(from, { text: `⬇️ *Downloading (${i + 1}/${playlist.length}):* ${playlist[i].title}\n_Baraye meharbani intezar karein..._` }, { quoted: mek });
                     await downloadVideoDoc(conn, mek, from, playlist[i]);
                     
                     if (i < playlist.length - 1) {
-                        await new Promise(resolve => setTimeout(resolve, 60000)); // 1 minute delay between batch items
+                        await new Promise(resolve => setTimeout(resolve, 60000)); // 1 minute delay
                     }
                 }
 
@@ -65,7 +65,7 @@ cmd({
     pattern: "playlist",
     alias: ["ytslist", "all-list", "ytsearch"],
     use: '.playlist <drama name>',
-    desc: "Search YouTube using ytsearch, show playlist, and download single or all videos strictly as Document using VajiraOfc API",
+    desc: "Search YouTube properly and download exact videos as Document",
     category: "downloader",
     react: "🎶",
     filename: __filename
@@ -79,6 +79,7 @@ async (conn, mek, m, { from, text, reply }) => {
 
         await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
+        // Proper search query execution
         const searchRes = await yts(query);
         const results = (searchRes?.videos || searchRes || []).slice(0, 20);
 
@@ -103,23 +104,27 @@ async (conn, mek, m, { from, text, reply }) => {
 
         listText += `_Aapko kya chahiye?_\n`;
         listText += `• Koyi aik number reply karein (misal: **1**)\n`;
-        listText += `• Ya phir saari episodes aaram se document mein lene ke liye **all** likh kar bhejein!`;
+        listText += `• Ya phir saari videos document mein lene ke liye **all** likh kar bhejein!`;
 
         await conn.sendMessage(from, { text: listText }, { quoted: mek });
         await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
 
     } catch (e) {
         console.error("[PLAYLIST ERROR]", e);
-        await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+        await conn.sendMessage(from, { react: { text: "❌", key: mek.key } }, { quoted: mek });
         return reply(`❌ Error: ${e.message}`);
     }
 });
 
-// ==================== HELPER: STRICT VIDEO DOCUMENT DOWNLOAD (VajiraOfc API) ====================
+// ==================== HELPER: STRICT VIDEO DOCUMENT DOWNLOAD ====================
 async function downloadVideoDoc(conn, mek, from, video) {
     try {
-        const videoUrl = video.url || `https://youtube.com/watch?v=${video.videoId}`;
-        // Using VajiraOfc YTMP4 API
+        // Ensure we extract the exact video url or watch link
+        const videoUrl = video.url || (video.videoId ? `https://youtube.com/watch?v=${video.videoId}` : null);
+        if (!videoUrl) {
+            return conn.sendMessage(from, { text: `❌ Invalid video URL for: ${video.title || 'Unknown'}` });
+        }
+
         const api = `https://vajiraofc-apis.vercel.app/api/ytmp4?apikey=VajiraOfc&url=${encodeURIComponent(videoUrl)}&quality=360`;
         
         const { data } = await axios.get(api, { 
@@ -137,7 +142,7 @@ async function downloadVideoDoc(conn, mek, from, video) {
             return conn.sendMessage(from, { text: `❌ Video download link nahi mila: ${title}` });
         }
 
-        // Strictly sending as Document format
+        // Strictly sending as Document format with correct headers
         await conn.sendMessage(from, {
             document: { url: downloadUrl },
             mimetype: 'video/mp4',
