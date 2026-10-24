@@ -4,7 +4,6 @@ import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
 
-// Store user sessions: { senderJid: { step: 'select_video' | 'select_format', playlist: [...], selectedVideo: {...} } }
 const userSessions = new Map();
 
 // ==================== INTERACTIVE BODY LISTENER ====================
@@ -20,14 +19,12 @@ cmd({
 
         // Step 1: User selects video number from the 20 playlist list
         if (session.step === 'select_video' && /^\d+$/.test(text)) {
-            const index = parseInt(text) -formatIndex(1); // 1-based index
             const actualIndex = parseInt(text) - 1;
             const playlist = session.playlist;
 
             if (actualIndex >= 0 && actualIndex < playlist.length) {
                 const selectedVideo = playlist[actualIndex];
                 
-                // Update session to next step: format selection
                 userSessions.set(sender, {
                     step: 'select_format',
                     selectedVideo: selectedVideo
@@ -36,7 +33,7 @@ cmd({
                 let msg = `> *KAMRAN-MD DOWNLOAD MANAGER* 📥\n\n`;
                 msg += `📌 *Selected:* ${selectedVideo.title}\n`;
                 msg += `🔗 *URL:* ${selectedVideo.url}\n\n`;
-                msg += `Ab aap kis format mein download karna chahte hain? Niche diye gaye number ya word ka reply karein:\n\n`;
+                msg += `Ab aap kis format mein download karna chahte hain? Niche diye gaye number ka reply karein:\n\n`;
                 msg += `1️⃣ *Audio Document* (MP3)\n`;
                 msg += `2️⃣ *Video Document* (MP4)\n\n`;
                 msg += `_Apna jawab **1** ya **2** likh kar bhejein!_`;
@@ -52,10 +49,10 @@ cmd({
             const choice = text.toLowerCase();
 
             if (choice === '1' || choice === 'audio' || choice === 'mp3') {
-                userSessions.delete(sender); // Clear session
+                userSessions.delete(sender);
                 await downloadAudioDoc(conn, mek, from, selectedVideo);
             } else if (choice === '2' || choice === 'video' || choice === 'mp4') {
-                userSessions.delete(sender); // Clear session
+                userSessions.delete(sender);
                 await downloadVideoDoc(conn, mek, from, selectedVideo);
             }
         }
@@ -83,7 +80,6 @@ async (conn, mek, m, { from, text, reply, sender }) => {
 
         await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
-        // Fetch search results (20 playlist items) from API
         const searchApi = `https://api.azbry.com/api/search/yts?q=${encodeURIComponent(query)}`;
         const { data: searchRes } = await axios.get(searchApi, { timeout: 30000 });
 
@@ -92,9 +88,8 @@ async (conn, mek, m, { from, text, reply, sender }) => {
             return reply(`❌ Koyi video nahi mili is query ke liye.`);
         }
 
-        const results = searchRes.result.slice(0, 20); // Top 20 list
+        const results = searchRes.result.slice(0, 20);
         
-        // Save session
         userSessions.set(sender, {
             step: 'select_video',
             playlist: results
@@ -128,27 +123,30 @@ async function downloadAudioDoc(conn, mek, from, video) {
         const api = `https://api.azbry.com/api/download/ytmp3?url=${encodeURIComponent(video.url)}`;
         const { data } = await axios.get(api, { timeout: 40000 });
 
-        if (!data || !data.success || !data.result || !data.result.download) {
+        console.log("YTMP3 API Response:", data); // Debugging ke liye
+
+        const downloadUrl = data?.result?.download || data?.download || data?.url;
+        const title = data?.result?.title || video.title || "audio";
+        const thumb = data?.result?.thumbnail || video.thumbnail;
+
+        if (!downloadUrl) {
             await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return conn.sendMessage(from, { text: `❌ Audio download link fetch karne mein nakami hui.` }, { quoted: mek });
+            return conn.sendMessage(from, { text: `❌ Audio download link nahi mila.` }, { quoted: mek });
         }
 
-        const resData = data.result;
         let caption = `> *KAMRAN-MD AUDIO DOCUMENT* 🎧\n\n`;
-        caption += `📌 *Title:* ${resData.title}\n`;
-        caption += `👤 *Channel:* ${resData.channel || 'Unknown'}\n`;
-        caption += `⏱️ *Duration:* ${resData.duration || 'N/A'}\n\n`;
+        caption += `📌 *Title:* ${title}\n\n`;
         caption += `_Aapka audio document bheja ja raha hai..._`;
 
-        if (resData.thumbnail) {
-            await conn.sendMessage(from, { image: { url: resData.thumbnail }, caption: caption }, { quoted: mek });
+        if (thumb) {
+            await conn.sendMessage(from, { image: { url: thumb }, caption: caption }, { quoted: mek });
         }
 
         await conn.sendMessage(from, {
-            document: { url: resData.download },
+            document: { url: downloadUrl },
             mimetype: 'audio/mpeg',
-            fileName: `${resData.title.replace(/[/\\?%*:|"<>]/g, '')}.mp3`,
-            caption: `🎵 ${resData.title}`
+            fileName: `${title.replace(/[/\\?%*:|"<>]/g, '')}.mp3`,
+            caption: `🎵 ${title}`
         }, { quoted: mek });
 
         await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
@@ -166,28 +164,30 @@ async function downloadVideoDoc(conn, mek, from, video) {
         const api = `https://api.azbry.com/api/download/ytmp4?url=${encodeURIComponent(video.url)}`;
         const { data } = await axios.get(api, { timeout: 40000 });
 
-        if (!data || !data.success || !data.result || !data.result.download) {
+        console.log("YTMP4 API Response:", data); // Debugging ke liye
+
+        const downloadUrl = data?.result?.download || data?.download || data?.url;
+        const title = data?.result?.title || video.title || "video";
+        const thumb = data?.result?.thumbnail || video.thumbnail;
+
+        if (!downloadUrl) {
             await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return conn.sendMessage(from, { text: `❌ Video download link fetch karne mein nakami hui.` }, { quoted: mek });
+            return conn.sendMessage(from, { text: `❌ Video download link nahi mila.` }, { quoted: mek });
         }
 
-        const resData = data.result;
         let caption = `> *KAMRAN-MD VIDEO DOCUMENT* 📥\n\n`;
-        caption += `📌 *Title:* ${resData.title}\n`;
-        caption += `👤 *Author:* ${resData.author || 'Unknown'}\n`;
-        caption += `📺 *Quality:* ${resData.quality || '720p'}\n`;
-        caption += `⏱️ *Duration:* ${resData.duration || 'N/A'}\n\n`;
+        caption += `📌 *Title:* ${title}\n\n`;
         caption += `_Aapka video document bheja ja raha hai..._`;
 
-        if (resData.thumbnail) {
-            await conn.sendMessage(from, { image: { url: resData.thumbnail }, caption: caption }, { quoted: mek });
+        if (thumb) {
+            await conn.sendMessage(from, { image: { url: thumb }, caption: caption }, { quoted: mek });
         }
 
         await conn.sendMessage(from, {
-            document: { url: resData.download },
+            document: { url: downloadUrl },
             mimetype: 'video/mp4',
-            fileName: `${resData.title.replace(/[/\\?%*:|"<>]/g, '')}.mp4`,
-            caption: `🎬 ${resData.title}`
+            fileName: `${title.replace(/[/\\?%*:|"<>]/g, '')}.mp4`,
+            caption: `🎬 ${title}`
         }, { quoted: mek });
 
         await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
@@ -195,9 +195,4 @@ async function downloadVideoDoc(conn, mek, from, video) {
         console.error("Video Download Error:", e);
         await conn.sendMessage(from, { text: `❌ Error: ${e.message}` }, { quoted: mek });
     }
-}
-
-// Helper function placeholder for index fix
-function formatIndex(n) {
-    return n;
 }
