@@ -1,5 +1,5 @@
 //---------------------------------------------------------------------------
-//           KAMRAN-MD - PINTEREST VIDEO SEARCH PLUGIN
+//           KAMRAN-MD - PINTEREST INTERACTIVE DOWNLOADER PLUGIN
 //---------------------------------------------------------------------------
 
 import { fileURLToPath } from 'url';
@@ -22,63 +22,130 @@ const toStylistUpper = (text) => {
     return text.split('').map(char => uppercaseMap[char] || char).join('');
 };
 
+async function getThumbnailBuffer(url) {
+  if (!url) return null;
+  try {
+    const { data } = await axios.get(url, { responseType: "arraybuffer", timeout: 15000 });
+    return Buffer.from(data);
+  } catch (err) {
+    return null;
+  }
+}
+
 cmd({
-    pattern: "pinsearchv",
-    alias: ["pinterestv", "pinvid"],
+    pattern: "pinsearch",
+    alias: ["pinterest", "pinvid"],
     use: '.pinsearch <query>',
-    desc: "Search videos from Pinterest via API",
+    desc: "Search and download videos from Pinterest via API",
     category: "downloader",
     react: "📌",
     filename: __filename
 },
-async (conn, mek, m, { from, text, reply }) => {
+async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
+    const client = socket || sock || conn;
+
     try {
         const query = String(text || "").trim();
         if (!query) {
-            return reply(`⚠️ *${toStylistUpper('Usage')}:* .pinsearch <query>\n\n*${toStylistUpper('Example')}:* \`.pinsearch Cat food\``);
+            return reply(
+                `❌ *${toStylistUpper('Opps! Query Missing')}* ❌\n\n` +
+                `${toStylistUpper('Please provide a search query for Pinterest videos!')}\n` +
+                `📌 *${toStylistUpper('Example')}:* \`.pinsearch Cat food\``
+            );
         }
 
-        await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
+        await react("🔍");
+        await reply(`🔍 _${toStylistUpper('Searching for')} *"${query}"* ${toStylistUpper('on Pinterest servers')}..._`);
 
         const apiUrl = `https://api.nexray.eu.cc/search/pinterestvideo?q=${encodeURIComponent(query)}`;
         const response = await axios.get(apiUrl, { timeout: 30000 });
         const resData = response.data;
 
         if (!resData || !resData.status || !resData.result || resData.result.length === 0) {
-            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return reply(`❌ *${toStylistUpper('No Pinterest videos found for this query.')}*`);
+            await react("❌");
+            return reply(`🛸 *${toStylistUpper('No Results Found!')}*\n${toStylistUpper('Pinterest par')} *"${query}"* ${toStylistUpper('se related koi video nahi mili.')}`);
         }
 
-        const videos = resData.result.slice(0, 10); // Displaying top 10 results
+        const videos = resData.result.slice(0, 10);
 
-        let listText = `❖ ── ✦ *${toStylistUpper('Pinterest Video Search')}* ✦ ── ❖\n\n`;
-        listText += `╔═════ ⌈ *⚡ ${toStylistUpper('Search Info')}* ⌋ ═════✧\n`;
-        listText += `║ 🔎 *${toStylistUpper('Query')}:* ${query}\n`;
-        listText += `║ ✨ *${toStylistUpper('Total Found')}:* ${resData.result.length}\n`;
+        let listText = `╔═════ ⌈ *⚡ ${toStylistUpper('Pinterest Search')}* ⌋ ═════✧\n`;
+        listText += `║ 🔎 *${toStylistUpper('Query')}:* \`${query.toUpperCase()}\`\n`;
+        listText += `║ ✨ *${toStylistUpper('Results Found')}:* ${videos.length}\n`;
         listText += `╚══════════════════════✧\n\n`;
-        listText += `╔═════ ⌈ *📂 ${toStylistUpper('Top Results')}* ⌋ ═════✧\n`;
+        listText += `╔═════ ⌈ *📂 ${toStylistUpper('Select Video')}* ⌋ ═════✧\n`;
 
         videos.forEach((item, index) => {
             const cleanTitle = item.title && item.title.trim() ? item.title.trim() : 'Pinterest Video';
             const displayTitle = cleanTitle.length > 40 ? cleanTitle.substring(0, 40) + '...' : cleanTitle;
-            listText += `║ *${index + 1}.* ${displayTitle}\n`;
-            listText += `║ 🔗 \`${item.video_url || item.url}\`\n`;
+            listText += `║ 🎥 *[${index + 1}]* _${displayTitle}_\n`;
             if (index !== videos.length - 1) listText += `║─────────────────────║\n`;
         });
 
         listText += `╚══════════════════════✧\n\n`;
+        listText += `⚡ *${toStylistUpper('Reply with the item number to download video.')}*\n\n`;
         listText += `> 💫 _${toStylistUpper('Powered by Kamran-Md')}_`;
 
-        await conn.sendMessage(from, { 
+        const sentSearch = await client.sendMessage(from, {
             text: listText,
             contextInfo: { mentionedJid: [mek.sender] }
         }, { quoted: mek });
 
-        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
+        const searchMsgId = sentSearch.key.id;
+        let detailsTimeout;
+
+        const downloadHandler = async (update) => {
+            try {
+                const msg = update.messages[0];
+                if (!msg?.message || msg.key.remoteJid !== from) return;
+
+                const ctx = msg.message.extendedTextMessage?.contextInfo || msg.message.conversation?.contextInfo;
+                if (!ctx || ctx.stanzaId !== searchMsgId) return;
+
+                const choice = (msg.message.conversation || msg.message.extendedTextMessage?.text || "").trim();
+                const num = parseInt(choice);
+                if (isNaN(num) || num < 1 || num > videos.length) return;
+                
+                const selectedVideo = videos[num - 1];
+                if (!selectedVideo || !selectedVideo.video_url) return;
+
+                client.ev.off("messages.upsert", downloadHandler);
+                clearTimeout(detailsTimeout);
+
+                await client.sendMessage(from, { react: { text: "📥", key: msg.key } });
+                await reply(`🚀 *${toStylistUpper('Processing Pinterest Video')}...* \n${toStylistUpper('Sending video. Please wait!')}`);
+
+                const videoTitle = selectedVideo.title && selectedVideo.title.trim() ? selectedVideo.title.trim() : 'Pinterest Video';
+                
+                let finalCaption = `❖ ── ✦ *${toStylistUpper(videoTitle)}* ✦ ── ❖\n\n`;
+                if (selectedVideo.description && selectedVideo.description.trim()) {
+                    finalCaption += `📌 *${toStylistUpper('Description')}:* ${selectedVideo.description.trim()}\n\n`;
+                }
+                finalCaption += `> 💫 _${toStylistUpper('Powered by Kamran-Md')}_`;
+
+                await client.sendMessage(from, {
+                    video: { url: selectedVideo.video_url },
+                    caption: finalCaption,
+                    mimetype: "video/mp4",
+                    contextInfo: { mentionedJid: [msg.sender] }
+                }, { quoted: msg });
+
+                await client.sendMessage(from, { react: { text: "✅", key: msg.key } });
+
+            } catch (dlErr) {
+                console.error("Pinterest download failed:", dlErr.message);
+                reply(`❌ ${toStylistUpper('An error occurred during video delivery')}: ${dlErr.message}`);
+            }
+        };
+
+        client.ev.on("messages.upsert", downloadHandler);
+        
+        detailsTimeout = setTimeout(() => {
+            client.ev.off("messages.upsert", downloadHandler);
+        }, 300000);
 
     } catch (e) {
-        console.error("Pinterest Search Error:", e);
-        await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-        return reply(`❌ Error: ${e.message}`);
+        console.error("Pinterest Search Error:", e.message);
+        await react("❌");
+        return reply(`❌ *${toStylistUpper('Error Processing Request')}:* ${e.message}`);
     }
 });
