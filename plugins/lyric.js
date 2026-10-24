@@ -1,85 +1,105 @@
+// plugins/video.js - ESM Version
 import { fileURLToPath } from 'url';
 import { cmd } from '../command.js';
 import axios from 'axios';
+import yts from 'yt-search';
 
 const __filename = fileURLToPath(import.meta.url);
 
-cmd({
-    pattern: "drama54",
-    alias: ["pakdrama", "dramas54"],
-    use: '.drama <drama name>',
-    desc: "Search exact drama and directly download the full episode as Video",
-    category: "downloader",
-    react: "📺",
-    filename: __filename
-},
-async (conn, mek, m, { from, text, reply }) => {
+function extractVideoId(input) {
+  const shortMatch = input.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
+  if (shortMatch) return shortMatch[1];
+
+  const watchMatch = input.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
+  if (watchMatch) return watchMatch[1];
+
+  return null;
+}
+
+async function handleVideo(input, client, message, from) {
+  await client.sendMessage(from, { react: { text: "⬇️", key: message.key } });
+  let url = input;
+  let videoInfo = null;
+
+  const id = extractVideoId(input);
+  if (id) {
+    url = `https://www.youtube.com/watch?v=${id}`;
     try {
-        const query = String(text || "").trim();
-        if (!query) {
-            return reply(`⚠️ *DRAMA SEARCH*\n\nUsage:\n• .drama <drama name>\nMisal ke tor par: .drama Mohabbat Episode 01`);
-        }
+      const info = await yts({ videoId: id });
+      if (info) videoInfo = info;
+    } catch {}
+  } else {
+    const cleanQuery = input.replace(/^[a-zA-Z0-9]+\s+/, "").trim() || input;
+    const search = await yts(cleanQuery);
+    const videos = search?.videos || search?.all || [];
+    if (!videos.length) throw new Error("YouTube par koi result nahi mila.");
+    
+    videoInfo = videos[0];
+    const vid = videoInfo.videoId || extractVideoId(videoInfo.url);
+    if (!vid) throw new Error("Video ID extract nahi ho saki.");
+    
+    url = `https://www.youtube.com/watch?v=${vid}`;
+  }
 
-        await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
+  const title = videoInfo?.title || "Unknown Video";
+  const duration = videoInfo?.duration?.timestamp || videoInfo?.timestamp || "";
 
-        // Search strictly using user's query via VajiraOfc Search API
-        const searchApi = `https://vajiraofc-apis.vercel.app/api/ytsearch?apikey=VajiraOfc&q=${encodeURIComponent(query)}`;
-        const { data: searchRes } = await axios.get(searchApi, { timeout: 30000 });
+  // NexRay API integration
+  const apiUrl = `https://api.nexray.eu.cc/downloader/v1/ytmp4?url=${encodeURIComponent(url)}&resolusi=1080`;
+  const res = await axios.get(apiUrl, { timeout: 40_000, validateStatus: () => true }).catch(() => null);
 
-        const rawResults = searchRes?.results || [];
+  if (!res || !res.data) {
+    throw new Error("Video download API response nahi de rahi.");
+  }
 
-        if (!rawResults || rawResults.length === 0) {
-            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return reply(`❌ Is naam ka koyi drama nahi mila.`);
-        }
+  const data = res.data;
+  const videoUrl = 
+    data?.result?.url || 
+    data?.result?.download || 
+    data?.result?.mp4 || 
+    data?.url || 
+    data?.download;
 
-        // Filter for full episodes (duration >= 20 minutes) to avoid teasers/promos
-        const validEpisodes = rawResults.filter(item => {
-            const durStr = item.description?.duration || "0:00";
-            const parts = durStr.split(":");
-            if (parts.length === 2) {
-                const minutes = parseInt(parts[0]) || 0;
-                return minutes >= 20;
-            }
-            return true;
-        });
+  if (!videoUrl || typeof videoUrl !== "string" || !videoUrl.startsWith("http")) {
+    throw new Error("Video URL extract nahi ho saka.");
+  }
 
-        const selectedDrama = validEpisodes.length > 0 ? validEpisodes[0] : rawResults[0];
-        const videoUrl = selectedDrama.url || `https://youtube.com/watch?v=${selectedDrama.id}`;
-        const dramaTitle = selectedDrama.title || query;
+  await client.sendMessage(
+    from,
+    {
+      video: { url: videoUrl },
+      mimetype: "video/mp4",
+      fileName: `${title.replace(/[^\w\s-]/g, '')}.mp4`,
+      caption: `*🎬 YouTube Video Downloader*\n\n*Title:* ${title}\n*Duration:* ${duration}\n*Link:* ${url}`,
+    },
+    { quoted: message }
+  );
+  await client.sendMessage(from, { react: { text: "✅", key: message.key } });
+}
 
-        await conn.sendMessage(from, { text: `> *KAMRAN-MD DRAMA DOWNLOADER* 📺\n\n📌 *Found:* ${dramaTitle}\n_Video download ho rahi hai, barae meharbani intezar karein..._` }, { quoted: mek });
-
-        // Fetch direct download link using VajiraOfc YTMP4 API
-        const api = `https://vajiraofc-apis.vercel.app/api/ytmp4?apikey=VajiraOfc&url=${encodeURIComponent(videoUrl)}&quality=360`;
-        const { data } = await axios.get(api, { 
-            timeout: 60000,
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
-        });
-
-        const resData = data?.data || data;
-        const downloadUrl = resData?.download?.url || resData?.downloadUrl || resData?.url;
-        const finalTitle = resData?.title || dramaTitle;
-
-        if (!downloadUrl) {
-            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return reply(`❌ Drama download link nahi mila: ${finalTitle}`);
-        }
-
-        // Send strictly as Direct Video message format
-        await conn.sendMessage(from, {
-            video: { url: downloadUrl },
-            mimetype: 'video/mp4',
-            caption: `📺 *${finalTitle}*`
-        }, { quoted: mek });
-
-        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
-
-    } catch (e) {
-        console.error("[DRAMA ERROR]", e);
-        await conn.sendMessage(from, { react: { text: "❌", key: mek.key } }, { quoted: mek });
-        return reply(`❌ Error: ${e.message}`);
+for (const [commandName, description] of [
+  ["video86", "YouTube se video search aur download karein"],
+  ["ytmp4", "YouTube MP4 downloader"],
+  ["ytv", "YouTube video downloader"],
+  ["mv", "YouTube se music video download karein"],
+]) {
+  cmd({
+    pattern: commandName,
+    alias: commandName === "video86" ? ["ytvideo", "mp4"] : [],
+    react: '🎥',
+    desc: description,
+    category: "downloader",
+    filename: __filename
+  }, async (client, message, m, { from, q, prefix, command }) => {
+    if (!q) {
+      return await client.sendMessage(from, { text: `_Istemaal ka tareeqa: .${command} <video ka naam ya YouTube link>_` }, { quoted: message });
     }
-});
+
+    try {
+      await handleVideo(q.trim(), client, message, from);
+    } catch (err) {
+      console.error(`[${command.toUpperCase()}]`, err?.message || err);
+      await client.sendMessage(from, { text: `❌ _*Download Fail Ho Gaya*_ : \n\n⚠️ ${err?.message || "Koi unexpected error aa gaya hai."}` }, { quoted: message });
+    }
+  });
+}
