@@ -25,15 +25,19 @@ cmd({
                 const playlist = session.playlist;
                 userSessions.delete(sender);
 
-                await conn.sendMessage(from, { text: `> *KAMRAN-MD BATCH DOWNLOADER* 📥\n\nSari ${playlist.length} videos/episodes ek-ek karke Document mein bheji ja rahi hain. Intezar karein!` }, { quoted: mek });
+                await conn.sendMessage(from, { text: `> *KAMRAN-MD BATCH DOWNLOADER* 📥\n\nSari ${playlist.length} videos/episodes aaram se 1-2 minute ke delay ke sath document mein bheji jayengi. Bilkul fikar na karein, sab aayengi!` }, { quoted: mek });
 
                 for (let i = 0; i < playlist.length; i++) {
-                    await conn.sendMessage(from, { text: `⬇️ *Downloading (${i + 1}/${playlist.length}):* ${playlist[i].title}` }, { quoted: mek });
+                    await conn.sendMessage(from, { text: `⬇️ *Downloading (${i + 1}/${playlist.length}):* ${playlist[i].title}\n_Baraye meharbani intezar karein, agla episode kuch dair mein aayega..._` }, { quoted: mek });
                     await downloadVideoDoc(conn, mek, from, playlist[i]);
-                    await new Promise(resolve => setTimeout(resolve, 4000)); // Delay to prevent spam/blocking
+                    
+                    // Agar aakhri video nahi hai toh 60 seconds (1 minute) ka gap dein
+                    if (i < playlist.length - 1) {
+                        await new Promise(resolve => setTimeout(resolve, 60000));
+                    }
                 }
 
-                await conn.sendMessage(from, { text: `✅ All episodes successfully downloaded as Documents!` }, { quoted: mek });
+                await conn.sendMessage(from, { text: `✅ Mashallah, saari episodes mukammal taur par download ho chuki hain!` }, { quoted: mek });
                 return;
             }
 
@@ -100,7 +104,7 @@ async (conn, mek, m, { from, text, reply }) => {
 
         listText += `_Aapko kya chahiye?_\n`;
         listText += `• Koyi aik number reply karein (misal: **1**)\n`;
-        listText += `• Ya phir saari videos document mein lene ke liye **all** likh kar bhejein!`;
+        listText += `• Ya phir saari episodes aaram se document mein lene ke liye **all** likh kar bhejein!`;
 
         await conn.sendMessage(from, { text: listText }, { quoted: mek });
         await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
@@ -117,7 +121,13 @@ async function downloadVideoDoc(conn, mek, from, video) {
     try {
         const videoUrl = video.url || `https://youtube.com/watch?v=${video.videoId}`;
         const api = `https://api.omegatech.app/api/download/YouTube?action=download&url=${encodeURIComponent(videoUrl)}`;
-        const { data } = await axios.get(api, { timeout: 50000 });
+        
+        const { data } = await axios.get(api, { 
+            timeout: 60000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+        });
 
         const resData = data?.data || data?.result || data;
         const downloadUrl = resData?.downloadUrl || resData?.url || resData?.download;
@@ -127,7 +137,6 @@ async function downloadVideoDoc(conn, mek, from, video) {
             return conn.sendMessage(from, { text: `❌ Video download link nahi mila: ${title}` });
         }
 
-        // Strictly sending as Document format with proper mimetype and filename
         await conn.sendMessage(from, {
             document: { url: downloadUrl },
             mimetype: 'video/mp4',
