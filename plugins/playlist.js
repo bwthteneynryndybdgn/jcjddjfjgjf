@@ -25,15 +25,14 @@ cmd({
                 const playlist = session.playlist;
                 userSessions.delete(sender);
 
-                await conn.sendMessage(from, { text: `> *KAMRAN-MD BATCH DOWNLOADER* 📥\n\nSari ${playlist.length} videos/episodes aaram se 1-2 minute ke delay ke sath document mein bheji jayengi. Bilkul fikar na karein, sab aayengi!` }, { quoted: mek });
+                await conn.sendMessage(from, { text: `> *KAMRAN-MD BATCH DOWNLOADER* 📥\n\nSari ${playlist.length} videos/episodes aaram se 1 minute ke delay ke sath document mein bheji jayengi. Intezar karein!` }, { quoted: mek });
 
                 for (let i = 0; i < playlist.length; i++) {
-                    await conn.sendMessage(from, { text: `⬇️ *Downloading (${i + 1}/${playlist.length}):* ${playlist[i].title}\n_Baraye meharbani intezar karein, agla episode kuch dair mein aayega..._` }, { quoted: mek });
+                    await conn.sendMessage(from, { text: `⬇️ *Downloading (${i + 1}/${playlist.length}):* ${playlist[i].title}\n_Baraye meharbani intezar karein..._` }, { quoted: mek });
                     await downloadVideoDoc(conn, mek, from, playlist[i]);
                     
-                    // Agar aakhri video nahi hai toh 60 seconds (1 minute) ka gap dein
                     if (i < playlist.length - 1) {
-                        await new Promise(resolve => setTimeout(resolve, 60000));
+                        await new Promise(resolve => setTimeout(resolve, 60000)); // 1 minute delay between batch items
                     }
                 }
 
@@ -66,7 +65,7 @@ cmd({
     pattern: "playlist",
     alias: ["ytslist", "all-list", "ytsearch"],
     use: '.playlist <drama name>',
-    desc: "Search YouTube using ytsearch, show playlist, and download single or all videos strictly as Document",
+    desc: "Search YouTube using ytsearch, show playlist, and download single or all videos strictly as Document using Rebix API",
     category: "downloader",
     react: "🎶",
     filename: __filename
@@ -116,11 +115,12 @@ async (conn, mek, m, { from, text, reply }) => {
     }
 });
 
-// ==================== HELPER: STRICT VIDEO DOCUMENT DOWNLOAD ====================
+// ==================== HELPER: STRICT VIDEO DOCUMENT DOWNLOAD (Rebix API) ====================
 async function downloadVideoDoc(conn, mek, from, video) {
     try {
         const videoUrl = video.url || `https://youtube.com/watch?v=${video.videoId}`;
-        const api = `https://api.omegatech.app/api/download/YouTube?action=download&url=${encodeURIComponent(videoUrl)}`;
+        // Using Samuel-Rebix YTDL API
+        const api = `https://api-rebix.vercel.app/api/ytdl?format=720&url=${encodeURIComponent(videoUrl)}`;
         
         const { data } = await axios.get(api, { 
             timeout: 60000,
@@ -129,14 +129,15 @@ async function downloadVideoDoc(conn, mek, from, video) {
             }
         });
 
-        const resData = data?.data || data?.result || data;
-        const downloadUrl = resData?.downloadUrl || resData?.url || resData?.download;
+        const resData = data?.result || data?.results || data;
+        const downloadUrl = resData?.download || resData?.downloadUrl || resData?.url;
         const title = resData?.title || video.title || "video";
 
         if (!downloadUrl) {
             return conn.sendMessage(from, { text: `❌ Video download link nahi mila: ${title}` });
         }
 
+        // Strictly sending as Document format
         await conn.sendMessage(from, {
             document: { url: downloadUrl },
             mimetype: 'video/mp4',
