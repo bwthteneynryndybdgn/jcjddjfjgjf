@@ -1,5 +1,10 @@
+//---------------------------------------------------------------------------
+//           KAMRAN-MD - PING PLUGIN WITH BUTTONS
+//---------------------------------------------------------------------------
+
 import { fileURLToPath } from 'url';
 import { cmd } from '../command.js';
+import { MB } from '@rexxhayanasi/elaina-baileys';
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -27,7 +32,6 @@ cmd({
         const rawText = body.trim().toLowerCase();
         const triggers = ['ping', 'speed', 'pong'];
 
-        // Triggers automatically in both Inbox and Groups
         if (triggers.includes(rawText)) {
             await executePing(conn, mek, from);
         }
@@ -41,7 +45,7 @@ cmd({
     pattern: "ping",
     alias: ["speed", "pong"],
     use: '.ping',
-    desc: "Check bot's response time.",
+    desc: "Check bot's response time with buttons.",
     category: "main",
     react: "⚡",
     filename: __filename
@@ -55,7 +59,7 @@ async (conn, mek, m, { from, reply }) => {
     }
 });
 
-// ==================== CORE PING LOGIC ====================
+// ==================== CORE PING LOGIC WITH BUTTONS ====================
 async function executePing(conn, mek, from) {
     const start = new Date().getTime();
 
@@ -76,21 +80,36 @@ async function executePing(conn, mek, from) {
     const end = new Date().getTime();
     const responseTime = (end - start) / 1000;
 
-    const text = `> ⚡ *${toStylistUpper('Kamran-Md Speed')} : ${responseTime.toFixed(2)}ms* ${reactionEmoji}`;
+    const bodyText = `> ⚡ *${toStylistUpper('Kamran-Md Speed')} : ${responseTime.toFixed(2)}ms* ${reactionEmoji}`;
 
-    await conn.sendMessage(from, {
-        text,
-        contextInfo: {
-            mentionedJid: [mek.sender],
-            forwardingScore: 999,
-            isForwarded: true,
-            forwardedNewsletterMessageInfo: {
-                newsletterJid: '120363418144382782@newsletter',
-                newsletterName: "KAMI-MD",
-                serverMessageId: 143
+    try {
+        // Elaina Bailey's Interactive Button Implementation
+        const message = new MB.Button(conn)
+            .setTitle(toStylistUpper('Kamran-Md Menu'))
+            .setBody(bodyText)
+            .setFooter('© Kamran-Md ッ')
+            .addReply('Ping', 'ping')
+            .addUrl('Buka Website', 'https://kamran-md.com')
+            .addCopy('Salin Kode', 'KAMRAN2026');
+
+        await message.send(from);
+    } catch (err) {
+        console.log("Button send error, falling back to text:", err.message);
+        // Fallback agar button send hone mein koi masla ho toh normal text chala jaye
+        await conn.sendMessage(from, {
+            text: bodyText,
+            contextInfo: {
+                mentionedJid: [mek.sender],
+                forwardingScore: 999,
+                isForwarded: true,
+                forwardedNewsletterMessageInfo: {
+                    newsletterJid: '120363413585581317@newsletter',
+                    newsletterName: "KAMI-MD",
+                    serverMessageId: 143
+                }
             }
-        }
-    }, { quoted: mek });
+        }, { quoted: mek });
+    }
 }
 
 // ==================== PING2 COMMAND ====================
@@ -104,9 +123,7 @@ cmd({
 async (conn, mek, m, { from, reply }) => {
     try {
         const startTime = Date.now();
-
         await new Promise(resolve => setTimeout(resolve, 300));
-
         const endTime = Date.now();
         const ping = endTime - startTime;
 
