@@ -1,7 +1,3 @@
-//---------------------------------------------------------------------------
-//           KAMRAN-MD - PING PLUGIN
-//---------------------------------------------------------------------------
-
 import { fileURLToPath } from 'url';
 import { cmd } from '../command.js';
 
@@ -31,6 +27,7 @@ cmd({
         const rawText = body.trim().toLowerCase();
         const triggers = ['ping', 'speed', 'pong'];
 
+        // Triggers automatically in both Inbox and Groups
         if (triggers.includes(rawText)) {
             await executePing(conn, mek, from);
         }
@@ -79,18 +76,56 @@ async function executePing(conn, mek, from) {
     const end = new Date().getTime();
     const responseTime = (end - start) / 1000;
 
-    let msg = `❖ ── ✦ *${toStylistUpper('Kamran-Md Speed')}* ✦ ── ❖\n\n`;
-    msg += `╔═════ ⌈ *⚡ ${toStylistUpper('Latency')}* ⌋ ═════✧\n`;
-    msg += `║ 📶 *${toStylistUpper('Response')}:* ${responseTime.toFixed(2)}ms ${reactionEmoji}\n`;
-    msg += `╚══════════════════════✧\n\n`;
-    msg += `> 💫 _${toStylistUpper('Powered by Kamran-Md')}_`;
+    const text = `> ⚡ *${toStylistUpper('Kamran-Md Speed')} : ${responseTime.toFixed(2)}ms* ${reactionEmoji}`;
 
     await conn.sendMessage(from, {
-        text: msg,
+        text,
         contextInfo: {
             mentionedJid: [mek.sender],
+            forwardingScore: 999,
             isForwarded: true,
-            forwardingScore: 999
+            forwardedNewsletterMessageInfo: {
+                newsletterJid: '120363418144382782@newsletter',
+                newsletterName: "KAMI-MD",
+                serverMessageId: 143
+            }
         }
     }, { quoted: mek });
 }
+
+// ==================== PING2 COMMAND ====================
+cmd({
+    pattern: "ping2",
+    desc: "Check bot's response time with detailed stats.",
+    category: "main",
+    react: "⚡",
+    filename: __filename
+},
+async (conn, mek, m, { from, reply }) => {
+    try {
+        const startTime = Date.now();
+
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        const endTime = Date.now();
+        const ping = endTime - startTime;
+
+        let status;
+        if (ping < 1000) status = `⚡ *${toStylistUpper('Fast & Responsive')}*`;
+        else if (ping < 1400) status = `⚙️ *${toStylistUpper('Normal Speed')}*`;
+        else status = `🐢 *${toStylistUpper('Slow Response')}*`;
+
+        const msg = `
+╔═════ ⌈ *⚡ ${toStylistUpper('Kamran-Md Ping')}* ⌋ ═════✧
+║ 📶 *${toStylistUpper('Response')}:* ${ping} ms
+║ 🧠 *${toStylistUpper('Status')}:* ${status}
+║ 💫 *${toStylistUpper('Mode')}:* Active & Stable
+╚══════════════════════✧
+        `;
+
+        await conn.sendMessage(from, { text: msg.trim() }, { quoted: mek });
+    } catch (e) {
+        console.log(e);
+        reply(`⚠️ Error: ${e.message}`);
+    }
+});
