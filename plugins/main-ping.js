@@ -1,10 +1,9 @@
 //---------------------------------------------------------------------------
-//           KAMRAN-MD - PING PLUGIN WITH BUTTONS
+//           KAMRAN-MD - PING PLUGIN
 //---------------------------------------------------------------------------
 
 import { fileURLToPath } from 'url';
 import { cmd } from '../command.js';
-import { MB } from '@rexxhayanasi/elaina-baileys';
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -45,7 +44,7 @@ cmd({
     pattern: "ping",
     alias: ["speed", "pong"],
     use: '.ping',
-    desc: "Check bot's response time with buttons.",
+    desc: "Check bot's response time.",
     category: "main",
     react: "⚡",
     filename: __filename
@@ -59,7 +58,7 @@ async (conn, mek, m, { from, reply }) => {
     }
 });
 
-// ==================== CORE PING LOGIC WITH BUTTONS ====================
+// ==================== CORE PING LOGIC ====================
 async function executePing(conn, mek, from) {
     const start = new Date().getTime();
 
@@ -80,69 +79,18 @@ async function executePing(conn, mek, from) {
     const end = new Date().getTime();
     const responseTime = (end - start) / 1000;
 
-    const bodyText = `> ⚡ *${toStylistUpper('Kamran-Md Speed')} : ${responseTime.toFixed(2)}ms* ${reactionEmoji}`;
+    let msg = `❖ ── ✦ *${toStylistUpper('Kamran-Md Speed')}* ✦ ── ❖\n\n`;
+    msg += `╔═════ ⌈ *⚡ ${toStylistUpper('Latency')}* ⌋ ═════✧\n`;
+    msg += `║ 📶 *${toStylistUpper('Response')}:* ${responseTime.toFixed(2)}ms ${reactionEmoji}\n`;
+    msg += `╚══════════════════════✧\n\n`;
+    msg += `> 💫 _${toStylistUpper('Powered by Kamran-Md')}_`;
 
-    try {
-        // Elaina Bailey's Interactive Button Implementation
-        const message = new MB.Button(conn)
-            .setTitle(toStylistUpper('Kamran-Md Menu'))
-            .setBody(bodyText)
-            .setFooter('© Kamran-Md ッ')
-            .addReply('Ping', 'ping')
-            .addUrl('Buka Website', 'https://kamran-md.com')
-            .addCopy('Salin Kode', 'KAMRAN2026');
-
-        await message.send(from);
-    } catch (err) {
-        console.log("Button send error, falling back to text:", err.message);
-        // Fallback agar button send hone mein koi masla ho toh normal text chala jaye
-        await conn.sendMessage(from, {
-            text: bodyText,
-            contextInfo: {
-                mentionedJid: [mek.sender],
-                forwardingScore: 999,
-                isForwarded: true,
-                forwardedNewsletterMessageInfo: {
-                    newsletterJid: '120363413585581317@newsletter',
-                    newsletterName: "KAMI-MD",
-                    serverMessageId: 143
-                }
-            }
-        }, { quoted: mek });
-    }
+    await conn.sendMessage(from, {
+        text: msg,
+        contextInfo: {
+            mentionedJid: [mek.sender],
+            isForwarded: true,
+            forwardingScore: 999
+        }
+    }, { quoted: mek });
 }
-
-// ==================== PING2 COMMAND ====================
-cmd({
-    pattern: "ping2",
-    desc: "Check bot's response time with detailed stats.",
-    category: "main",
-    react: "⚡",
-    filename: __filename
-},
-async (conn, mek, m, { from, reply }) => {
-    try {
-        const startTime = Date.now();
-        await new Promise(resolve => setTimeout(resolve, 300));
-        const endTime = Date.now();
-        const ping = endTime - startTime;
-
-        let status;
-        if (ping < 1000) status = `⚡ *${toStylistUpper('Fast & Responsive')}*`;
-        else if (ping < 1400) status = `⚙️ *${toStylistUpper('Normal Speed')}*`;
-        else status = `🐢 *${toStylistUpper('Slow Response')}*`;
-
-        const msg = `
-╔═════ ⌈ *⚡ ${toStylistUpper('Kamran-Md Ping')}* ⌋ ═════✧
-║ 📶 *${toStylistUpper('Response')}:* ${ping} ms
-║ 🧠 *${toStylistUpper('Status')}:* ${status}
-║ 💫 *${toStylistUpper('Mode')}:* Active & Stable
-╚══════════════════════✧
-        `;
-
-        await conn.sendMessage(from, { text: msg.trim() }, { quoted: mek });
-    } catch (e) {
-        console.log(e);
-        reply(`⚠️ Error: ${e.message}`);
-    }
-});
