@@ -1,173 +1,124 @@
-//---------------------------------------------------------------------------
-//           KAMRAN-MD - PINTEREST INTERACTIVE DOWNLOADER PLUGIN
-//---------------------------------------------------------------------------
-
 import { fileURLToPath } from 'url';
 import { cmd } from '../command.js';
 import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
 
-// Helper function for Stylist Badi ABC Text
-const toStylistUpper = (text) => {
-    if (!text || typeof text !== 'string') return '';
-    const uppercaseMap = {
-        'a': 'ᴀ', 'b': 'ʙ', 'c': 'ᴄ', 'd': 'ᴅ', 'e': 'ᴇ', 'f': 'ғ', 'g': 'ɢ', 'h': 'ʜ', 'i': 'ɪ',
-        'j': 'ᴊ', 'k': 'ᴋ', 'l': 'ʟ', 'm': 'ᴍ', 'n': 'ɴ', 'o': 'ᴏ', 'p': 'ᴘ', 'q': 'ǫ', 'r': 'ʀ',
-        's': 's', 't': 'ᴛ', 'u': 'ᴜ', 'v': 'ᴠ', 'w': 'ᴡ', 'x': 'x', 'y': 'ʏ', 'z': 'ᴢ',
-        'A': 'ᴀ', 'B': 'ʙ', 'C': 'ᴄ', 'D': 'ᴅ', 'E': 'ᴇ', 'F': 'ғ', 'G': 'ɢ', 'H': 'ʜ', 'I': 'ɪ',
-        'J': 'ᴊ', 'K': 'ᴋ', 'L': 'ʟ', 'M': 'ᴍ', 'N': 'ɴ', 'O': 'ᴏ', 'P': 'ᴘ', 'Q': 'ǫ', 'R': 'ʀ',
-        'S': 's', 'T': 'ᴛ', 'U': 'ᴜ', 'V': 'ᴠ', 'W': 'ᴡ', 'X': 'x', 'Y': 'ʏ', 'Z': 'ᴢ'
-    };
-    return text.split('').map(char => uppercaseMap[char] || char).join('');
-};
+const API = 'https://api.omegatech.app/api/movie/MovieBox-pro';
+const OFF = 'https://api.omegatech.app/api/movie/Moviebox_off';
 
-async function getThumbnailBuffer(url) {
-  if (!url) return null;
-  try {
-    const { data } = await axios.get(url, { responseType: "arraybuffer", timeout: 15000 });
-    return Buffer.from(data);
-  } catch (err) {
-    return null;
-  }
-}
+// Global storage for movie selection flow
+global.movieFlow = global.movieFlow || {};
 
 cmd({
-    pattern: "pinsearch",
-    alias: ["pinterest", "pinvid"],
-    use: '.pinsearch <query>',
-    desc: "Search and download videos from Pinterest via API",
+    pattern: "moviebox75",
+    alias: ["film65", "moviebox76", "mb77"],
+    use: '.movie Avatar',
+    desc: "Search movies and get stream/download links from MovieBox",
     category: "downloader",
-    react: "📌",
+    react: "🎬",
     filename: __filename
 },
-async (conn, mek, m, { from, text, reply, react, socket, sock }) => {
-    const client = socket || sock || conn;
-
+async (conn, mek, m, { from, text, usedPrefix, command, reply }) => {
     try {
         const query = String(text || "").trim();
         if (!query) {
-            return reply(
-                `❌ *${toStylistUpper('Opps! Query Missing')}* ❌\n\n` +
-                `${toStylistUpper('Please provide a search query for Pinterest videos!')}\n` +
-                `📌 *${toStylistUpper('Example')}:* \`.pinsearch Cat food\``
-            );
+            return reply(`*🎬 KAMRAN-MD MovieBox*\n\nSearch:\n• .${command} Avatar\n\n_Reply with a number for stream links._`);
         }
 
-        await react("🔍");
-        await reply(`🔍 _${toStylistUpper('Searching for')} *"${query}"* ${toStylistUpper('on Pinterest servers')}..._`);
+        global.movieFlow[from] = global.movieFlow[from] || {};
 
-        const searchApiUrl = `https://api.nexray.eu.cc/search/pinterestvideo?q=${encodeURIComponent(query)}`;
-        const response = await axios.get(searchApiUrl, { timeout: 30000 });
-        const resData = response.data;
+        // Reply flow: pick result based on number reply
+        if (m.quoted && global.movieFlow[from][m.sender] && /^\d+$/.test(query)) {
+            const list = global.movieFlow[from][m.sender];
+            const item = list[parseInt(query) - 1];
+            if (!item) return reply('❌ Invalid number.');
 
-        if (!resData || !resData.status || !resData.result || resData.result.length === 0) {
-            await react("❌");
-            return reply(`🛸 *${toStylistUpper('No Results Found!')}*\n${toStylistUpper('Pinterest par')} *"${query}"* ${toStylistUpper('se related koi video nahi mili.')}`);
+            await conn.sendMessage(from, { react: { text: "📥", key: mek.key } });
+
+            try {
+                const sid = item.subjectId;
+                let streams = [];
+                
+                if (item.proxyStream || item.proxyDownload) {
+                    streams.push({ label: 'Stream (proxy)', url: item.proxyStream });
+                    streams.push({ label: 'Download (proxy)', url: item.proxyDownload });
+                }
+
+                try {
+                    const { data } = await axios.get(OFF, {
+                        params: { action: 'play', subjectId: sid, season: item.season || 0, episode: 0 },
+                        timeout: 25000,
+                        headers: { 'User-Agent': 'KAMRAN-MD/1.0' }
+                    });
+                    const arr = data?.data?.streams || data?.streams || [];
+                    arr.forEach((s, i) => {
+                        const u = s.trapUrl || s.url || s.hls || s.dash;
+                        if (u) streams.push({ label: s.resolutions || s.format || `Source ${i + 1}`, url: u });
+                    });
+                } catch {}
+
+                let cap = `*🎬 ${item.title}*\n`;
+                if (item.genre) cap += `🎭 ${item.genre}\n`;
+                if (item.imdbRatingValue || item.imdb) cap += `⭐ ${item.imdbRatingValue || item.imdb}\n`;
+                if (item.releaseDate) cap += `📅 ${item.releaseDate}\n\n`;
+
+                if (streams.length) {
+                    streams.slice(0, 12).forEach((s, i) => {
+                        if (s.url) cap += `🔗 *${s.label || i + 1}*:\n${s.url}\n\n`;
+                    });
+                } else {
+                    cap += '_No direct streams found. Try another title._';
+                }
+
+                delete global.movieFlow[from][m.sender];
+                const cover = item.cover?.url || item.cover;
+
+                if (cover) {
+                    await conn.sendMessage(from, { image: { url: cover }, caption: cap.trim() }, { quoted: mek });
+                } else {
+                    await reply(cap.trim());
+                }
+
+                return await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
+
+            } catch (e) {
+                await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+                return reply('❌ Failed: ' + (e.message || e));
+            }
         }
 
-        const videos = resData.result.slice(0, 10);
+        await conn.sendMessage(from, { react: { text: "🔍", key: mek.key } });
 
-        let listText = `╔═════ ⌈ *⚡ ${toStylistUpper('Pinterest Search')}* ⌋ ═════✧\n`;
-        listText += `║ 🔎 *${toStylistUpper('Query')}:* \`${query.toUpperCase()}\`\n`;
-        listText += `║ ✨ *${toStylistUpper('Results Found')}:* ${videos.length}\n`;
-        listText += `╚══════════════════════✧\n\n`;
-        listText += `╔═════ ⌈ *📂 ${toStylistUpper('Select Video')}* ⌋ ═════✧\n`;
-
-        videos.forEach((item, index) => {
-            const cleanTitle = item.title && item.title.trim() ? item.title.trim() : 'Pinterest Video';
-            const displayTitle = cleanTitle.length > 40 ? cleanTitle.substring(0, 40) + '...' : cleanTitle;
-            listText += `║ 🎥 *[${index + 1}]* _${displayTitle}_\n`;
-            if (index !== videos.length - 1) listText += `║─────────────────────║\n`;
+        const { data } = await axios.get(API, {
+            params: { action: 'search', keyword: query },
+            timeout: 25000,
+            headers: { 'User-Agent': 'KAMRAN-MD/1.0' }
         });
 
-        listText += `╚══════════════════════✧\n\n`;
-        listText += `⚡ *${toStylistUpper('Reply with the item number to download video.')}*\n\n`;
-        listText += `> 💫 _${toStylistUpper('Powered by Kamran-Md')}_`;
+        const results = data?.data?.results || data?.results || [];
+        if (!results.length) {
+            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+            return reply('❌ No movies found on MovieBox.');
+        }
 
-        const sentSearch = await client.sendMessage(from, {
-            text: listText,
-            contextInfo: { mentionedJid: [mek.sender] }
-        }, { quoted: mek });
+        const top = results.slice(0, 10);
+        global.movieFlow[from][m.sender] = top;
 
-        const searchMsgId = sentSearch.key.id;
-        let detailsTimeout;
+        let msg = `*🎬 MovieBox Search:* ${query}\n\n`;
+        top.forEach((v, i) => {
+            const type = v.subjectType === 2 ? 'Series' : 'Movie';
+            msg += `*${i + 1}.* ${v.title} (${type})\n`;
+            if (v.imdbRatingValue) msg += `   ⭐ ${v.imdbRatingValue} · ${v.releaseDate || ''}\n`;
+        });
+        msg += `\n_Reply with a number for stream / download links._`;
 
-        const downloadHandler = async (update) => {
-            try {
-                const msg = update.messages[0];
-                if (!msg?.message || msg.key.remoteJid !== from) return;
-
-                const ctx = msg.message.extendedTextMessage?.contextInfo || msg.message.conversation?.contextInfo;
-                if (!ctx || ctx.stanzaId !== searchMsgId) return;
-
-                const choice = (msg.message.conversation || msg.message.extendedTextMessage?.text || "").trim();
-                const num = parseInt(choice);
-                if (isNaN(num) || num < 1 || num > videos.length) return;
-                
-                const selectedVideo = videos[num - 1];
-                if (!selectedVideo || !selectedVideo.url) return;
-
-                client.ev.off("messages.upsert", downloadHandler);
-                clearTimeout(detailsTimeout);
-
-                await client.sendMessage(from, { react: { text: "📥", key: msg.key } });
-                await reply(`🚀 *${toStylistUpper('Resolving Pinterest Video')}...* \n${toStylistUpper('Please wait!')}`);
-
-                // Pinterest Downloader API call to get direct playable/downloadable link
-                const dlApiUrl = `https://api.nexray.eu.cc/downloader/pinterest?url=${encodeURIComponent(selectedVideo.url)}`;
-                const dlRes = await axios.get(dlApiUrl, { timeout: 30000 });
-                const dlData = dlRes.data;
-
-                const directVideoUrl = dlData?.result?.url || dlData?.result?.video_url || dlData?.url || selectedVideo.video_url;
-
-                if (!directVideoUrl) {
-                    await client.sendMessage(from, { react: { text: "❌", key: msg.key } });
-                    return reply(`❌ *${toStylistUpper('Failed to fetch direct video download link.')}*`);
-                }
-
-                const videoTitle = selectedVideo.title && selectedVideo.title.trim() ? selectedVideo.title.trim() : 'Pinterest Video';
-                const cleanFileName = `${videoTitle.replace(/[^a-zA-Z0-9 ]/g, "_").trim()}.mp4`;
-
-                let finalCaption = `❖ ── ✦ *${toStylistUpper(videoTitle)}* ✦ ── ❖\n\n`;
-                if (selectedVideo.description && selectedVideo.description.trim()) {
-                    finalCaption += `📌 *${toStylistUpper('Description')}:* ${selectedVideo.description.trim()}\n\n`;
-                }
-                finalCaption += `> 💫 _${toStylistUpper('Powered by Kamran-Md')}_`;
-
-                const thumbBuffer = await getThumbnailBuffer(selectedVideo.thumbnail);
-
-                // Sending as Document to bypass any HLS / streaming encryption or playback errors
-                let documentPayload = {
-                    document: { url: directVideoUrl },
-                    mimetype: "video/mp4",
-                    fileName: cleanFileName,
-                    caption: finalCaption,
-                    contextInfo: { mentionedJid: [msg.sender] }
-                };
-
-                if (thumbBuffer && Buffer.isBuffer(thumbBuffer)) {
-                    documentPayload.jpegThumbnail = thumbBuffer.toString('base64');
-                }
-
-                await client.sendMessage(from, documentPayload, { quoted: msg });
-                await client.sendMessage(from, { react: { text: "✅", key: msg.key } });
-
-            } catch (dlErr) {
-                console.error("Pinterest download failed:", dlErr.message);
-                reply(`❌ ${toStylistUpper('An error occurred during video delivery')}: ${dlErr.message}`);
-            }
-        };
-
-        client.ev.on("messages.upsert", downloadHandler);
-        
-        detailsTimeout = setTimeout(() => {
-            client.ev.off("messages.upsert", downloadHandler);
-        }, 300000);
+        await conn.sendMessage(from, { text: msg }, { quoted: mek });
+        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
 
     } catch (e) {
-        console.error("Pinterest Search Error:", e.message);
-        await react("❌");
-        return reply(`❌ *${toStylistUpper('Error Processing Request')}:* ${e.message}`);
+        console.error('[MOVIE ERROR]', e);
+        await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+        return reply('❌ Movie search failed: ' + (e.message || e));
     }
 });
