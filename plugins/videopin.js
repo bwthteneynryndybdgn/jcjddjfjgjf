@@ -7,7 +7,7 @@ const __filename = fileURLToPath(import.meta.url);
 
 cmd({
   pattern: "fullpp1",
-  alias: ["setpp", "setdp", "pp", "setppbot", "fullpp1"],
+  alias: ["setpp", "setdp", "pp", "setppbot", "fullpp2"],
   react: "🖼️",
   desc: "Owner Only - Set bot's full profile picture",
   category: "owner",
