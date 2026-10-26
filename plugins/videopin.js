@@ -6,7 +6,7 @@ import Jimp from 'jimp';
 const __filename = fileURLToPath(import.meta.url);
 
 cmd({
-  pattern: "fullpp",
+  pattern: "fullpp1",
   alias: ["setpp", "setdp", "pp", "setppbot"],
   react: "🖼️",
   desc: "Owner Only - Set full image as bot's profile picture",
