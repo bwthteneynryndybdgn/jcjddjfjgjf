@@ -1,5 +1,5 @@
 //---------------------------------------------------------------------------
-//           KAMRAN-MD - FULL PROFILE PICTURE PLUGIN
+//           KAMRAN-MD - FULL PROFILE PICTURE PLUGIN (DEBUGGED)
 //---------------------------------------------------------------------------
 
 import Jimp from 'jimp';
@@ -37,11 +37,11 @@ async (conn, mek, m, { from, isCreator, reply, socket, sock }) => {
             return reply("*⚠️ Please reply to an image to set as profile picture*");
         }
 
-        await reply("*⏳ Processing image, please wait...*");
+        await reply("*⏳ Downloading and processing image...*");
 
         const imageBuffer = await m.quoted.download();
         if (!imageBuffer) {
-            return reply("*❌ Ghalat media! Kripya kisi image ko reply karein.*");
+            return reply("*❌ Ghalat media! Image download nahi ho saki.*");
         }
 
         const image = await Jimp.read(imageBuffer);
@@ -60,7 +60,7 @@ async (conn, mek, m, { from, isCreator, reply, socket, sock }) => {
         await reply("*✅ Bot's profile picture updated successfully!*");
 
     } catch (error) {
-        console.error("fullpp Error:", error);
-        return reply(`*❌ Error updating profile picture:*\n${error.message}`);
+        console.error("fullpp Error Details:", error);
+        return reply(`*❌ Error updating profile picture:*\n${error.message || error}`);
     }
 });
