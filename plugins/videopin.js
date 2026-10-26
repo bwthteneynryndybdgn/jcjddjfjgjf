@@ -1,95 +1,53 @@
-import { fileURLToPath } from 'url';
-import { cmd } from '../command.js';
-import { downloadMediaMessage } from '@whiskeysockets/baileys';
-import Jimp from 'jimp';
-import config from '../config.js';
+/*const Jimp = require("jimp");
+const fs = require("fs");
 
-const __filename = fileURLToPath(import.meta.url);
+module.exports = { 
+  name: "fullpp",
+  description: "Set fullpp on your dp",
+  category: "Owner",
+  start:async(vorterx,m,{prefix,mime,quoted,text,toReact,pushName, command}) => {
 
-cmd({
-    pattern: "fullpp1",
-    alias: ["setpp", "botpp"],
-    use: '.fullpp (reply to an image)',
-    desc: "Update bot's profile picture using a replied image",
-    category: "owner",
-    react: "🖼️",
-    filename: __filename
-},
-async (conn, mek, m, { from, reply }) => {
-    try {
-        const botNumber = await conn.decodeJid(conn.user.id);
-        const sender = m.sender || mek.key?.participant || mek.participant || from;
-        const isBot = sender === botNumber;
+    await toReact("✔️");
+	  if (/image/.test(mime)) {
+let media = await vorterx.downloadAndSaveMediaMessage(quoted)
+            if (text.toLowerCase() === "original") {
+                var { preview } = await generateProfilePicture(media)
+                await vorterx.query({
+                    tag: 'iq',
+                    attrs: {
+                        to: m.from,
+                        type:'set',
+                        xmlns: 'w:profile:picture'
+                    },
+                    content: [{
+                        tag: 'picture',
+                        attrs: { type: 'image' },
+                        content: preview
+                    }]
+                })
+                fs.unlinkSync(media)
+            } else {
+                await updateProfilePicture(m.from, user, media, m)
+                .then( res => {
+                    vorterx.sendMessage(m.from,{text:"*Profile picture has been updated successfully*"});
+                    fs.unlinkSync(media)
+                }).catch() => 
 
-        // Only bot owner/self can use this command
-        if (!isBot) {
-            return reply("❌ Yeh command sirf bot ka malik (owner) hi use kar sakta hai.");
-        }
-
-        // Check if the replied message is an image
-        const quoted = mek.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-        if (!quoted || !quoted.imageMessage) {
-            return reply("⚠️ Baraye meharbani kisi *image (photo)* par reply karke `.fullpp` likhein.");
-        }
-
-        await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
-
-        // Download the image with retry mechanism
-        let media;
-        for (let i = 0; i < 3; i++) {
-            try {
-                media = await downloadMediaMessage({ key: mek.key, message: quoted }, 'buffer');
-                if (media) break;
-            } catch (error) {
-                if (i === 2) {
-                    await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-                    return reply("❌ Image download karne mein nakami hui. Dobara koshish karein.");
-                }
             }
+        } else {
+                    vorterx.sendMessage(m.from,{text:"Reply to an image only"}) 
         }
+	},
+}
 
-        // Process image using Jimp
-        const image = await Jimp.read(media);
-        if (!image) throw new Error("Invalid image format");
-
-        // Make square if needed
-        const size = Math.max(image.bitmap.width, image.bitmap.height);
-        if (image.bitmap.width !== image.bitmap.height) {
-            const squareImage = new Jimp(size, size, 0x000000FF);
-            squareImage.composite(image, (size - image.bitmap.width) / 2, (size - image.bitmap.height) / 2);
-            image.clone(squareImage);
-        }
-
-        // Resize to WhatsApp requirements (640x640)
-        image.resize(640, 640);
-        const buffer = await image.getBufferAsync(Jimp.MIME_JPEG);
-
-        // Update profile picture
-        await conn.updateProfilePicture(botNumber, buffer);
-        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
-
-        // Success response with newsletter info styling
-        return conn.sendMessage(
-            from,
-            {
-                text: "✅ *Profile Picture kamyabi ke sath update ho gayi hai!*",
-                contextInfo: {
-                    mentionedJid: [sender],
-                    forwardingScore: 999,
-                    isForwarded: true,
-                    forwardedNewsletterMessageInfo: {
-                        newsletterJid: '120363419079746471@newsletter',
-                        newsletterName: "- ♛꧁༒☾FELICIAN☽༒꧂♛",
-                        serverMessageId: 143
-                    }
-                }
-            },
-            { quoted: mek }
-        );
-
-    } catch (error) {
-        console.error("Error setting profile picture:", error);
-        await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-        return reply("❌ Profile picture update karte waqt error aa gaya.");
+async function generateProfilePicture(buffer) {
+    const jimp = await Jimp.read(buffer)
+    const min = jimp.getWidth()
+    const max = jimp.getHeight()
+    const cropped = jimp.crop(0, 0, min, max)
+    return {
+        img: await cropped.scaleToFit(720, 720).getBufferAsync(Jimp.MIME_JPEG),
+        preview: await cropped.normalize().getBufferAsync(Jimp.MIME_JPEG)
     }
-});
+};
+*/
