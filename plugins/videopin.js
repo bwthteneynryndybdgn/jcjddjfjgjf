@@ -6,7 +6,7 @@ import axios from 'axios';
 const __filename = fileURLToPath(import.meta.url);
 
 cmd({
-    pattern: "fullpp",
+    pattern: "fullpp1",
     alias: ["setpp", "setdp", "pp"],
     react: "🖼️",
     desc: "Set full image as bot's profile picture",
