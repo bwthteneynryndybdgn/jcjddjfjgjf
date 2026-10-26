@@ -11,7 +11,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 cmd({
-    pattern: "fullpp",
+    pattern: "fullpp1",
     alias: ["setpp", "setdp", "pp"],
     react: "🖼️",
     desc: "Set full image as bot's profile picture",
