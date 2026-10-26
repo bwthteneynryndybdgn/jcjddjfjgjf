@@ -6,10 +6,10 @@ import { Jimp } from 'jimp';
 const __filename = fileURLToPath(import.meta.url);
 
 cmd({
-  pattern: "fullpp2",
+  pattern: "fullpp1",
   alias: ["setpp", "setdp", "pp", "setppbot", "fullpp1"],
   react: "🖼️",
-  desc: "Owner Only - Set bot's full profile picture nicely",
+  desc: "Owner Only - Set bot's full profile picture",
   category: "owner",
   filename: __filename
 }, async (client, message, match, { from, isCreator }) => {
@@ -36,25 +36,17 @@ cmd({
 
     const buffer = await match.quoted.download();
 
+    // Load image with Jimp
     const image = await Jimp.read(buffer);
-    const width = image.bitmap.width;
-    const height = image.bitmap.height;
     
-    // Square size ke liye maximum dimension lenge
-    const maxDim = Math.max(width, height);
+    // WhatsApp profile pictures look best and don't get distorted when resized to 720x720 standard HD square
+    image.cover({ w: 720, h: 720 });
 
-    // Background ke liye ek naya square image banayenge jo white ya clean ho
-    const squareImg = new Jimp({ width: maxDim, height: maxDim, color: 0xFFFFFFFF });
-
-    // Original image ko bilkul center mein rakh kar composite karenge
-    const x = Math.floor((maxDim - width) / 2);
-    const y = Math.floor((maxDim - height) / 2);
-    
-    squareImg.composite(image, x, y);
-    const processedBuffer = await squareImg.getBuffer("image/jpeg");
+    const processedBuffer = await image.getBuffer("image/jpeg");
 
     const botJid = client.decodeJid ? client.decodeJid(client.user.id) : client.user.id;
 
+    // Update profile picture
     await client.updateProfilePicture(botJid, processedBuffer);
     
     await client.sendMessage(from, {
