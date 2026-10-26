@@ -7,14 +7,11 @@ const __filename = fileURLToPath(import.meta.url);
 const API = 'https://api.omegatech.app/api/movie/MovieBox-pro';
 const OFF = 'https://api.omegatech.app/api/movie/Moviebox_off';
 
-// Global storage for movie selection flow with Buffer support
-global.movieFlow = global.movieFlow || {};
-
 cmd({
-    pattern: "movie65",
-    alias: ["film55", "moviebox75", "mb65"],
+    pattern: "movie",
+    alias: ["film", "moviebox", "mb"],
     use: '.movie Avatar',
-    desc: "Search movies and get stream/download links from MovieBox",
+    desc: "Search movies and get stream/download links from MovieBox with interactive steps",
     category: "downloader",
     react: "🎬",
     filename: __filename
@@ -23,35 +20,97 @@ async (conn, mek, m, { from, text, usedPrefix, command, reply }) => {
     try {
         const query = String(text || "").trim();
         if (!query) {
-            return reply(`*🎬 KAMRAN-MD MovieBox*\n\nSearch:\n• .${command} Avatar\n\n_Reply with a number for stream links._`);
+            return reply(
+                `╔════════════════════════╗\n` +
+                `║   🎬 KAMRAN-MD MOVIEBOX   \n` +
+                `╚════════════════════════╝\n\n` +
+                `❌ *Kripya movie ka naam dein!*\n\n` +
+                `> 📌 *Example:* \`.movie Avatar\`\n` +
+                `> ⚡ *Version:* \`12.00\``
+            );
         }
 
-        global.movieFlow[from] = global.movieFlow[from] || {};
+        await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
-        // Reply flow: check if user replied with a number to the bot's list message
-        const isQuotedList = m.quoted && global.movieFlow[from][m.sender] && /^\d+$/.test(query);
+        const searchRes = await axios.get(API, {
+            params: { action: 'search', keyword: query },
+            timeout: 25000,
+            headers: { 'User-Agent': 'KAMRAN-MD/1.0' }
+        });
 
-        if (isQuotedList) {
-            const list = global.movieFlow[from][m.sender];
-            const selectedIndex = parseInt(query) - 1;
-            const item = list[selectedIndex];
-            
-            if (!item) return reply('❌ Invalid number! Baraye meharbani list mein se sahi number select karein.');
+        const results = searchRes.data?.data?.results || searchRes.data?.results || [];
+        if (!results.length) {
+            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+            return reply("❌ *Koi movie nahi mili!*");
+        }
 
-            await conn.sendMessage(from, { react: { text: "📥", key: mek.key } });
+        const topResults = results.slice(0, 5);
+        const firstCover = topResults[0].cover?.url || topResults[0].cover;
 
+        const resultsList = topResults.map((v, i) => {
+            const type = v.subjectType === 2 ? 'Series' : 'Movie';
+            return `*${i + 1} ┃ ${v.title} (${type})*\n   ⭐ ${v.imdbRatingValue || 'N/A'} • ${v.releaseDate || ''}`;
+        }).join('\n\n');
+
+        const searchCaption = `
+╔════════════════════════╗
+║   🎬 MOVIEBOX SEARCH 🎬   
+╚════════════════════════╝
+
+${resultsList}
+
+🔢 *Reply with a number to select movie* 👇
+
+> ⚡ *Version:* \`12.00\`
+> 👑 *Powered by KAMRAN MD*`.trim();
+
+        const searchMsg = await conn.sendMessage(from, { 
+            image: { url: firstCover || 'https://i.imgur.com/3Z7412f.jpg' }, 
+            caption: searchCaption 
+        }, { quoted: mek });
+
+        let lastMsgId = searchMsg.key.id, 
+            timeout = null;
+
+        const handler = async (msgUpdate) => {
             try {
-                const sid = item.subjectId;
-                let streams = [];
+                const received = msgUpdate.messages[0];
+                if (!received) return;
                 
-                if (item.proxyStream || item.proxyDownload) {
-                    streams.push({ label: 'Stream (proxy)', url: item.proxyStream });
-                    streams.push({ label: 'Download (proxy)', url: item.proxyDownload });
+                const fromId = received.key.remoteJid || received.key.participant;
+                if (fromId !== from) return;
+
+                const quotedId = received.message?.extendedTextMessage?.contextInfo?.stanzaId;
+                if (!quotedId || quotedId !== lastMsgId) return;
+
+                const msgText = received.message?.conversation || received.message?.extendedTextMessage?.text;
+                if (!msgText) return;
+
+                const choice = parseInt(msgText.trim());
+                if (isNaN(choice)) { 
+                    await conn.sendMessage(from, { text: '❎ Please enter a valid number.' }, { quoted: received }); 
+                    return; 
+                }
+
+                if (choice < 1 || choice > topResults.length) { 
+                    await conn.sendMessage(from, { text: `❎ Select a valid number (1-${topResults.length})` }, { quoted: received }); 
+                    return; 
+                }
+
+                await conn.sendMessage(from, { react: { text: '⏳', key: received.key } });
+
+                const selectedItem = topResults[choice - 1];
+                const sid = selectedItem.subjectId;
+                let streams = [];
+
+                if (selectedItem.proxyStream || selectedItem.proxyDownload) {
+                    streams.push({ label: 'Stream (proxy)', url: selectedItem.proxyStream });
+                    streams.push({ label: 'Download (proxy)', url: selectedItem.proxyDownload });
                 }
 
                 try {
                     const { data } = await axios.get(OFF, {
-                        params: { action: 'play', subjectId: sid, season: item.season || 0, episode: 0 },
+                        params: { action: 'play', subjectId: sid, season: selectedItem.season || 0, episode: 0 },
                         timeout: 25000,
                         headers: { 'User-Agent': 'KAMRAN-MD/1.0' }
                     });
@@ -62,69 +121,52 @@ async (conn, mek, m, { from, text, usedPrefix, command, reply }) => {
                     });
                 } catch {}
 
-                let cap = `*🎬 ${item.title}*\n`;
-                if (item.genre) cap += `🎭 ${item.genre}\n`;
-                if (item.imdbRatingValue || item.imdb) cap += `⭐ ${item.imdbRatingValue || item.imdb}\n`;
-                if (item.releaseDate) cap += `📅 ${item.releaseDate}\n\n`;
+                let cap = `╔════════════════════════╗\n`;
+                cap += `║   🎬 MOVIEBOX LINKS 🎬   \n`;
+                cap += `╚════════════════════════╝\n\n`;
+                cap += `🎬 *Title:* ${selectedItem.title}\n`;
+                if (selectedItem.genre) cap += `🎭 *Genre:* ${selectedItem.genre}\n`;
+                if (selectedItem.imdbRatingValue || selectedItem.imdb) cap += `⭐ *Rating:* ${selectedItem.imdbRatingValue || selectedItem.imdb}\n`;
+                if (selectedItem.releaseDate) cap += `📅 *Date:* ${selectedItem.releaseDate}\n\n`;
 
                 if (streams.length) {
-                    streams.slice(0, 12).forEach((s, i) => {
+                    streams.slice(0, 10).forEach((s, i) => {
                         if (s.url) cap += `🔗 *${s.label || i + 1}*:\n${s.url}\n\n`;
                     });
                 } else {
-                    cap += '_No direct streams found. Try another title._';
+                    cap += '_No direct streams found. Try another title._\n\n';
                 }
 
-                // Clear session after selection
-                delete global.movieFlow[from][m.sender];
-                const cover = item.cover?.url || item.cover;
+                cap += `> ⚡ *Version:* \`12.00\`\n`;
+                cap += `> 👑 *Powered by KAMRAN MD*`;
+
+                const cover = selectedItem.cover?.url || selectedItem.cover;
 
                 if (cover) {
-                    await conn.sendMessage(from, { image: { url: cover }, caption: cap.trim() }, { quoted: mek });
+                    await conn.sendMessage(from, { image: { url: cover }, caption: cap.trim() }, { quoted: received });
                 } else {
-                    await reply(cap.trim());
+                    await conn.sendMessage(from, { text: cap.trim() }, { quoted: received });
                 }
 
-                return await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
+                await conn.sendMessage(from, { react: { text: '✅', key: received.key } });
+                cleanup();
 
-            } catch (e) {
-                await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-                return reply('❌ Failed: ' + (e.message || e));
+            } catch (err) { 
+                console.error('MovieBox handler error:', err); 
+                cleanup(); 
             }
-        }
+        };
 
-        // New Search Flow & Buffering data storage
-        await conn.sendMessage(from, { react: { text: "🔍", key: mek.key } });
+        const cleanup = () => { 
+            if (timeout) clearTimeout(timeout); 
+            conn.ev.off('messages.upsert', handler); 
+        };
 
-        const { data } = await axios.get(API, {
-            params: { action: 'search', keyword: query },
-            timeout: 25000,
-            headers: { 'User-Agent': 'KAMRAN-MD/1.0' }
-        });
-
-        const results = data?.data?.results || data?.results || [];
-        if (!results.length) {
-            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return reply('❌ No movies found on MovieBox.');
-        }
-
-        const top = results.slice(0, 10);
-        global.movieFlow[from][m.sender] = top;
-
-        let msg = `*🎬 MovieBox Search:* ${query}\n\n`;
-        top.forEach((v, i) => {
-            const type = v.subjectType === 2 ? 'Series' : 'Movie';
-            msg += `*${i + 1}.* ${v.title} (${type})\n`;
-            if (v.imdbRatingValue) msg += `   ⭐ ${v.imdbRatingValue} · ${v.releaseDate || ''}\n`;
-        });
-        msg += `\n_Reply with a number for stream / download links._`;
-
-        await conn.sendMessage(from, { text: msg }, { quoted: mek });
-        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
+        conn.ev.on('messages.upsert', handler);
+        timeout = setTimeout(() => cleanup(), 60 * 1000);
 
     } catch (e) {
-        console.error('[MOVIE ERROR]', e);
         await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-        return reply('❌ Movie search failed: ' + (e.message || e));
+        return reply("❌ *Kuch galat ho gaya, kripya thodi der baad koshish karein!*");
     }
 });
