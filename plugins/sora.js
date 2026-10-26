@@ -25,12 +25,11 @@ function pickVideo(data) {
   return data?.result || data?.video || data?.url || data?.data?.url || data?.data?.video || data?.data?.result || null;
 }
 
-// ==================== 1. SORA / SORA2 COMMAND ====================
 cmd({
     pattern: "sora",
-    alias: ["sora2"],
+    alias: ["sora2", "veo", "aivideo"],
     use: '.sora <aap ka prompt>',
-    desc: "Generate AI videos using Sora / Veo backend",
+    desc: "Generate AI videos using multiple fallback endpoints",
     category: "ai",
     react: "🎬",
     filename: __filename
@@ -38,105 +37,63 @@ cmd({
 async (conn, mek, m, { from, text, usedPrefix, command, reply }) => {
     const query = String(text || "").trim();
     if (!query) {
-        return reply(`*🎬 KAMRAN-MD Sora Video*\n\nExample:\n• .${command} a cute cat walking in the rain\n\n_May take 1–5 minutes._`);
+        return reply(`*🎬 KAMRAN-MD AI Video*\n\nExample:\n• .${command} a cute cat walking in the rain\n\n_May take 1–5 minutes._`);
     }
 
     await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
-    await reply('🎬 *KAMRAN-MD* is generating video using Sora backend… please wait.');
+    await reply('🎬 *KAMRAN-MD* is generating video… please wait.');
 
     try {
-        const data = await safeFetch(`${API}/veo3?prompt=${encodeURIComponent(query)}`, 60000);
-        const url = pickVideo(data);
-        if (url) {
-            await conn.sendMessage(from, { video: { url }, caption: `🎬 *KAMRAN-MD Sora Video*\n${query}` }, { quoted: mek });
-            return await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
+        // 1) Pehle Veo3 endpoint try karein
+        try {
+            const data = await safeFetch(`${API}/veo3?prompt=${encodeURIComponent(query)}`, 60000);
+            const url = pickVideo(data);
+            if (url) {
+                await conn.sendMessage(from, { video: { url }, caption: `🎬 *KAMRAN-MD Video*\n${query}` }, { quoted: mek });
+                return await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
+            }
+        } catch (e) {
+            console.error('veo3 failed:', e.message);
         }
-        throw new Error("Video URL nahi mila.");
-    } catch (e) {
-        console.error('Sora failed:', e.message);
-        await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-        return reply(`❌ Video generation fail ho gayi: ${e.message}`);
-    }
-});
 
-// ==================== 2. VEO / VEOVID COMMAND ====================
-cmd({
-    pattern: "veo",
-    alias: ["veovid"],
-    use: '.veo <aap ka prompt>',
-    desc: "Generate AI videos using Veo3-v3 async poll",
-    category: "ai",
-    react: "🎥",
-    filename: __filename
-},
-async (conn, mek, m, { from, text, usedPrefix, command, reply }) => {
-    const query = String(text || "").trim();
-    if (!query) {
-        return reply(`*🎥 KAMRAN-MD Veo Video*\n\nExample:\n• .${command} futuristic cyberpunk city drone shot\n\n_May take a few minutes._`);
-    }
+        // 2) Dusra Ai-video endpoint try karein
+        try {
+            const data = await safeFetch(`${API}/Ai-video?prompt=${encodeURIComponent(query)}&maxWait=300`, 120000);
+            const url = pickVideo(data);
+            if (url) {
+                await conn.sendMessage(from, { video: { url }, caption: `🎬 *KAMRAN-MD Video*\n${query}` }, { quoted: mek });
+                return await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
+            }
+        } catch (e) {
+            console.error('Ai-video failed:', e.message);
+        }
 
-    await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
-    await reply('🎥 *KAMRAN-MD* is processing your Veo video task… please wait.');
-
-    try {
-        const create = await safeFetch(`${API}/Veo3-v3?prompt=${encodeURIComponent(query)}`, 30000);
-        const taskId = create?.id || create?.taskId || create?.task_id || create?.result?.id;
-        
-        if (taskId) {
-            for (let i = 0; i < 24; i++) {
-                await new Promise(r => setTimeout(r, 5000));
-                try {
+        // 3) Teesri option Veo3-v3 status polling try karein
+        try {
+            const create = await safeFetch(`${API}/Veo3-v3?prompt=${encodeURIComponent(query)}`, 30000);
+            const taskId = create?.id || create?.taskId || create?.task_id || create?.result?.id;
+            if (taskId) {
+                for (let i = 0; i < 12; i++) {
+                    await new Promise(r => setTimeout(r, 5000));
                     const st = await safeFetch(`${API}/Veo3-v3-status?id=${encodeURIComponent(taskId)}`, 20000);
                     const u = pickVideo(st);
                     if (u) {
-                        await conn.sendMessage(from, { video: { url: u }, caption: `🎥 *KAMRAN-MD Veo Video*\n${query}` }, { quoted: mek });
+                        await conn.sendMessage(from, { video: { url: u }, caption: `🎬 *KAMRAN-MD Video*\n${query}` }, { quoted: mek });
                         return await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
                     }
                     if (st?.status === 'failed' || st?.error) break;
-                } catch {}
+                }
             }
+        } catch (e) {
+            console.error('Veo3-v3 failed:', e.message);
         }
-        throw new Error("Task timeout ya fail ho gaya.");
-    } catch (e) {
-        console.error('Veo failed:', e.message);
+
         await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-        return reply(`❌ Veo video error: ${e.message}`);
-    }
-});
+        return reply('❌ Filhal API server down ya busy hai (HTTP 500). Baraye meharbani kuch der baad try karein.');
 
-// ==================== 3. AIVIDEO COMMAND ====================
-cmd({
-    pattern: "aivideo",
-    alias: ["freeaivideo"],
-    use: '.aivideo <aap ka prompt>',
-    desc: "Generate AI videos using FreeAIVideos API",
-    category: "ai",
-    react: "🎞️",
-    filename: __filename
-},
-async (conn, mek, m, { from, text, usedPrefix, command, reply }) => {
-    const query = String(text || "").trim();
-    if (!query) {
-        return reply(`*🎞️ KAMRAN-MD AI Video*\n\nExample:\n• .${command} cinematic landscape with flying cars\n\n_May take 1–10 minutes._`);
-    }
-
-    await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
-    await reply('🎞️ *KAMRAN-MD* is generating AI video… this can take several minutes.');
-
-    try {
-        const data = await safeFetch(
-            `${API}/Ai-video?prompt=${encodeURIComponent(query)}&maxWait=300`,
-            320000
-        );
-        const url = pickVideo(data);
-        if (url) {
-            await conn.sendMessage(from, { video: { url }, caption: `🎞️ *KAMRAN-MD AI Video*\n${query}` }, { quoted: mek });
-            return await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
-        }
-        throw new Error("Video API se response nahi mila.");
     } catch (e) {
-        console.error('Ai-video failed:', e.message);
+        console.error('[VIDEO ERROR]', e);
         await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-        return reply(`❌ AI Video generation unavailable: ${e.message}`);
+        return reply(`❌ Error: ${e.message}`);
     }
 });
