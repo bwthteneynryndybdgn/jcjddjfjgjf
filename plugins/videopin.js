@@ -1,13 +1,13 @@
 // Kamran Tech
 import { cmd } from "../command.js";
 import { fileURLToPath } from 'url';
-import Jimp from 'jimp';
+import { Jimp } from 'jimp';
 
 const __filename = fileURLToPath(import.meta.url);
 
 cmd({
-  pattern: "fullpp1",
-  alias: ["setpp1", "setdp1", "pp1", "setppbot1"],
+  pattern: "fullpp2",
+  alias: ["setpp", "setdp", "pp1", "setppbot", "fullpp1"],
   react: "🖼️",
   desc: "Owner Only - Set bot's full profile picture",
   category: "owner",
@@ -37,23 +37,24 @@ cmd({
     // Download original image buffer
     const buffer = await match.quoted.download();
 
-    // Process image to make it square (Full DP fix)
-    const jimpImg = await Jimp.read(buffer);
-    const width = jimpImg.getWidth();
-    const height = jimpImg.getHeight();
+    // Process image to make it square using Jimp v1+ syntax
+    const image = await Jimp.read(buffer);
+    const width = image.bitmap.width;
+    const height = image.bitmap.height;
     const maxDim = Math.max(width, height);
 
-    // Create a new square image with a black/white background and paste the original image in the center
-    const squareImg = new Jimp(maxDim, maxDim, 0x000000FF); // Black background (0x000000FF)
+    // Create a new square background image and composite original image in center
+    const squareImg = new Jimp({ width: maxDim, height: maxDim, color: 0x000000FF });
+    
     const x = Math.floor((maxDim - width) / 2);
     const y = Math.floor((maxDim - height) / 2);
     
-    squareImg.composite(jimpImg, x, y);
-    const processedBuffer = await squareImg.getBufferAsync(Jimp.MIME_JPEG);
+    squareImg.composite(image, x, y);
+    const processedBuffer = await squareImg.getBuffer("image/jpeg");
 
     const botJid = client.decodeJid ? client.decodeJid(client.user.id) : client.user.id;
 
-    // Update profile picture with the square buffer
+    // Update profile picture
     await client.updateProfilePicture(botJid, processedBuffer);
     
     await client.sendMessage(from, {
