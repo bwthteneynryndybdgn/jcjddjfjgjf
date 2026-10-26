@@ -7,12 +7,12 @@ const __filename = fileURLToPath(import.meta.url);
 const API = 'https://api.omegatech.app/api/movie/MovieBox-pro';
 const OFF = 'https://api.omegatech.app/api/movie/Moviebox_off';
 
-// Global storage for movie selection flow
+// Global storage for movie selection flow with Buffer support
 global.movieFlow = global.movieFlow || {};
 
 cmd({
-    pattern: "moviebox75",
-    alias: ["film65", "moviebox76", "mb77"],
+    pattern: "movie65",
+    alias: ["film55", "moviebox75", "mb65"],
     use: '.movie Avatar',
     desc: "Search movies and get stream/download links from MovieBox",
     category: "downloader",
@@ -28,11 +28,15 @@ async (conn, mek, m, { from, text, usedPrefix, command, reply }) => {
 
         global.movieFlow[from] = global.movieFlow[from] || {};
 
-        // Reply flow: pick result based on number reply
-        if (m.quoted && global.movieFlow[from][m.sender] && /^\d+$/.test(query)) {
+        // Reply flow: check if user replied with a number to the bot's list message
+        const isQuotedList = m.quoted && global.movieFlow[from][m.sender] && /^\d+$/.test(query);
+
+        if (isQuotedList) {
             const list = global.movieFlow[from][m.sender];
-            const item = list[parseInt(query) - 1];
-            if (!item) return reply('❌ Invalid number.');
+            const selectedIndex = parseInt(query) - 1;
+            const item = list[selectedIndex];
+            
+            if (!item) return reply('❌ Invalid number! Baraye meharbani list mein se sahi number select karein.');
 
             await conn.sendMessage(from, { react: { text: "📥", key: mek.key } });
 
@@ -71,6 +75,7 @@ async (conn, mek, m, { from, text, usedPrefix, command, reply }) => {
                     cap += '_No direct streams found. Try another title._';
                 }
 
+                // Clear session after selection
                 delete global.movieFlow[from][m.sender];
                 const cover = item.cover?.url || item.cover;
 
@@ -88,6 +93,7 @@ async (conn, mek, m, { from, text, usedPrefix, command, reply }) => {
             }
         }
 
+        // New Search Flow & Buffering data storage
         await conn.sendMessage(from, { react: { text: "🔍", key: mek.key } });
 
         const { data } = await axios.get(API, {
