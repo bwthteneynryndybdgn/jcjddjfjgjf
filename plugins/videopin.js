@@ -6,10 +6,10 @@ import { Jimp } from 'jimp';
 const __filename = fileURLToPath(import.meta.url);
 
 cmd({
-  pattern: "fullpp2",
+  pattern: "fullpp",
   alias: ["setpp", "setdp", "pp", "setppbot", "fullpp1"],
   react: "🖼️",
-  desc: "Owner Only - Set bot's full profile picture",
+  desc: "Owner Only - Set bot's full profile picture with blur background",
   category: "owner",
   filename: __filename
 }, async (client, message, match, { from, isCreator }) => {
@@ -37,21 +37,28 @@ cmd({
     const buffer = await match.quoted.download();
 
     const image = await Jimp.read(buffer);
-    
-    // Find the maximum dimension to make it a square by resizing/stretching
-    const maxDim = Math.max(image.bitmap.width, image.bitmap.height);
-    
-    // Resize image directly to square dimensions so it fills everywhere without black borders
-    image.resize({ w: maxDim, h: maxDim });
-    
-    const processedBuffer = await image.getBuffer("image/jpeg");
+    const width = image.bitmap.width;
+    const height = image.bitmap.height;
+    const maxDim = Math.max(width, height);
+
+    // Create background by cloning, resizing to cover, and blurring
+    const bgImage = image.clone();
+    bgImage.cover({ w: maxDim, h: maxDim });
+    bgImage.blur(20); // Background ko blur kar diya taaki black na aaye
+
+    // Paste original image in the center
+    const x = Math.floor((maxDim - width) / 2);
+    const y = Math.floor((maxDim - height) / 2);
+    bgImage.composite(image, x, y);
+
+    const processedBuffer = await bgImage.getBuffer("image/jpeg");
 
     const botJid = client.decodeJid ? client.decodeJid(client.user.id) : client.user.id;
 
     await client.updateProfilePicture(botJid, processedBuffer);
     
     await client.sendMessage(from, {
-      text: "*✅ Bot's full profile picture updated successfully without black borders!*"
+      text: "*✅ Bot's full profile picture updated successfully with blur background!*"
     }, { quoted: message });
 
   } catch (error) {
