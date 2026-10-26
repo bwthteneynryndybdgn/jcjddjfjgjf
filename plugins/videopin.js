@@ -1,52 +1,72 @@
-import { fileURLToPath } from 'url';
-import { cmd } from '../command.js';
+//---------------------------------------------------------------------------
+//           KAMRAN-MD - FULL PROFILE PICTURE PLUGIN
+//---------------------------------------------------------------------------
+
 import Jimp from 'jimp';
+import { fileURLToPath } from 'url';
+import path from 'path';
+import { cmd } from '../command.js';
 
 const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 cmd({
-    pattern: "fullpp1",
+    pattern: "fullpp",
     alias: ["setpp", "setdp", "pp"],
     react: "🖼️",
     desc: "Set full image as bot's profile picture",
     category: "tools",
     filename: __filename
-}, 
-async (conn, mek, m, { from, reply }) => {
-    try {
-        const botJid = conn.user?.id || (conn.user?.id?.split(":")[0] + "@s.whatsapp.net");
+},
+async (conn, mek, m, { from, isCreator, reply, socket, sock }) => {
+    const client = socket || sock || conn;
+    const chatId = from || m.chat;
+    const sender = m.sender;
 
-        // Check if message has quoted image
-        const quoted = mek.quoted ? mek.quoted : mek;
-        const mime = (quoted.msg || quoted).mimetype || '';
+    try {
+        // Get bot's JID safely
+        const botJid = client.user?.id ? (client.user.id.includes(':') ? client.user.id.split(':')[0] + '@s.whatsapp.net' : client.user.id) : null;
         
-        if (!mime || !mime.includes("image")) {
-            return reply("*⚠️ Baraye meharbani kisi image par reply kar ke .fullpp likhein!*");
+        // Allow bot owner or bot itself
+        if (sender !== botJid && !isCreator) {
+            return reply("*📛 This command can only be used by the bot or its owner.*");
         }
 
-        await conn.sendMessage(from, { text: "*⏳ Image process ho rahi hai, intezaar karein...*" }, { quoted: mek });
+        // Check if quoted message is an image
+        const quoted = mek.msg?.contextInfo?.quotedMessage;
+        const isQuotedImage = quoted && (quoted.imageMessage || (quoted.viewOnceMessageV2 && quoted.viewOnceMessageV2.message?.imageMessage));
 
-        // Download image buffer safely
-        const imageBuffer = await quoted.download();
+        if (!isQuotedImage && !m.quoted) {
+            return reply("*⚠️ Please reply to an image to set as profile picture*");
+        }
+
+        await reply("*⏳ Processing image, please wait...*");
+
+        // Download quoted media
+        const imageBuffer = await m.quoted.download();
         if (!imageBuffer) {
-            return reply("*❌ Image download karne mein nakami hui.*");
+            return reply("*❌ Ghalat media! Kripya kisi image ko reply karein.*");
         }
 
         const image = await Jimp.read(imageBuffer);
 
-        // Square blur background + centered image pipeline
+        // Image processing pipeline (Square blur background + contain foreground)
         const blurredBg = image.clone().cover(640, 640).blur(10);
         const centeredImage = image.clone().contain(640, 640);
         blurredBg.composite(centeredImage, 0, 0);
         const finalImage = await blurredBg.getBufferAsync(Jimp.MIME_JPEG);
 
         // Update profile picture
-        await conn.updateProfilePicture(botJid, finalImage);
+        if (botJid) {
+            await client.updateProfilePicture(botJid, finalImage);
+        } else {
+            await client.updateProfilePicture(client.user.id, finalImage);
+        }
 
-        await conn.sendMessage(from, { text: "*✅ Bot ki profile picture kamyabi ke sath update ho gayi hai!*" }, { quoted: mek });
+        await reply("*✅ Bot's profile picture updated successfully!*");
 
     } catch (error) {
         console.error("fullpp Error:", error);
-        await reply(`*❌ Error updating profile picture:*\n${error.message}`);
+        return reply(`*❌ Error updating profile picture:*\n${error.message}`);
     }
 });
