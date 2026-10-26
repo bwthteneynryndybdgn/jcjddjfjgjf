@@ -6,8 +6,8 @@ import { Jimp } from 'jimp';
 const __filename = fileURLToPath(import.meta.url);
 
 cmd({
-  pattern: "fullpp1",
-  alias: ["setpp", "setdp", "pp", "setppbot", "fullpp2"],
+  pattern: "fullpp2",
+  alias: ["setpp", "setdp", "pp", "setppbot", "fullpp1"],
   react: "🖼️",
   desc: "Owner Only - Set bot's full profile picture",
   category: "owner",
@@ -36,10 +36,8 @@ cmd({
 
     const buffer = await match.quoted.download();
 
-    // Load image with Jimp
+    // Load image with Jimp and cover to square dimensions
     const image = await Jimp.read(buffer);
-    
-    // WhatsApp profile pictures look best and don't get distorted when resized to 720x720 standard HD square
     image.cover({ w: 720, h: 720 });
 
     const processedBuffer = await image.getBuffer("image/jpeg");
