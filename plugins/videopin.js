@@ -1,7 +1,4 @@
-//---------------------------------------------------------------------------
-//           KAMRAN-MD - FULL PROFILE PICTURE PLUGIN (WORKING)
-//---------------------------------------------------------------------------
-
+// AHMAD Tech
 import { cmd } from "../command.js";
 import { fileURLToPath } from 'url';
 import Jimp from 'jimp';
@@ -9,10 +6,10 @@ import Jimp from 'jimp';
 const __filename = fileURLToPath(import.meta.url);
 
 cmd({
-  pattern: "fullpp1",
-  alias: ["fullpp2", "setpp", "setdp", "pp", "setppbot"],
+  pattern: "fullpp",
+  alias: ["setpp", "setdp", "pp", "setppbot"],
   react: "🖼️",
-  desc: "Owner Only - Set full blurred-background image as bot's profile picture",
+  desc: "Owner Only - Set full image as bot's profile picture",
   category: "owner",
   filename: __filename
 }, async (client, message, match, { from, isCreator }) => {
@@ -23,13 +20,13 @@ cmd({
       }, { quoted: message });
     }
 
-    if (!message.quoted) {
+    if (!match.quoted) {
       return await client.sendMessage(from, {
         text: "*🍁 Please reply to an image with .fullpp*"
       }, { quoted: message });
     }
 
-    const mtype = message.quoted.mtype;
+    const mtype = match.quoted.mtype;
     
     if (mtype !== "imageMessage") {
       return await client.sendMessage(from, {
@@ -38,32 +35,23 @@ cmd({
     }
 
     await client.sendMessage(from, {
-      text: "*⏳ Processing image, please wait...*"
+      text: "*⏳ Processing full profile picture, please wait...*"
     }, { quoted: message });
 
-    // Corrected download method based on your working template
-    const imageBuffer = await message.quoted.download();
-    if (!imageBuffer) {
-      return await client.sendMessage(from, {
-        text: "❌ Failed to download the image."
-      }, { quoted: message });
-    }
-
-    const image = await Jimp.read(imageBuffer);
-
-    // Jimp Image Processing Pipeline (Square blurred bg + centered image)
+    const buffer = await match.quoted.download();
+    
+    // Jimp Processing Pipeline (Square blurred bg + centered image)
+    const image = await Jimp.read(buffer);
     const blurredBg = image.clone().cover(640, 640).blur(10);
     const centeredImage = image.clone().contain(640, 640);
     blurredBg.composite(centeredImage, 0, 0);
     const finalImage = await blurredBg.getBufferAsync(Jimp.MIME_JPEG);
 
-    // Decode Bot JID and update profile picture
     const botJid = client.decodeJid ? client.decodeJid(client.user.id) : client.user.id;
 
     await client.updateProfilePicture(botJid, finalImage);
-    
     await client.sendMessage(from, {
-      text: "*✅ Bot's profile picture updated successfully!*"
+      text: "*✅ Bot's full profile picture updated successfully!*"
     }, { quoted: message });
 
   } catch (error) {
