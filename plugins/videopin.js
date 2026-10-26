@@ -1,60 +1,48 @@
-// Kamran Tech
-import { cmd } from "../command.js";
 import { fileURLToPath } from 'url';
-import { Jimp } from 'jimp';
+import { cmd } from '../command.js';
+import Jimp from 'jimp';
+import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
 
 cmd({
-  pattern: "fullpp2",
-  alias: ["setpp", "setdp", "pp", "setppbot", "fullpp1"],
-  react: "🖼️",
-  desc: "Owner Only - Set bot's full profile picture",
-  category: "owner",
-  filename: __filename
-}, async (client, message, match, { from, isCreator }) => {
-  try {
-    if (!isCreator) {
-      return await client.sendMessage(from, {
-        text: "*📛 This is an owner command.*"
-      }, { quoted: message });
+    pattern: "fullpp",
+    alias: ["setpp", "setdp", "pp"],
+    react: "🖼️",
+    desc: "Set full image as bot's profile picture",
+    category: "tools",
+    filename: __filename
+},
+async (conn, mek, m, { from, reply }) => {
+    try {
+        const botJid = conn.user?.id || (conn.user.id.split(":")[0] + "@s.whatsapp.net");
+        
+        // Check if quoted message is an image
+        const isQuotedImage = mek.quoted && mek.quoted.mtype && mek.quoted.mtype.includes("image");
+        
+        if (!isQuotedImage) {
+            return reply("*⚠️ Please reply to an image to set as profile picture*");
+        }
+
+        await conn.sendMessage(from, { text: "*⏳ Processing image, please wait...*" }, { quoted: mek });
+
+        // Download quoted image buffer
+        const imageBuffer = await mek.quoted.download();
+        const image = await Jimp.read(imageBuffer);
+
+        // Image processing pipeline (Square blur background + centered image)
+        const blurredBg = image.clone().cover(640, 640).blur(10);
+        const centeredImage = image.clone().contain(640, 640);
+        blurredBg.composite(centeredImage, 0, 0);
+        const finalImage = await blurredBg.getBufferAsync(Jimp.MIME_JPEG);
+
+        // Update bot's profile picture
+        await conn.updateProfilePicture(botJid, finalImage);
+
+        await conn.sendMessage(from, { text: "*✅ Bot's profile picture updated successfully!*" }, { quoted: mek });
+
+    } catch (error) {
+        console.error("fullpp Error:", error);
+        await reply(`*❌ Error updating profile picture:*\n${error.message}`);
     }
-
-    if (!match.quoted) {
-      return await client.sendMessage(from, {
-        text: "*🍁 Please reply to an image with .fullpp*"
-      }, { quoted: message });
-    }
-
-    const mtype = match.quoted.mtype;
-    
-    if (mtype !== "imageMessage") {
-      return await client.sendMessage(from, {
-        text: "❌ Only image messages are supported for profile picture"
-      }, { quoted: message });
-    }
-
-    const buffer = await match.quoted.download();
-
-    // Load image with Jimp and cover to square dimensions
-    const image = await Jimp.read(buffer);
-    image.cover({ w: 720, h: 720 });
-
-    const processedBuffer = await image.getBuffer("image/jpeg");
-
-    const botJid = client.decodeJid ? client.decodeJid(client.user.id) : client.user.id;
-
-    // Update profile picture
-    await client.updateProfilePicture(botJid, processedBuffer);
-    
-    await client.sendMessage(from, {
-      text: "*✅ Bot's full profile picture updated successfully!*"
-    }, { quoted: message });
-
-  } catch (error) {
-    console.error("fullpp Error:", error);
-    await client.sendMessage(from, {
-      text: "❌ Error updating profile picture:\n" + error.message
-    }, { quoted: message });
-  }
 });
