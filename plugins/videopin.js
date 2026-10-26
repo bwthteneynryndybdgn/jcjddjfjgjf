@@ -8,8 +8,8 @@ const API = 'https://api.omegatech.app/api/movie/MovieBox-pro';
 const OFF = 'https://api.omegatech.app/api/movie/Moviebox_off';
 
 cmd({
-    pattern: "movie",
-    alias: ["film", "moviebox", "mb"],
+    pattern: "movie75",
+    alias: ["film65", "moviebox75", "mb75"],
     use: '.movie Avatar',
     desc: "Search movies and get stream/download links from MovieBox with interactive steps",
     category: "downloader",
