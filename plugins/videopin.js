@@ -1,5 +1,5 @@
 //---------------------------------------------------------------------------
-//           KAMRAN-MD - YOUTUBE DOWNLOADER 2 (OMEGATECH API)
+//           KAMRAN-MD - YOUTUBE DOWNLOADER 2 (OMEGATECH API FIXED)
 //---------------------------------------------------------------------------
 
 import axios from 'axios';
@@ -10,24 +10,26 @@ const __filename = fileURLToPath(import.meta.url);
 
 const API_BASE = 'https://api.omegatech.app/api/download/ytultra';
 
+const axiosConfig = {
+    timeout: 30000,
+    headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
+};
+
 function isYouTubeUrl(str) {
   return /youtube\.com|youtu\.be/i.test(str);
 }
 
 async function searchYT(query) {
-  const res = await axios.get(`${API_BASE}?action=search&query=${encodeURIComponent(query)}`, {
-    timeout: 30000,
-    headers: { 'Accept': 'application/json' }
-  });
+  const res = await axios.get(`${API_BASE}?action=search&query=${encodeURIComponent(query)}`, axiosConfig);
   if (!res.data?.success) throw new Error('Search failed');
   return res.data.data;
 }
 
 async function getDownloadData(videoUrl) {
-  const res = await axios.get(`${API_BASE}?action=download&url=${encodeURIComponent(videoUrl)}`, {
-    timeout: 30000,
-    headers: { 'Accept': 'application/json' }
-  });
+  const res = await axios.get(`${API_BASE}?action=download&url=${encodeURIComponent(videoUrl)}`, axiosConfig);
   if (!res.data?.success) throw new Error('Download info failed');
   return res.data.data;
 }
@@ -53,7 +55,7 @@ function pickBestVideo(mp4List) {
 }
 
 cmd({
-    pattern: "yt2",
+    pattern: "yt244",
     alias: ["ytdl2", "ytv2", "yta2"],
     desc: "YouTube video or audio downloader via OmegaTech API",
     category: "downloader",
@@ -66,7 +68,6 @@ async (conn, mek, m, { from, text, reply, socket, sock }) => {
     try {
         let input = text ? text.trim() : '';
 
-        // If no args, check if replying to a message with a YouTube link
         if (!input && mek.quoted) {
             const quotedText = mek.quoted.text || mek.quoted.caption || '';
             const found = quotedText.split(/\s+/).find(x => isYouTubeUrl(x));
@@ -80,24 +81,17 @@ async (conn, mek, m, { from, text, reply, socket, sock }) => {
                 `  .yt2 <youtube-url>    Download audio\n` +
                 `  .yt2 <url> v          Download video\n` +
                 `  .yt2 <query>          Search YouTube\n\n` +
-                `Examples:\n` +
-                `  .yt2 https://youtu.be/xxxxx\n` +
-                `  .yt2 https://youtu.be/xxxxx v\n` +
-                `  .yt2 alone\n\n` +
                 `> *© KAMRAN-MINI-BOT ッ*`
             );
         }
 
-        // ─────────────────────────────────────────
-        // YOUTUBE URL → AUTO DOWNLOAD
-        // ─────────────────────────────────────────
         if (isYouTubeUrl(input)) {
             const parts = input.split(/\s+/);
             const url = parts.find(x => isYouTubeUrl(x));
             const wantVideo = parts.some(x => x.toLowerCase() === 'v' || x.toLowerCase() === 'video');
 
             await client.sendMessage(chatId, { react: { text: '⏳', key: mek.key } });
-            await reply(`⏳ _Fetching YouTube info from OmegaTech API..._`);
+            await reply(`⏳ _Fetching YouTube info from API..._`);
 
             const data = await getDownloadData(url);
 
@@ -138,9 +132,6 @@ async (conn, mek, m, { from, text, reply, socket, sock }) => {
             return;
         }
 
-        // ─────────────────────────────────────────
-        // NOT A URL → SEARCH
-        // ─────────────────────────────────────────
         await client.sendMessage(chatId, { react: { text: '⏳', key: mek.key } });
         await reply(`🔍 Searching YouTube for: *${input}*...`);
 
