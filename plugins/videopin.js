@@ -55,7 +55,7 @@ async function sendMediaWithDetails(conn, mek, from, selectedMedia, typeName, is
         }, { quoted: mek });
     }
 
-    // New Working API integration
+    // API Call
     const api = `https://apiii-xrina.my.id/download/youtube-dl?url=${encodeURIComponent(videoUrl)}`;
     const { data } = await axios.get(api, { 
         timeout: 90000,
@@ -65,7 +65,7 @@ async function sendMediaWithDetails(conn, mek, from, selectedMedia, typeName, is
     const resData = data?.data?.data || data?.result || data;
     const medias = resData?.medias || [];
     
-    // 360p ya 480p format select karna (jo unlocked ho)
+    // Unlocked format select karna (360p, 480p ya koi bhi mp4)
     const selectedMediaFormat = medias.find(v => v.quality === '360p' && !v.locked && v.url) ||
                                 medias.find(v => v.quality === '480p' && !v.locked && v.url) ||
                                 medias.find(v => !v.locked && v.url && v.format?.includes('mp4'));
@@ -83,42 +83,78 @@ async function sendMediaWithDetails(conn, mek, from, selectedMedia, typeName, is
     finalCaption += `╚══════════════════════✧\n\n`;
     finalCaption += `> 💫 _${toStylistUpper('Powered by Kamran-Md')}_`;
 
-    if (isDocument) {
-        let docPayload = {
-            document: { url: downloadUrl },
-            mimetype: 'video/mp4',
-            fileName: `${finalTitle.replace(/[/\\?%*:|"<>]/g, '').trim()}.mp4`,
-            caption: finalCaption,
-            contextInfo: { mentionedJid: [mek.sender] }
-        };
+    try {
+        // Video ko buffer mein download karna taaki streaming ya link expiry ka error na aaye
+        console.log("Downloading video buffer from stream...");
+        const videoBuffer = await axios.get(downloadUrl, {
+            responseType: 'arraybuffer',
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Range': 'bytes=0-'
+            },
+            timeout: 120000,
+            maxContentLength: Infinity,
+            maxBodyLength: Infinity
+        }).then(res => res.data);
 
-        if (thumbnail) {
-            try {
-                const thumbBuffer = await axios.get(thumbnail, { responseType: 'arraybuffer' }).then(res => res.data);
-                if (thumbBuffer) {
-                    docPayload.jpegThumbnail = thumbBuffer.toString('base64');
+        if (isDocument) {
+            let docPayload = {
+                document: videoBuffer,
+                mimetype: 'video/mp4',
+                fileName: `${finalTitle.replace(/[/\\?%*:|"<>]/g, '').trim()}.mp4`,
+                caption: finalCaption,
+                contextInfo: { mentionedJid: [mek.sender] }
+            };
+
+            if (thumbnail) {
+                try {
+                    const thumbBuffer = await axios.get(thumbnail, { responseType: 'arraybuffer' }).then(res => res.data);
+                    if (thumbBuffer) {
+                        docPayload.jpegThumbnail = thumbBuffer.toString('base64');
+                    }
+                } catch (err) {
+                    console.log("Thumbnail error:", err.message);
                 }
-            } catch (err) {
-                console.log("Thumbnail error:", err.message);
             }
+
+            await conn.sendMessage(from, docPayload, { quoted: mek });
+        } else {
+            await conn.sendMessage(from, {
+                video: videoBuffer,
+                mimetype: 'video/mp4',
+                caption: finalCaption,
+                contextInfo: { mentionedJid: [mek.sender] }
+            }, { quoted: mek });
         }
 
-        await conn.sendMessage(from, docPayload, { quoted: mek });
-    } else {
-        await conn.sendMessage(from, {
-            video: { url: downloadUrl },
-            mimetype: 'video/mp4',
-            caption: finalCaption,
-            contextInfo: { mentionedJid: [mek.sender] }
-        }, { quoted: mek });
-    }
+        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
 
-    await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
+    } catch (err) {
+        console.log("Buffer send error, falling back to URL:", err.message);
+        // Fallback agar buffer fail ho jaye toh direct URL bhej dega
+        if (isDocument) {
+            await conn.sendMessage(from, {
+                document: { url: downloadUrl },
+                mimetype: 'video/mp4',
+                fileName: `${finalTitle.replace(/[/\\?%*:|"<>]/g, '').trim()}.mp4`,
+                caption: finalCaption,
+                contextInfo: { mentionedJid: [mek.sender] }
+            }, { quoted: mek });
+        } else {
+            await conn.sendMessage(from, {
+                video: { url: downloadUrl },
+                mimetype: 'video/mp4',
+                caption: finalCaption,
+                contextInfo: { mentionedJid: [mek.sender] }
+            }, { quoted: mek });
+        }
+        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
+    }
 }
 
 // ==================== 1. DRAMA COMMAND (Document) ====================
 cmd({
-    pattern: "drama644",
+    pattern: "drama",
     alias: ["pakdrama", "dramas"],
     use: '.drama <drama name>',
     desc: "Search drama, show details with photo, and download as Document",
@@ -176,8 +212,8 @@ async (conn, mek, m, { from, text, reply }) => {
 
 // ==================== 3. VIDEO COMMAND (Direct Video) ====================
 cmd({
-    pattern: "video655",
-    alias: ["ytmp4655", "song656"],
+    pattern: "video7437",
+    alias: ["ytmp47447", "song4774"],
     use: '.video <song or video name>',
     desc: "Search video, show details with photo, and download as Direct Video",
     category: "downloader",
