@@ -1,5 +1,9 @@
-import { cmd } from '../command.js';
+//---------------------------------------------------------------------------
+//           KAMRAN-MD - WHATSAPP BAN & STATUS CHECKER PLUGIN
+//---------------------------------------------------------------------------
+
 import { fileURLToPath } from 'url';
+import { cmd } from '../command.js';
 import { delay, makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, Browsers } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import fs from 'fs';
@@ -8,22 +12,43 @@ import os from 'os';
 
 const __filename = fileURLToPath(import.meta.url);
 
+// Helper function for Stylist Badi ABC Text
+const toStylistUpper = (text) => {
+    if (!text || typeof text !== 'string') return '';
+    const uppercaseMap = {
+        'a': 'ᴀ', 'b': 'ʙ', 'c': 'ᴄ', 'd': 'ᴅ', 'e': 'ᴇ', 'f': 'ғ', 'g': 'ɢ', 'h': 'ʜ', 'i': 'ɪ',
+        'j': 'ᴊ', 'k': 'ᴋ', 'l': 'ʟ', 'm': 'ᴍ', 'n': 'ɴ', 'o': 'ᴏ', 'p': 'ᴘ', 'q': 'ǫ', 'r': 'ʀ',
+        's': 's', 't': 'ᴛ', 'u': 'ᴜ', 'v': 'ᴠ', 'w': 'ᴡ', 'x': 'x', 'y': 'ʏ', 'z': 'ᴢ',
+        'A': 'ᴀ', 'B': 'ʙ', 'C': 'ᴄ', 'D': 'ᴅ', 'E': 'ᴇ', 'F': 'ғ', 'G': 'ɢ', 'H': 'ʜ', 'I': 'ɪ',
+        'J': 'ᴊ', 'K': 'ᴋ', 'L': 'ʟ', 'M': 'ᴍ', 'N': 'ɴ', 'O': 'ᴏ', 'P': 'ᴘ', 'Q': 'ǫ', 'R': 'ʀ',
+        'S': 's', 'T': 'ᴛ', 'U': 'ᴜ', 'V': 'ᴠ', 'W': 'ᴡ', 'X': 'x', 'Y': 'ʏ', 'Z': 'ᴢ'
+    };
+    return text.split('').map(char => uppercaseMap[char] || char).join('');
+};
+
 cmd({
     pattern: "bancheck",
     alias: ["bcheck", "checkban"],
-    desc: "Check if a number is banned/fake via Pairing Request",
+    use: '.bancheck <number>',
+    desc: "Check if a WhatsApp number is banned or active",
     category: "tools",
     react: "🕵️",
     filename: __filename
 }, async (conn, mek, m, { from, text, reply }) => {
     try {
         if (!text) {
-            return reply("❌ Please provide a WhatsApp number.\n\n*Example:* `.bancheck 923103448168`");
+            let helpMsg = `❖ ── ✦ *${toStylistUpper('WhatsApp Ban Checker')}* ✦ ── ❖\n\n`;
+            helpMsg += `╔═════ ⌈ *⚡ ${toStylistUpper('Usage Guide')}* ⌋ ═════✧\n`;
+            helpMsg += `║ 📌 *${toStylistUpper('Example')}:*\n`;
+            helpMsg += `║ • .bancheck 923103448168\n`;
+            helpMsg += `╚══════════════════════✧\n\n`;
+            helpMsg += `> 💫 _${toStylistUpper('Powered by Kamran-Md')}_`;
+            return reply(helpMsg);
         }
 
         const cleanNumber = text.replace(/[^0-9]/g, '');
         if (cleanNumber.length < 10 || cleanNumber.length > 15) {
-            return reply("❌ Invalid number format. Include country code.");
+            return reply(`❌ *${toStylistUpper('Invalid number format. Include country code.')}*`);
         }
 
         await conn.sendMessage(from, { react: { text: '⏳', key: m.key } });
@@ -31,18 +56,20 @@ cmd({
         
         let status = "UNKNOWN";
         let details = "";
+        let sessionPath = "";
+        let tempConn = null;
 
         try {
             // 1. Temporary session path banate hain
-            const sessionPath = path.join(os.tmpdir(), `bancheck_${cleanNumber}_${Date.now()}`);
+            sessionPath = path.join(os.tmpdir(), `bancheck_${cleanNumber}_${Date.now()}`);
             fs.mkdirSync(sessionPath, { recursive: true });
 
             const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
             const { version } = await fetchLatestBaileysVersion();
             const logger = pino({ level: 'silent' });
 
-            // 2. Temporary socket banate hain (Sirf check ke liye)
-            const tempConn = makeWASocket({
+            // 2. Temporary socket banate hain
+            tempConn = makeWASocket({
                 auth: { creds: state.creds, keys: state.keys },
                 printQRInTerminal: false,
                 logger,
@@ -53,12 +80,14 @@ cmd({
                 defaultQueryTimeoutMs: 15000
             });
 
-            // 3. Pairing Code Request bhejte hain (Ye check karega)
+            // Socket connection establish hone ke liye thoda wait dena zaroori hai
+            await delay(3000);
+
+            // 3. Pairing Code Request bhejte hain
             let pairSuccess = false;
             let errorMessage = "";
 
             try {
-                // Agar WhatsApp ne number block kiya hoga, to yahan error aayega
                 const code = await tempConn.requestPairingCode(cleanNumber, 'KAMRANMD');
                 if (code) pairSuccess = true;
             } catch (err) {
@@ -71,9 +100,8 @@ cmd({
             // 4. Result Evaluate karte hain
             if (pairSuccess) {
                 status = "✅ ACTIVE / NOT BANNED";
-                details = "Number is active. WhatsApp accepted the pairing request and sent a code.";
+                details = "Number is active. WhatsApp accepted the pairing request.";
             } else {
-                // Error codes analyse karo
                 const errStr = errorMessage.toLowerCase();
                 
                 if (errStr.includes('connection closed') || errStr.includes('401') || errStr.includes('403') || errStr.includes('404')) {
@@ -88,31 +116,33 @@ cmd({
                 }
             }
 
-            // 5. Cleanup: Temporary session delete karo
-            try {
-                tempConn.end(new Error('Done'));
-                fs.rmSync(sessionPath, { recursive: true, force: true });
-            } catch (e) {}
-
         } catch (err) {
             console.error("Bancheck Inner Error:", err);
             status = "❌ ERROR";
             details = "Failed to initiate socket connection.";
+        } finally {
+            // 5. Cleanup: Temporary session safely delete karo
+            try {
+                if (tempConn) tempConn.end(new Error('Done'));
+                if (sessionPath && fs.existsSync(sessionPath)) {
+                    fs.rmSync(sessionPath, { recursive: true, force: true });
+                }
+            } catch (e) {}
         }
 
         await conn.sendMessage(from, { react: { text: status.includes('✅') ? '✅' : '❌', key: m.key } });
 
-        const resText = `*🕵️ WHATSAPP BAN CHECK*\n\n` +
-                        `📱 *Number:* ${masked}\n` +
-                        `📊 *Status:* ${status}\n\n` +
-                        `📝 *Details:*\n${details}\n\n` +
-                        `> Powered by JAWAD-MD`;
+        let resText = `❖ ── ✦ *${toStylistUpper('WhatsApp Ban Checker')}* ✦ ── ❖\n\n`;
+        resText += `📱 *${toStylistUpper('Number')}:* \`${masked}\`\n`;
+        resText += `📊 *${toStylistUpper('Status')}:* ${status}\n\n`;
+        resText += `📝 *${toStylistUpper('Details')}:*\n${details}\n\n`;
+        resText += `> 💫 _${toStylistUpper('Powered by Kamran-Md')}_`;
 
         await reply(resText);
 
     } catch (error) {
         console.error("BANCHECK ERROR:", error);
         await conn.sendMessage(from, { react: { text: '❌', key: m.key } });
-        reply("❌ Failed to check the number. Please try again later.");
+        reply(`❌ *${toStylistUpper('Failed to check the number. Please try again later.')}*`);
     }
 });
