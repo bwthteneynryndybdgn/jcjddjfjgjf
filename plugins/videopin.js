@@ -1,160 +1,81 @@
 //---------------------------------------------------------------------------
-//           KAMRAN-MD - YOUTUBE SEARCH & DIRECT DOWNLOADER (FIXED)
+//           KAMRAN-MD - YOUTUBE VIDEO DOWNLOADER (XRINA API)
 //---------------------------------------------------------------------------
 
-import { fileURLToPath } from 'url';
-import { cmd } from '../command.js';
-import yts from 'yt-search';
 import axios from 'axios';
+import { fileURLToPath } from 'url';
+import path from 'path';
+import { cmd } from '../command.js';
 
 const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-// Helper function for Stylist Badi ABC Text
-const toStylistUpper = (text) => {
-    if (!text || typeof text !== 'string') return '';
-    const uppercaseMap = {
-        'a': 'ᴀ', 'b': 'ʙ', 'c': 'ᴄ', 'd': 'ᴅ', 'e': 'ᴇ', 'f': 'ғ', 'g': 'ɢ', 'h': 'ʜ', 'i': 'ɪ',
-        'j': 'ᴊ', 'k': 'ᴋ', 'l': 'ʟ', 'm': 'ᴍ', 'n': 'ɴ', 'o': 'ᴏ', 'p': 'ᴘ', 'q': 'ǫ', 'r': 'ʀ',
-        's': 's', 't': 'ᴛ', 'u': 'ᴜ', 'v': 'ᴠ', 'w': 'ᴡ', 'x': 'x', 'y': 'ʏ', 'z': 'ᴢ',
-        'A': 'ᴀ', 'B': 'ʙ', 'C': 'ᴄ', 'D': 'ᴅ', 'E': 'ᴇ', 'F': 'ғ', 'G': 'ɢ', 'H': 'ʜ', 'I': 'ɪ',
-        'J': 'ᴊ', 'K': 'ᴋ', 'L': 'ʟ', 'M': 'ᴍ', 'N': 'ɴ', 'O': 'ᴏ', 'P': 'ᴘ', 'Q': 'ǫ', 'R': 'ʀ',
-        'S': 's', 'T': 'ᴛ', 'U': 'ᴜ', 'V': 'ᴠ', 'W': 'ᴡ', 'X': 'x', 'Y': 'ʏ', 'Z': 'ᴢ'
-    };
-    return text.split('').map(char => uppercaseMap[char] || char).join('');
-};
-
-async function getBuffer(url) {
-  try {
-    const response = await axios.get(url, {
-      responseType: 'arraybuffer',
-      headers: {
-        'DNT': 1,
-        'Upgrade-Insecure-Requests': 1,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
-        'Referer': 'https://www.youtube.com/'
-      },
-      timeout: 60000
-    });
-    return Buffer.from(response.data);
-  } catch (err) {
-    console.error("Buffer download error:", err.message);
-    return null;
-  }
+function cleanName(name = 'video') {
+    return String(name)
+        .replace(/[\\/:*?"<>|]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 150);
 }
 
 cmd({
-    pattern: "download75",
-    alias: ["ytsearch53", "yts74", "ytdl643"],
-    use: '.download75 <query or url>',
-    desc: "Search and download YouTube video safely",
+    pattern: "ytmp4655",
+    alias: ["video543", "ytv655"],
+    desc: "Download YouTube Video strictly via Xrina API",
     category: "downloader",
-    react: "📥",
     filename: __filename
 },
-async (conn, mek, m, { from, text, reply, react }) => {
+async (conn, mek, m, { from, text, reply, socket, sock }) => {
+    const client = socket || sock || conn;
+    const chatId = from || m.chat;
+
+    if (!text) {
+        return reply(
+            `❌ *Opps! URL Missing* ❌\n\n` +
+            `YouTube video ka link dein!\n` + 
+            `📌 *Contoh:* \`.ytmp4 https://youtu.be/xxxx\``
+        );
+    }
+    
+    await reply('_⏳ Fetching video from Xrina API..._');
+
     try {
-        const query = String(text || "").trim();
-        if (!query) {
-            let helpMsg = `❖ ── ✦ *${toStylistUpper('YouTube Downloader')}* ✦ ── ❖\n\n`;
-            helpMsg += `╔═════ ⌈ *⚡ ${toStylistUpper('Usage Guide')}* ⌋ ═════✧\n`;
-            helpMsg += `║ 📌 *${toStylistUpper('Example')}:*\n`;
-            helpMsg += `║ • .download75 song pal\n`;
-            helpMsg += `╚══════════════════════✧\n\n`;
-            helpMsg += `> 💫 _${toStylistUpper('Powered by Kamran-Md')}_`;
-            return reply(helpMsg);
+        const apiUrl = `https://apiii-xrina.my.id/download/youtube-dl?url=${encodeURIComponent(text.trim())}`;
+
+        const { data } = await axios.get(apiUrl, { timeout: 60000 });
+        if (!data || !data.status || !data.data || !data.data.data) {
+            throw new Error('API se data hasil karne mein nakami hui.');
         }
 
-        await react("🔍");
-        await reply(`🔍 _${toStylistUpper('Searching YouTube for')} *"${query}"*..._`);
+        const resData = data.data.data;
+        const title = resData.title || 'YouTube Video';
+        const medias = resData.medias || [];
 
-        let videoUrl = query;
-        let topVideoTitle = query;
-        let channelName = "YouTube";
-        let durationStr = "N/A";
-        let thumbUrl = "";
-
-        // Agar query URL nahi hai toh yt-search se link nikalein
-        if (!query.includes("http")) {
-            const searchResult = await yts(query);
-            const videos = searchResult?.videos;
-            if (!videos || videos.length === 0) {
-                await react("❌");
-                return reply(`🛸 *${toStylistUpper('No Results Found!')}*`);
-            }
-            topVideoTitle = videos[0].title;
-            videoUrl = videos[0].url;
-            channelName = videos[0].author?.name || "YouTube";
-            durationStr = videos[0].timestamp || "N/A";
-            thumbUrl = videos[0].thumbnail;
+        // Sirf MP4 video formats filter karein
+        const videoMedias = medias.filter(v => v.url && v.format && v.format.includes('.mp4'));
+        
+        if (videoMedias.length === 0) {
+            throw new Error('Is video ke liye koi MP4 format nahi mila.');
         }
 
-        await react("🚀");
-        await reply(`🚀 *${toStylistUpper('Resolving Video Download Link')}...*`);
+        // Sab se behtareen quality (ya pehli available video) select karein
+        const selectedVideo = videoMedias[0];
+        const downloadUrl = selectedVideo.url;
+        const safeTitle = cleanName(title);
 
-        const apiUrl = `https://apiii-xrina.my.id/download/youtube-dl?url=${encodeURIComponent(videoUrl)}`;
-        const dlRes = await axios.get(apiUrl, { timeout: 30000 });
-        const dlData = dlRes.data;
-
-        if (!dlData || !dlData.status || !dlData.data?.data) {
-            await react("❌");
-            return reply(`❌ *${toStylistUpper('Failed to fetch video download links.')}*`);
-        }
-
-        const videoInfo = dlData.data.data;
-        const medias = videoInfo.medias;
-
-        if (!medias || medias.length === 0) {
-            await react("❌");
-            return reply(`❌ *${toStylistUpper('No media formats available.')}*`);
-        }
-
-        // 360p ya 480p select karein taaki size chhota ho aur foran download ho jaye
-        const selectedMedia = medias.find(v => v.quality === "360p" || v.quality === "480p") || medias[0];
-        const directVideoUrl = selectedMedia?.url;
-
-        if (!directVideoUrl) {
-            await react("❌");
-            return reply(`❌ *${toStylistUpper('Direct video stream URL not found.')}*`);
-        }
-
-        const finalTitle = videoInfo.title ? videoInfo.title.trim() : topVideoTitle;
-        const cleanFileName = `${finalTitle.replace(/[^a-zA-Z0-9 ]/g, "_").trim()}.mp4`;
-
-        let finalCaption = `❖ ── ✦ *${toStylistUpper(finalTitle)}* ✦ ── ❖\n\n`;
-        finalCaption += `👤 *${toStylistUpper('Channel')}:* ${channelName}\n`;
-        finalCaption += `⏱️ *${toStylistUpper('Duration')}:* ${durationStr}\n`;
-        finalCaption += `📦 *${toStylistUpper('Quality')}:* ${selectedMedia.quality || 'N/A'}\n\n`;
-        finalCaption += `> 💫 _${toStylistUpper('Powered by Kamran-Md')}_`;
-
-        await reply(`📥 _${toStylistUpper('Downloading video to buffer, please wait')}..._`);
-
-        // Video ko buffer mein download karna taaki 403 error na aaye
-        const videoBuffer = await getBuffer(directVideoUrl);
-        if (!videoBuffer) {
-            await react("❌");
-            return reply(`❌ *${toStylistUpper('Failed to download video buffer from source.')}*`);
-        }
-
-        const thumbBuffer = await getBuffer(videoInfo.imageUrl || thumbUrl);
-
-        let documentPayload = {
-            document: videoBuffer,
-            mimetype: "video/mp4",
-            fileName: cleanFileName,
-            caption: finalCaption,
-            contextInfo: { mentionedJid: [mek.sender] }
-        };
-
-        if (thumbBuffer && Buffer.isBuffer(thumbBuffer)) {
-            documentPayload.jpegThumbnail = thumbBuffer.toString('base64');
-        }
-
-        await conn.sendMessage(from, documentPayload, { quoted: mek });
-        await react("✅");
+        await client.sendMessage(
+            chatId, 
+            { 
+                document: { url: downloadUrl }, 
+                mimetype: 'video/mp4', 
+                fileName: `${safeTitle}.mp4`, 
+                caption: `🎬 *${title}*\n kualitas: ${selectedVideo.quality || 'N/A'}\n\n> *© KAMRAN-MINI-BOT ッ*` 
+            }, 
+            { quoted: mek }
+        );
 
     } catch (e) {
-        console.error("Downloader Error:", e.message);
-        await react("❌");
-        return reply(`❌ *${toStylistUpper('Error Processing Request')}:* ${e.message}`);
+        console.error('[YTMP4 ERROR]', e);
+        return reply('❌ Gagal: ' + (e?.message || e));
     }
 });
