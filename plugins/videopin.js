@@ -1,27 +1,14 @@
-//---------------------------------------------------------------------------
-//           KAMRAN-MD - YOUTUBE VIDEO DOWNLOADER (XRINA API)
-//---------------------------------------------------------------------------
-
-import axios from 'axios';
-import { fileURLToPath } from 'url';
-import path from 'path';
+import yts from 'yt-search';
+import fetch from 'node-fetch';
 import { cmd } from '../command.js';
+import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-function cleanName(name = 'video') {
-    return String(name)
-        .replace(/[\\/:*?"<>|]/g, '')
-        .replace(/\s+/g, ' ')
-        .trim()
-        .slice(0, 150);
-}
 
 cmd({
-    pattern: "ytmp4655",
-    alias: ["video543", "ytv655"],
-    desc: "Download YouTube Video strictly via Xrina API",
+    pattern: "ytmp465",
+    alias: ["video65", "ytv766"],
+    desc: "Download YouTube video using Evogb API as Document",
     category: "downloader",
     filename: __filename
 },
@@ -30,52 +17,49 @@ async (conn, mek, m, { from, text, reply, socket, sock }) => {
     const chatId = from || m.chat;
 
     if (!text) {
-        return reply(
-            `❌ *Opps! URL Missing* ❌\n\n` +
-            `YouTube video ka link dein!\n` + 
-            `📌 *Contoh:* \`.ytmp4 https://youtu.be/xxxx\``
-        );
+        return reply(`⚠️ *Ingresa un enlace de YouTube o nombre del video.*`);
     }
-    
-    await reply('_⏳ Fetching video from Xrina API..._');
 
     try {
-        const apiUrl = `https://apiii-xrina.my.id/download/youtube-dl?url=${encodeURIComponent(text.trim())}`;
+        await client.sendMessage(chatId, { react: { text: "⏳", key: mek.key } });
 
-        const { data } = await axios.get(apiUrl, { timeout: 60000 });
-        if (!data || !data.status || !data.data || !data.data.data) {
-            throw new Error('API se data hasil karne mein nakami hui.');
+        let res = await yts(text);
+        let vid = res.videos[0];
+        if (!vid) {
+            await client.sendMessage(chatId, { react: { text: "❌", key: mek.key } });
+            return reply(`⚠️ *No se encontró el video.*`);
         }
 
-        const resData = data.data.data;
-        const title = resData.title || 'YouTube Video';
-        const medias = resData.medias || [];
+        let apiUrl = `https://api.evogb.org/dl/ytmp4?url=${encodeURIComponent(vid.url)}&quality=720&key=sasuke`;
+        let response = await fetch(apiUrl);
+        let json = await response.json();
 
-        // Sirf MP4 video formats filter karein
-        const videoMedias = medias.filter(v => v.url && v.format && v.format.includes('.mp4'));
-        
-        if (videoMedias.length === 0) {
-            throw new Error('Is video ke liye koi MP4 format nahi mila.');
+        if (!json.status || !json.data || !json.data.dl) {
+            await client.sendMessage(chatId, { react: { text: "❌", key: mek.key } });
+            return reply(`❌ *Error al procesar el video.*`);
         }
 
-        // Sab se behtareen quality (ya pehli available video) select karein
-        const selectedVideo = videoMedias[0];
-        const downloadUrl = selectedVideo.url;
-        const safeTitle = cleanName(title);
+        let cap = `🛸 *[ KAMRAN-MD ]* 🌌\n\n🎶 *Título:* ${vid.title}\n📁 *Formato:* MP4 (720p Document)\n\n⚙️ *KAMRAN-MD • Descargando...* 🌀`;
 
-        await client.sendMessage(
-            chatId, 
-            { 
-                document: { url: downloadUrl }, 
-                mimetype: 'video/mp4', 
-                fileName: `${safeTitle}.mp4`, 
-                caption: `🎬 *${title}*\n kualitas: ${selectedVideo.quality || 'N/A'}\n\n> *© KAMRAN-MINI-BOT ッ*` 
-            }, 
-            { quoted: mek }
-        );
+        // Thumbnail aur caption bhejna
+        await client.sendMessage(chatId, { image: { url: vid.thumbnail }, caption: cap }, { quoted: mek });
+
+        // Clean filename for document
+        let cleanFileName = `${vid.title.replace(/[\\/:*?"<>|]/g, '').trim().substring(0, 100)}.mp4`;
+
+        // Strictly Document format mein video send karna
+        await client.sendMessage(chatId, { 
+            document: { url: json.data.dl }, 
+            mimetype: 'video/mp4',
+            fileName: cleanFileName,
+            caption: `🎬 *${vid.title}*\n\n> *© KAMRAN-MINI-BOT ッ*`
+        }, { quoted: mek });
+
+        await client.sendMessage(chatId, { react: { text: "✅", key: mek.key } });
 
     } catch (e) {
         console.error('[YTMP4 ERROR]', e);
-        return reply('❌ Gagal: ' + (e?.message || e));
+        await client.sendMessage(chatId, { react: { text: "❌", key: mek.key } });
+        return reply(`❌ Error: ${e.message}`);
     }
 });
