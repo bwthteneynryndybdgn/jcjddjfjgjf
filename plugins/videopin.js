@@ -1,9 +1,10 @@
 //---------------------------------------------------------------------------
-//           KAMRAN-MD - PINTEREST DIRECT VIDEO DOWNLOADER PLUGIN
+//           KAMRAN-MD - YOUTUBE SEARCH & DIRECT DOWNLOADER (YT-SEARCH)
 //---------------------------------------------------------------------------
 
 import { fileURLToPath } from 'url';
 import { cmd } from '../command.js';
+import yts from 'yt-search';
 import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -33,77 +34,86 @@ async function getThumbnailBuffer(url) {
 }
 
 cmd({
-    pattern: "pinsearch2",
-    alias: ["pinterest", "pinvid"],
-    use: '.pinsearch <query>',
-    desc: "Directly search and download top video from Pinterest via API",
+    pattern: "video54",
+    alias: ["ytv65", "download75"],
+    use: '.ytsearch <query>',
+    desc: "Search YouTube via yt-search and directly download the top video",
     category: "downloader",
-    react: "📌",
+    react: "🔍",
     filename: __filename
 },
 async (conn, mek, m, { from, text, reply, react }) => {
     try {
         const query = String(text || "").trim();
         if (!query) {
-            let helpMsg = `❖ ── ✦ *${toStylistUpper('Pinterest Video Downloader')}* ✦ ── ❖\n\n`;
+            let helpMsg = `❖ ── ✦ *${toStylistUpper('YouTube Search Downloader')}* ✦ ── ❖\n\n`;
             helpMsg += `╔═════ ⌈ *⚡ ${toStylistUpper('Usage Guide')}* ⌋ ═════✧\n`;
             helpMsg += `║ 📌 *${toStylistUpper('Example')}:*\n`;
-            helpMsg += `║ • .pinsearch Cat\n`;
+            helpMsg += `║ • .ytsearch Naat Sharif\n`;
             helpMsg += `╚══════════════════════✧\n\n`;
             helpMsg += `> 💫 _${toStylistUpper('Powered by Kamran-Md')}_`;
             return reply(helpMsg);
         }
 
         await react("🔍");
-        await reply(`🔍 _${toStylistUpper('Searching Pinterest video for')} *"${query}"*..._`);
+        await reply(`🔍 _${toStylistUpper('Searching YouTube for')} *"${query}"*..._`);
 
-        const searchApiUrl = `https://api.nexray.eu.cc/search/pinterestvideo?q=${encodeURIComponent(query)}`;
-        const response = await axios.get(searchApiUrl, { timeout: 30000 });
-        const resData = response.data;
+        // yt-search package ka istemal
+        const searchResult = await yts(query);
+        const videos = searchResult?.videos;
 
-        if (!resData || !resData.status || !resData.result || resData.result.length === 0) {
+        if (!videos || videos.length === 0) {
             await react("❌");
-            return reply(`🛸 *${toStylistUpper('No Results Found!')}*\n${toStylistUpper('Pinterest par')} *"${query}"* ${toStylistUpper('se related koi video nahi mili.')}`);
+            return reply(`🛸 *${toStylistUpper('No Results Found!')}*\n${toStylistUpper('YouTube par')} *"${query}"* ${toStylistUpper('se related koi video nahi mili.')}`);
         }
 
-        // Direct top/first result utha li jaye gi bina kisi selection ke
-        const selectedVideo = resData.result[0];
-        if (!selectedVideo || !selectedVideo.url) {
+        const topVideo = videos[0];
+        const videoUrl = topVideo?.url;
+
+        if (!videoUrl) {
             await react("❌");
-            return reply(`❌ *${toStylistUpper('Failed to fetch video details from the top result.')}*`);
+            return reply(`❌ *${toStylistUpper('Failed to extract video link from yt-search results.')}*`);
         }
 
         await react("🚀");
-        await reply(`🚀 *${toStylistUpper('Resolving Pinterest Video')}...* \n${toStylistUpper('Please wait!')}`);
+        await reply(`🚀 *${toStylistUpper('Resolving Video Download Link')}...*`);
 
-        // Downloader API call to get direct playable/downloadable link
-        const dlApiUrl = `https://api.nexray.eu.cc/downloader/pinterest?url=${encodeURIComponent(selectedVideo.url)}`;
+        const dlApiUrl = `https://apiii-xrina.my.id/download/youtube-dl?url=${encodeURIComponent(videoUrl)}`;
         const dlRes = await axios.get(dlApiUrl, { timeout: 30000 });
         const dlData = dlRes.data;
 
-        const directVideoUrl = dlData?.result?.url || dlData?.result?.video_url || dlData?.url || selectedVideo.video_url;
+        if (!dlData || !dlData.status || !dlData.data?.data) {
+            await react("❌");
+            return reply(`❌ *${toStylistUpper('Failed to fetch direct download links for the video.')}*`);
+        }
+
+        const videoInfo = dlData.data.data;
+        const medias = videoInfo.medias;
+
+        if (!medias || medias.length === 0) {
+            await react("❌");
+            return reply(`❌ *${toStylistUpper('No downloadable media formats available.')}*`);
+        }
+
+        const selectedMedia = medias.find(v => v.quality === "480p" || v.quality === "360p") || medias[0];
+        const directVideoUrl = selectedMedia?.url;
 
         if (!directVideoUrl) {
             await react("❌");
-            return reply(`❌ *${toStylistUpper('Failed to fetch direct video download link.')}*`);
+            return reply(`❌ *${toStylistUpper('Direct video URL not found.')}*`);
         }
 
-        const videoTitle = selectedVideo.title && selectedVideo.title.trim() ? selectedVideo.title.trim() : 'Pinterest Video';
+        const videoTitle = videoInfo.title ? videoInfo.title.trim() : (topVideo.title || 'YouTube Video');
         const cleanFileName = `${videoTitle.replace(/[^a-zA-Z0-9 ]/g, "_").trim()}.mp4`;
 
         let finalCaption = `❖ ── ✦ *${toStylistUpper(videoTitle)}* ✦ ── ❖\n\n`;
-        if (selectedVideo.description && selectedVideo.description.trim()) {
-            const shortDesc = selectedVideo.description.length > 200 ? selectedVideo.description.substring(0, 200) + '...' : selectedVideo.description;
-            finalCaption += `📌 *${toStylistUpper('Description')}:* ${shortDesc}\n\n`;
-        }
-        if (selectedVideo.board) {
-            finalCaption += `📁 *${toStylistUpper('Board')}:* ${selectedVideo.board}\n\n`;
-        }
+        finalCaption += `👤 *${toStylistUpper('Channel')}:* ${topVideo.author?.name || 'YouTube'}\n`;
+        finalCaption += `⏱️ *${toStylistUpper('Duration')}:* ${topVideo.timestamp || videoInfo.duration || 'N/A'}\n`;
+        finalCaption += `📦 *${toStylistUpper('Quality')}:* ${selectedMedia.quality || 'N/A'}\n\n`;
         finalCaption += `> 💫 _${toStylistUpper('Powered by Kamran-Md')}_`;
 
-        const thumbBuffer = await getThumbnailBuffer(selectedVideo.thumbnail);
+        const thumbBuffer = await getThumbnailBuffer(videoInfo.imageUrl || topVideo.thumbnail);
 
-        // Sending as Document to bypass any HLS / streaming encryption or playback errors
         let documentPayload = {
             document: { url: directVideoUrl },
             mimetype: "video/mp4",
@@ -120,7 +130,7 @@ async (conn, mek, m, { from, text, reply, react }) => {
         await react("✅");
 
     } catch (e) {
-        console.error("Pinterest Search Error:", e.message);
+        console.error("YT-Search Downloader Error:", e.message);
         await react("❌");
         return reply(`❌ *${toStylistUpper('Error Processing Request')}:* ${e.message}`);
     }
