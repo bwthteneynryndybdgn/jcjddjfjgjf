@@ -1,238 +1,175 @@
 //---------------------------------------------------------------------------
-//           KAMRAN-MD - DRAMA, CARTOON & VIDEO DOWNLOADER PLUGIN
+//           KAMRAN-MD - YOUTUBE DOWNLOADER 2 (OMEGATECH API)
 //---------------------------------------------------------------------------
 
-import { fileURLToPath } from 'url';
-import { cmd } from '../command.js';
 import axios from 'axios';
-import yts from 'yt-search';
+import { cmd } from '../command.js';
+import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 
-// Helper function for Stylist Badi ABC Text
-const toStylistUpper = (text) => {
-    if (!text || typeof text !== 'string') return '';
-    const uppercaseMap = {
-        'a': 'ᴀ', 'b': 'ʙ', 'c': 'ᴄ', 'd': 'ᴅ', 'e': 'ᴇ', 'f': 'ғ', 'g': 'ɢ', 'h': 'ʜ', 'i': 'ɪ',
-        'j': 'ᴊ', 'k': 'ᴋ', 'l': 'ʟ', 'm': 'ᴍ', 'n': 'ɴ', 'o': 'ᴏ', 'p': 'ᴘ', 'q': 'ǫ', 'r': 'ʀ',
-        's': 's', 't': 'ᴛ', 'u': 'ᴜ', 'v': 'ᴠ', 'w': 'ᴡ', 'x': 'x', 'y': 'ʏ', 'z': 'ᴢ',
-        'A': 'ᴀ', 'B': 'ʙ', 'C': 'ᴄ', 'D': 'ᴅ', 'E': 'ᴇ', 'F': 'ғ', 'G': 'ɢ', 'H': 'ʜ', 'I': 'ɪ',
-        'J': 'ᴊ', 'K': 'ᴋ', 'L': 'ʟ', 'M': 'ᴍ', 'N': 'ɴ', 'O': 'ᴏ', 'P': 'ᴘ', 'Q': 'ǫ', 'R': 'ʀ',
-        'S': 's', 'T': 'ᴛ', 'U': 'ᴜ', 'V': 'ᴠ', 'W': 'ᴡ', 'X': 'x', 'Y': 'ʏ', 'Z': 'ᴢ'
-    };
-    return text.split('').map(char => uppercaseMap[char] || char).join('');
-};
+const API_BASE = 'https://api.omegatech.app/api/download/ytultra';
 
-// ==================== HELPER FUNCTION FOR DETAILS & MEDIA ====================
-async function sendMediaWithDetails(conn, mek, from, selectedMedia, typeName, isDocument = true) {
-    const videoUrl = selectedMedia.url || `https://youtube.com/watch?v=${selectedMedia.videoId}`;
-    const mediaTitle = selectedMedia.title || typeName;
-    const thumbnail = selectedMedia.thumbnail || selectedMedia.image || "";
-    const duration = selectedMedia.timestamp || selectedMedia.duration || "N/A";
-    const views = selectedMedia.views ? selectedMedia.views.toLocaleString() : "N/A";
-    const authorName = selectedMedia.author?.name || "Unknown Channel";
-
-    // Styled Info Card
-    let infoText = `❖ ── ✦ *${toStylistUpper(typeName)} Details* ✦ ── ❖\n\n`;
-    infoText += `╔═════ ⌈ *⚡ ${toStylistUpper('Media Info')}* ⌋ ═════✧\n`;
-    infoText += `║ 📌 *${toStylistUpper('Title')}:* ${mediaTitle}\n`;
-    infoText += `║ 👤 *${toStylistUpper('Channel')}:* ${authorName}\n`;
-    infoText += `║ ⏱️ *${toStylistUpper('Duration')}:* ${duration}\n`;
-    infoText += `║ 👁️ *${toStylistUpper('Views')}:* ${views}\n`;
-    infoText += `╚══════════════════════✧\n\n`;
-    infoText += `> 💫 _${toStylistUpper('Video is downloading, please wait...')}_`;
-
-    if (thumbnail) {
-        await conn.sendMessage(from, { 
-            image: { url: thumbnail }, 
-            caption: infoText,
-            contextInfo: { mentionedJid: [mek.sender] }
-        }, { quoted: mek });
-    } else {
-        await conn.sendMessage(from, { 
-            text: infoText,
-            contextInfo: { mentionedJid: [mek.sender] }
-        }, { quoted: mek });
-    }
-
-    // API Call
-    const api = `https://apiii-xrina.my.id/download/youtube-dl?url=${encodeURIComponent(videoUrl)}`;
-    const { data } = await axios.get(api, { 
-        timeout: 90000,
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
-    });
-
-    const resData = data?.data?.data || data?.result || data;
-    const medias = resData?.medias || [];
-    
-    // Unlocked format select karna (360p, 480p ya koi bhi mp4)
-    const selectedMediaFormat = medias.find(v => v.quality === '360p' && !v.locked && v.url) ||
-                                medias.find(v => v.quality === '480p' && !v.locked && v.url) ||
-                                medias.find(v => !v.locked && v.url && v.format?.includes('mp4'));
-
-    const downloadUrl = selectedMediaFormat?.url;
-    const finalTitle = resData?.title || mediaTitle;
-
-    if (!downloadUrl) {
-        return conn.sendMessage(from, { text: `❌ *${toStylistUpper('Download link not found')}:* ${finalTitle}` });
-    }
-
-    let finalCaption = `❖ ── ✦ *${toStylistUpper(typeName)}* ✦ ── ❖\n\n`;
-    finalCaption += `╔═════ ⌈ *⚡ ${toStylistUpper('File Info')}* ⌋ ═════✧\n`;
-    finalCaption += `║ 📌 *${toStylistUpper('Title')}:* ${finalTitle}\n`;
-    finalCaption += `╚══════════════════════✧\n\n`;
-    finalCaption += `> 💫 _${toStylistUpper('Powered by Kamran-Md')}_`;
-
-    try {
-        // Video ko buffer mein download karna taaki streaming ya link expiry ka error na aaye
-        console.log("Downloading video buffer from stream...");
-        const videoBuffer = await axios.get(downloadUrl, {
-            responseType: 'arraybuffer',
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Range': 'bytes=0-'
-            },
-            timeout: 120000,
-            maxContentLength: Infinity,
-            maxBodyLength: Infinity
-        }).then(res => res.data);
-
-        if (isDocument) {
-            let docPayload = {
-                document: videoBuffer,
-                mimetype: 'video/mp4',
-                fileName: `${finalTitle.replace(/[/\\?%*:|"<>]/g, '').trim()}.mp4`,
-                caption: finalCaption,
-                contextInfo: { mentionedJid: [mek.sender] }
-            };
-
-            if (thumbnail) {
-                try {
-                    const thumbBuffer = await axios.get(thumbnail, { responseType: 'arraybuffer' }).then(res => res.data);
-                    if (thumbBuffer) {
-                        docPayload.jpegThumbnail = thumbBuffer.toString('base64');
-                    }
-                } catch (err) {
-                    console.log("Thumbnail error:", err.message);
-                }
-            }
-
-            await conn.sendMessage(from, docPayload, { quoted: mek });
-        } else {
-            await conn.sendMessage(from, {
-                video: videoBuffer,
-                mimetype: 'video/mp4',
-                caption: finalCaption,
-                contextInfo: { mentionedJid: [mek.sender] }
-            }, { quoted: mek });
-        }
-
-        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
-
-    } catch (err) {
-        console.log("Buffer send error, falling back to URL:", err.message);
-        // Fallback agar buffer fail ho jaye toh direct URL bhej dega
-        if (isDocument) {
-            await conn.sendMessage(from, {
-                document: { url: downloadUrl },
-                mimetype: 'video/mp4',
-                fileName: `${finalTitle.replace(/[/\\?%*:|"<>]/g, '').trim()}.mp4`,
-                caption: finalCaption,
-                contextInfo: { mentionedJid: [mek.sender] }
-            }, { quoted: mek });
-        } else {
-            await conn.sendMessage(from, {
-                video: { url: downloadUrl },
-                mimetype: 'video/mp4',
-                caption: finalCaption,
-                contextInfo: { mentionedJid: [mek.sender] }
-            }, { quoted: mek });
-        }
-        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
-    }
+function isYouTubeUrl(str) {
+  return /youtube\.com|youtu\.be/i.test(str);
 }
 
-// ==================== 1. DRAMA COMMAND (Document) ====================
+async function searchYT(query) {
+  const res = await axios.get(`${API_BASE}?action=search&query=${encodeURIComponent(query)}`, {
+    timeout: 30000,
+    headers: { 'Accept': 'application/json' }
+  });
+  if (!res.data?.success) throw new Error('Search failed');
+  return res.data.data;
+}
+
+async function getDownloadData(videoUrl) {
+  const res = await axios.get(`${API_BASE}?action=download&url=${encodeURIComponent(videoUrl)}`, {
+    timeout: 30000,
+    headers: { 'Accept': 'application/json' }
+  });
+  if (!res.data?.success) throw new Error('Download info failed');
+  return res.data.data;
+}
+
+function pickBestAudio(mp3List) {
+  if (!mp3List || mp3List.length === 0) return null;
+  const priority = ['320kbps', '256kbps', '192kbps', '160kbps', '128kbps', '96kbps', '64kbps'];
+  for (const q of priority) {
+    const found = mp3List.find(x => String(x.quality).toLowerCase().includes(q.toLowerCase()));
+    if (found) return found;
+  }
+  return mp3List[0];
+}
+
+function pickBestVideo(mp4List) {
+  if (!mp4List || mp4List.length === 0) return null;
+  const priority = ['1080p', '720p', '480p', '360p', '240p', '144p'];
+  for (const q of priority) {
+    const found = mp4List.find(x => String(x.quality).toLowerCase().includes(q.toLowerCase()));
+    if (found) return found;
+  }
+  return mp4List[0];
+}
+
 cmd({
-    pattern: "drama",
-    alias: ["pakdrama", "dramas"],
-    use: '.drama <drama name>',
-    desc: "Search drama, show details with photo, and download as Document",
+    pattern: "yt2",
+    alias: ["ytdl2", "ytv2", "yta2"],
+    desc: "YouTube video or audio downloader via OmegaTech API",
     category: "downloader",
-    react: "📺",
     filename: __filename
 },
-async (conn, mek, m, { from, text, reply }) => {
+async (conn, mek, m, { from, text, reply, socket, sock }) => {
+    const client = socket || sock || conn;
+    const chatId = from || m.chat;
+
     try {
-        const query = String(text || "").trim();
-        if (!query) return reply(`⚠️ *${toStylistUpper('Usage')}:* .drama <drama name>`);
+        let input = text ? text.trim() : '';
 
-        await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
-        const searchRes = await yts(query);
-        const rawResults = searchRes?.videos || searchRes || [];
-        if (!rawResults.length) return reply(`❌ *${toStylistUpper('No drama found.')}*`);
+        // If no args, check if replying to a message with a YouTube link
+        if (!input && mek.quoted) {
+            const quotedText = mek.quoted.text || mek.quoted.caption || '';
+            const found = quotedText.split(/\s+/).find(x => isYouTubeUrl(x));
+            if (found) input = found;
+        }
 
-        const validEpisodes = rawResults.filter(item => (item.seconds || 0) >= 1200);
-        const selected = validEpisodes.length > 0 ? validEpisodes[0] : rawResults[0];
+        if (!input) {
+            return reply(
+                `🎬 *KAMRAN-MD YOUTUBE DOWNLOADER 2* 🎬\n\n` +
+                `Usage:\n` +
+                `  .yt2 <youtube-url>    Download audio\n` +
+                `  .yt2 <url> v          Download video\n` +
+                `  .yt2 <query>          Search YouTube\n\n` +
+                `Examples:\n` +
+                `  .yt2 https://youtu.be/xxxxx\n` +
+                `  .yt2 https://youtu.be/xxxxx v\n` +
+                `  .yt2 alone\n\n` +
+                `> *© KAMRAN-MINI-BOT ッ*`
+            );
+        }
 
-        await sendMediaWithDetails(conn, mek, from, selected, "Drama", true);
-    } catch (e) {
-        reply(`❌ Error: ${e.message}`);
-    }
-});
+        // ─────────────────────────────────────────
+        // YOUTUBE URL → AUTO DOWNLOAD
+        // ─────────────────────────────────────────
+        if (isYouTubeUrl(input)) {
+            const parts = input.split(/\s+/);
+            const url = parts.find(x => isYouTubeUrl(x));
+            const wantVideo = parts.some(x => x.toLowerCase() === 'v' || x.toLowerCase() === 'video');
 
-// ==================== 2. CARTOON COMMAND (Document) ====================
-cmd({
-    pattern: "cartoon",
-    alias: ["cartoons", "kids"],
-    use: '.cartoon <cartoon name>',
-    desc: "Search cartoon, show details with photo, and download as Document",
-    category: "downloader",
-    react: "🧸",
-    filename: __filename
-},
-async (conn, mek, m, { from, text, reply }) => {
-    try {
-        const query = String(text || "").trim();
-        if (!query) return reply(`⚠️ *${toStylistUpper('Usage')}:* .cartoon <cartoon name>`);
+            await client.sendMessage(chatId, { react: { text: '⏳', key: mek.key } });
+            await reply(`⏳ _Fetching YouTube info from OmegaTech API..._`);
 
-        await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
-        const searchRes = await yts(query);
-        const rawResults = searchRes?.videos || searchRes || [];
-        if (!rawResults.length) return reply(`❌ *${toStylistUpper('No cartoon found.')}*`);
+            const data = await getDownloadData(url);
 
-        const validEpisodes = rawResults.filter(item => (item.seconds || 0) >= 600);
-        const selected = validEpisodes.length > 0 ? validEpisodes[0] : rawResults[0];
+            if (wantVideo) {
+                const best = pickBestVideo(data.mp4 || []);
+                if (!best) throw new Error('No video formats available');
 
-        await sendMediaWithDetails(conn, mek, from, selected, "Cartoon", true);
-    } catch (e) {
-        reply(`❌ Error: ${e.message}`);
-    }
-});
+                await reply(`🎬 *${data.title || 'Video'}*\nQuality: ${best.quality}\n\n⏳ _Uploading video..._`);
 
-// ==================== 3. VIDEO COMMAND (Direct Video) ====================
-cmd({
-    pattern: "video7437",
-    alias: ["ytmp47447", "song4774"],
-    use: '.video <song or video name>',
-    desc: "Search video, show details with photo, and download as Direct Video",
-    category: "downloader",
-    react: "📥",
-    filename: __filename
-},
-async (conn, mek, m, { from, text, reply }) => {
-    try {
-        const query = String(text || "").trim();
-        if (!query) return reply(`⚠️ *${toStylistUpper('Usage')}:* .video <song name>`);
+                let cleanFileName = `${(data.title || 'video').replace(/[\\/:*?"<>|]/g, '').slice(0, 40)}.mp4`;
 
-        await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
-        const searchRes = await yts(query);
-        const rawResults = searchRes?.videos || searchRes || [];
-        if (!rawResults.length) return reply(`❌ *${toStylistUpper('No video found.')}*`);
+                await client.sendMessage(chatId, {
+                    video: { url: best.url },
+                    caption:
+                        `🎬 *${data.title || 'YouTube Video'}*` +
+                        `\n👤 Channel: ${data.channel || 'Unknown'}` +
+                        `\n📺 Quality: ${best.quality}\n\n> *© KAMRAN-MINI-BOT ッ*`,
+                    mimetype: 'video/mp4',
+                    fileName: best.filename || cleanFileName
+                }, { quoted: mek });
+            } else {
+                const best = pickBestAudio(data.mp3 || []);
+                if (!best) throw new Error('No audio formats available');
 
-        const selected = rawResults[0];
-        await sendMediaWithDetails(conn, mek, from, selected, "Video", false);
-    } catch (e) {
-        reply(`❌ Error: ${e.message}`);
+                await reply(`🎵 *${data.title || 'Audio'}*\nQuality: ${best.quality}\n\n⏳ _Uploading audio..._`);
+
+                let cleanFileName = `${(data.title || 'audio').replace(/[\\/:*?"<>|]/g, '').slice(0, 40)}.mp3`;
+
+                await client.sendMessage(chatId, {
+                    audio: { url: best.url },
+                    mimetype: 'audio/mpeg',
+                    ptt: false,
+                    fileName: best.filename || cleanFileName
+                }, { quoted: mek });
+            }
+
+            await client.sendMessage(chatId, { react: { text: '✅', key: mek.key } });
+            return;
+        }
+
+        // ─────────────────────────────────────────
+        // NOT A URL → SEARCH
+        // ─────────────────────────────────────────
+        await client.sendMessage(chatId, { react: { text: '⏳', key: mek.key } });
+        await reply(`🔍 Searching YouTube for: *${input}*...`);
+
+        const searchData = await searchYT(input);
+        const results = searchData.results || [];
+
+        if (results.length === 0) {
+            await client.sendMessage(chatId, { react: { text: '❌', key: mek.key } });
+            return reply(`❌ No results found for "${input}"`);
+        }
+
+        let list = '';
+        results.slice(0, 10).forEach((r, i) => {
+            list += `*${i + 1}.* ${r.title}\n`;
+            list += `   ⏱️ ${r.duration || '?'} | 👤 ${r.channel?.name || 'Unknown'}\n\n`;
+        });
+
+        await reply(
+            `🔎 *SEARCH RESULTS FOR:* "${input}"\n\n` +
+            `${list}` +
+            `📌 _Reply or send the YouTube URL to download it._\n\n` +
+            `> *© KAMRAN-MINI-BOT ッ*`
+        );
+
+        await client.sendMessage(chatId, { react: { text: '✅', key: mek.key } });
+
+    } catch (error) {
+        console.error('[YT2 ERROR]', error);
+        try { await client.sendMessage(chatId, { react: { text: '❌', key: mek.key } }); } catch (e) {}
+        return reply(`❌ YouTube error: ${error.message}`);
     }
 });
