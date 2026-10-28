@@ -1,166 +1,148 @@
 //---------------------------------------------------------------------------
-//           KAMRAN-MD - YOUTUBE DOWNLOADER 2 (OMEGATECH API FIXED)
+//           KAMRAN-MD - WHATSAPP BAN & STATUS CHECKER PLUGIN
 //---------------------------------------------------------------------------
 
-import axios from 'axios';
-import { cmd } from '../command.js';
 import { fileURLToPath } from 'url';
+import { cmd } from '../command.js';
+import { delay, makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, Browsers } from '@whiskeysockets/baileys';
+import pino from 'pino';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
 
 const __filename = fileURLToPath(import.meta.url);
 
-const API_BASE = 'https://api.omegatech.app/api/download/ytultra';
-
-const axiosConfig = {
-    timeout: 30000,
-    headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    }
+// Helper function for Stylist Badi ABC Text
+const toStylistUpper = (text) => {
+    if (!text || typeof text !== 'string') return '';
+    const uppercaseMap = {
+        'a': 'ᴀ', 'b': 'ʙ', 'c': 'ᴄ', 'd': 'ᴅ', 'e': 'ᴇ', 'f': 'ғ', 'g': 'ɢ', 'h': 'ʜ', 'i': 'ɪ',
+        'j': 'ᴊ', 'k': 'ᴋ', 'l': 'ʟ', 'm': 'ᴍ', 'n': 'ɴ', 'o': 'ᴏ', 'p': 'ᴘ', 'q': 'ǫ', 'r': 'ʀ',
+        's': 's', 't': 'ᴛ', 'u': 'ᴜ', 'v': 'ᴠ', 'w': 'ᴡ', 'x': 'x', 'y': 'ʏ', 'z': 'ᴢ',
+        'A': 'ᴀ', 'B': 'ʙ', 'C': 'ᴄ', 'D': 'ᴅ', 'E': 'ᴇ', 'F': 'ғ', 'G': 'ɢ', 'H': 'ʜ', 'I': 'ɪ',
+        'J': 'ᴊ', 'K': 'ᴋ', 'L': 'ʟ', 'M': 'ᴍ', 'N': 'ɴ', 'O': 'ᴏ', 'P': 'ᴘ', 'Q': 'ǫ', 'R': 'ʀ',
+        'S': 's', 'T': 'ᴛ', 'U': 'ᴜ', 'V': 'ᴠ', 'W': 'ᴡ', 'X': 'x', 'Y': 'ʏ', 'Z': 'ᴢ'
+    };
+    return text.split('').map(char => uppercaseMap[char] || char).join('');
 };
 
-function isYouTubeUrl(str) {
-  return /youtube\.com|youtu\.be/i.test(str);
-}
-
-async function searchYT(query) {
-  const res = await axios.get(`${API_BASE}?action=search&query=${encodeURIComponent(query)}`, axiosConfig);
-  if (!res.data?.success) throw new Error('Search failed');
-  return res.data.data;
-}
-
-async function getDownloadData(videoUrl) {
-  const res = await axios.get(`${API_BASE}?action=download&url=${encodeURIComponent(videoUrl)}`, axiosConfig);
-  if (!res.data?.success) throw new Error('Download info failed');
-  return res.data.data;
-}
-
-function pickBestAudio(mp3List) {
-  if (!mp3List || mp3List.length === 0) return null;
-  const priority = ['320kbps', '256kbps', '192kbps', '160kbps', '128kbps', '96kbps', '64kbps'];
-  for (const q of priority) {
-    const found = mp3List.find(x => String(x.quality).toLowerCase().includes(q.toLowerCase()));
-    if (found) return found;
-  }
-  return mp3List[0];
-}
-
-function pickBestVideo(mp4List) {
-  if (!mp4List || mp4List.length === 0) return null;
-  const priority = ['1080p', '720p', '480p', '360p', '240p', '144p'];
-  for (const q of priority) {
-    const found = mp4List.find(x => String(x.quality).toLowerCase().includes(q.toLowerCase()));
-    if (found) return found;
-  }
-  return mp4List[0];
-}
-
 cmd({
-    pattern: "yt244",
-    alias: ["ytdl2", "ytv2", "yta2"],
-    desc: "YouTube video or audio downloader via OmegaTech API",
-    category: "downloader",
+    pattern: "bancheck",
+    alias: ["bcheck", "checkban"],
+    use: '.bancheck <number>',
+    desc: "Check if a WhatsApp number is banned or active",
+    category: "tools",
+    react: "🕵️",
     filename: __filename
-},
-async (conn, mek, m, { from, text, reply, socket, sock }) => {
-    const client = socket || sock || conn;
-    const chatId = from || m.chat;
-
+}, async (conn, mek, m, { from, text, reply }) => {
     try {
-        let input = text ? text.trim() : '';
-
-        if (!input && mek.quoted) {
-            const quotedText = mek.quoted.text || mek.quoted.caption || '';
-            const found = quotedText.split(/\s+/).find(x => isYouTubeUrl(x));
-            if (found) input = found;
+        if (!text) {
+            let helpMsg = `❖ ── ✦ *${toStylistUpper('WhatsApp Ban Checker')}* ✦ ── ❖\n\n`;
+            helpMsg += `╔═════ ⌈ *⚡ ${toStylistUpper('Usage Guide')}* ⌋ ═════✧\n`;
+            helpMsg += `║ 📌 *${toStylistUpper('Example')}:*\n`;
+            helpMsg += `║ • .bancheck 923103448168\n`;
+            helpMsg += `╚══════════════════════✧\n\n`;
+            helpMsg += `> 💫 _${toStylistUpper('Powered by Kamran-Md')}_`;
+            return reply(helpMsg);
         }
 
-        if (!input) {
-            return reply(
-                `🎬 *KAMRAN-MD YOUTUBE DOWNLOADER 2* 🎬\n\n` +
-                `Usage:\n` +
-                `  .yt2 <youtube-url>    Download audio\n` +
-                `  .yt2 <url> v          Download video\n` +
-                `  .yt2 <query>          Search YouTube\n\n` +
-                `> *© KAMRAN-MINI-BOT ッ*`
-            );
+        const cleanNumber = text.replace(/[^0-9]/g, '');
+        if (cleanNumber.length < 10 || cleanNumber.length > 15) {
+            return reply(`❌ *${toStylistUpper('Invalid number format. Include country code.')}*`);
         }
 
-        if (isYouTubeUrl(input)) {
-            const parts = input.split(/\s+/);
-            const url = parts.find(x => isYouTubeUrl(x));
-            const wantVideo = parts.some(x => x.toLowerCase() === 'v' || x.toLowerCase() === 'video');
+        await conn.sendMessage(from, { react: { text: '⏳', key: m.key } });
+        const masked = cleanNumber.slice(0, 5) + '****' + cleanNumber.slice(-3);
+        
+        let status = "UNKNOWN";
+        let details = "";
+        let sessionPath = "";
+        let tempConn = null;
 
-            await client.sendMessage(chatId, { react: { text: '⏳', key: mek.key } });
-            await reply(`⏳ _Fetching YouTube info from API..._`);
+        try {
+            // 1. Temporary session path banate hain
+            sessionPath = path.join(os.tmpdir(), `bancheck_${cleanNumber}_${Date.now()}`);
+            fs.mkdirSync(sessionPath, { recursive: true });
 
-            const data = await getDownloadData(url);
+            const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
+            const { version } = await fetchLatestBaileysVersion();
+            const logger = pino({ level: 'silent' });
 
-            if (wantVideo) {
-                const best = pickBestVideo(data.mp4 || []);
-                if (!best) throw new Error('No video formats available');
+            // 2. Temporary socket banate hain
+            tempConn = makeWASocket({
+                auth: { creds: state.creds, keys: state.keys },
+                printQRInTerminal: false,
+                logger,
+                version,
+                browser: Browsers.macOS('Safari'),
+                syncFullHistory: false,
+                connectTimeoutMs: 15000,
+                defaultQueryTimeoutMs: 15000
+            });
 
-                await reply(`🎬 *${data.title || 'Video'}*\nQuality: ${best.quality}\n\n⏳ _Uploading video..._`);
+            // Socket connection establish hone ke liye thoda wait dena zaroori hai
+            await delay(3000);
 
-                let cleanFileName = `${(data.title || 'video').replace(/[\\/:*?"<>|]/g, '').slice(0, 40)}.mp4`;
+            // 3. Pairing Code Request bhejte hain
+            let pairSuccess = false;
+            let errorMessage = "";
 
-                await client.sendMessage(chatId, {
-                    video: { url: best.url },
-                    caption:
-                        `🎬 *${data.title || 'YouTube Video'}*` +
-                        `\n👤 Channel: ${data.channel || 'Unknown'}` +
-                        `\n📺 Quality: ${best.quality}\n\n> *© KAMRAN-MINI-BOT ッ*`,
-                    mimetype: 'video/mp4',
-                    fileName: best.filename || cleanFileName
-                }, { quoted: mek });
-            } else {
-                const best = pickBestAudio(data.mp3 || []);
-                if (!best) throw new Error('No audio formats available');
-
-                await reply(`🎵 *${data.title || 'Audio'}*\nQuality: ${best.quality}\n\n⏳ _Uploading audio..._`);
-
-                let cleanFileName = `${(data.title || 'audio').replace(/[\\/:*?"<>|]/g, '').slice(0, 40)}.mp3`;
-
-                await client.sendMessage(chatId, {
-                    audio: { url: best.url },
-                    mimetype: 'audio/mpeg',
-                    ptt: false,
-                    fileName: best.filename || cleanFileName
-                }, { quoted: mek });
+            try {
+                const code = await tempConn.requestPairingCode(cleanNumber, 'KAMRANMD');
+                if (code) pairSuccess = true;
+            } catch (err) {
+                errorMessage = err.message || "Unknown error";
+                if (err.output?.statusCode) {
+                    errorMessage += ` (Status: ${err.output.statusCode})`;
+                }
             }
 
-            await client.sendMessage(chatId, { react: { text: '✅', key: mek.key } });
-            return;
+            // 4. Result Evaluate karte hain
+            if (pairSuccess) {
+                status = "✅ ACTIVE / NOT BANNED";
+                details = "Number is active. WhatsApp accepted the pairing request.";
+            } else {
+                const errStr = errorMessage.toLowerCase();
+                
+                if (errStr.includes('connection closed') || errStr.includes('401') || errStr.includes('403') || errStr.includes('404')) {
+                    status = "❌ BANNED / INVALID";
+                    details = "WhatsApp rejected the request. Number might be *banned*, *fake*, or doesn't exist.";
+                } else if (errStr.includes('429') || errStr.includes('rate limit') || errStr.includes('too many')) {
+                    status = "⚠️ RATE LIMITED";
+                    details = "WhatsApp temporarily blocked requests for this number. Try again later.";
+                } else {
+                    status = "❌ FAILED";
+                    details = `WhatsApp rejected the pairing request.\n*Reason:* ${errorMessage}`;
+                }
+            }
+
+        } catch (err) {
+            console.error("Bancheck Inner Error:", err);
+            status = "❌ ERROR";
+            details = "Failed to initiate socket connection.";
+        } finally {
+            // 5. Cleanup: Temporary session safely delete karo
+            try {
+                if (tempConn) tempConn.end(new Error('Done'));
+                if (sessionPath && fs.existsSync(sessionPath)) {
+                    fs.rmSync(sessionPath, { recursive: true, force: true });
+                }
+            } catch (e) {}
         }
 
-        await client.sendMessage(chatId, { react: { text: '⏳', key: mek.key } });
-        await reply(`🔍 Searching YouTube for: *${input}*...`);
+        await conn.sendMessage(from, { react: { text: status.includes('✅') ? '✅' : '❌', key: m.key } });
 
-        const searchData = await searchYT(input);
-        const results = searchData.results || [];
+        let resText = `❖ ── ✦ *${toStylistUpper('WhatsApp Ban Checker')}* ✦ ── ❖\n\n`;
+        resText += `📱 *${toStylistUpper('Number')}:* \`${masked}\`\n`;
+        resText += `📊 *${toStylistUpper('Status')}:* ${status}\n\n`;
+        resText += `📝 *${toStylistUpper('Details')}:*\n${details}\n\n`;
+        resText += `> 💫 _${toStylistUpper('Powered by Kamran-Md')}_`;
 
-        if (results.length === 0) {
-            await client.sendMessage(chatId, { react: { text: '❌', key: mek.key } });
-            return reply(`❌ No results found for "${input}"`);
-        }
-
-        let list = '';
-        results.slice(0, 10).forEach((r, i) => {
-            list += `*${i + 1}.* ${r.title}\n`;
-            list += `   ⏱️ ${r.duration || '?'} | 👤 ${r.channel?.name || 'Unknown'}\n\n`;
-        });
-
-        await reply(
-            `🔎 *SEARCH RESULTS FOR:* "${input}"\n\n` +
-            `${list}` +
-            `📌 _Reply or send the YouTube URL to download it._\n\n` +
-            `> *© KAMRAN-MINI-BOT ッ*`
-        );
-
-        await client.sendMessage(chatId, { react: { text: '✅', key: mek.key } });
+        await reply(resText);
 
     } catch (error) {
-        console.error('[YT2 ERROR]', error);
-        try { await client.sendMessage(chatId, { react: { text: '❌', key: mek.key } }); } catch (e) {}
-        return reply(`❌ YouTube error: ${error.message}`);
+        console.error("BANCHECK ERROR:", error);
+        await conn.sendMessage(from, { react: { text: '❌', key: m.key } });
+        reply(`❌ *${toStylistUpper('Failed to check the number. Please try again later.')}*`);
     }
 });
