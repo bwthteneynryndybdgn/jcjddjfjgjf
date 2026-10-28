@@ -43,7 +43,7 @@ cmd({
         }
 
         // Aapki Instagram API Endpoint
-        const apiUrl = `https://techxkamran.vercel.app/api/download/instagram?url=${encodeURIComponent(targetUrl)}`;
+        const apiUrl = `https://techxkamran.onrender.com/api/download/instagram?url=${encodeURIComponent(targetUrl)}`;
 
         const response = await axios.get(apiUrl, { timeout: 30000 });
         const resData = response.data;
