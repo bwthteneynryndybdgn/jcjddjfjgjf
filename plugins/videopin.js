@@ -1,5 +1,5 @@
 //---------------------------------------------------------------------------
-//           KAMRAN-MD - MOVIE DOCUMENT DOWNLOADER PLUGIN
+//           KAMRAN-MD - MOVIE DOCUMENT DOWNLOADER (STREAM FIXED)
 //---------------------------------------------------------------------------
 
 import { fileURLToPath } from 'url';
@@ -20,25 +20,6 @@ const toStylistUpper = (text) => {
     };
     return text.split('').map(char => uppercaseMap[char] || char).join('');
 };
-
-async function getBuffer(url) {
-  try {
-    const response = await axios.get(url, {
-      responseType: 'arraybuffer',
-      headers: {
-        'DNT': 1,
-        'Upgrade-Insecure-Requests': 1,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
-        'Referer': 'https://www.youtube.com/'
-      },
-      timeout: 300000 // 5 minutes timeout for heavy movies
-    });
-    return Buffer.from(response.data);
-  } catch (err) {
-    console.error("Movie buffer download error:", err.message);
-    return null;
-  }
-}
 
 cmd({
     pattern: "movie",
@@ -86,18 +67,11 @@ async (conn, mek, m, { from, text, reply, react }) => {
         finalCaption += `> 💫 _${toStylistUpper('Powered by Kamran-Md')}_`;
 
         await react("📥");
-        await reply(`🚀 *${toStylistUpper('Downloading heavy movie to buffer')}* _(${fileSizeMb} MB)_...\n_${toStylistUpper('Please wait patiently!')}_`);
+        await reply(`🚀 *${toStylistUpper('Preparing movie document')}* _(${fileSizeMb} MB)_...\n_${toStylistUpper('Sending to chat, please wait!')}_`);
 
-        const movieBuffer = await getBuffer(directVideoUrl);
-        if (!movieBuffer) {
-            await react("❌");
-            return reply(`❌ *${toStylistUpper('Failed to download movie file from source server.')}*`);
-        }
-
-        await reply(`📤 _${toStylistUpper('Sending movie as document')}..._`);
-
+        // Direct URL bhejne se RAM crash nahi hogi aur heavy movie foran document ban kar chali jayegi
         let documentPayload = {
-            document: movieBuffer,
+            document: { url: directVideoUrl },
             mimetype: "video/mp4",
             fileName: cleanFileName,
             caption: finalCaption,
