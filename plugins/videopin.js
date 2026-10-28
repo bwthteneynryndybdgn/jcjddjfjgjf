@@ -1,65 +1,87 @@
-import yts from 'yt-search';
-import fetch from 'node-fetch';
+//---------------------------------------------------------------------------
+//           KAMRAN-MD - YTMP4 DOWNLOADER (RYZUMI API)
+//---------------------------------------------------------------------------
+
+import axios from 'axios';
 import { cmd } from '../command.js';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 
 cmd({
-    pattern: "ytmp465",
-    alias: ["video65", "ytv766"],
-    desc: "Download YouTube video using Evogb API as Document",
+    pattern: "ytmp464",
+    alias: ["ytvideo53", "ytv643"],
+    desc: "Mengunduh video dari YouTube dengan pilihan resolusi via Ryzumi API",
     category: "downloader",
     filename: __filename
 },
-async (conn, mek, m, { from, text, reply, socket, sock }) => {
+async (conn, mek, m, { from, text, reply, command, socket, sock }) => {
     const client = socket || sock || conn;
     const chatId = from || m.chat;
 
-    if (!text) {
-        return reply(`⚠️ *Ingresa un enlace de YouTube o nombre del video.*`);
+    const args = text ? text.split(" ") : [];
+    const videoUrl = args[0];
+    let resolution = args[1] || '480';
+
+    if (!videoUrl) {
+        return reply(`Umm... Kakak lupa masukkan link YouTube-nya ya? Ketik .${command} <url> [resolusi] yaa~ (˶˃ ᵕ ˂˶)`);
     }
 
+    await conn.sendMessage(chatId, { react: { text: "🕓", key: mek.key } });
+
     try {
-        await client.sendMessage(chatId, { react: { text: "⏳", key: mek.key } });
+        const axiosConfig = {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36'
+            }
+        };
 
-        let res = await yts(text);
-        let vid = res.videos[0];
-        if (!vid) {
-            await client.sendMessage(chatId, { react: { text: "❌", key: mek.key } });
-            return reply(`⚠️ *No se encontró el video.*`);
+        const isInvalidData = (d) => !d || !d.url || d.url === 'Unknown Download URL' || !d.url.startsWith('http');
+
+        let data;
+        const baseUrl = 'https://router.ryzumi.net/v1';
+
+        try {
+            const apiUrl = `${baseUrl}/api/downloader/ytmp4?url=${encodeURIComponent(videoUrl)}&quality=${resolution}`;
+            const res = await axios.get(apiUrl, axiosConfig);
+            data = res.data;
+            if (isInvalidData(data)) {
+                throw new Error('v1 invalid response');
+            }
+        } catch (v1Error) {
+            const apiUrlV2 = `${baseUrl}/api/downloader/v2/ytmp4?url=${encodeURIComponent(videoUrl)}&quality=${resolution}`;
+            const res = await axios.get(apiUrlV2, axiosConfig);
+            data = res.data;
         }
 
-        let apiUrl = `https://api.evogb.org/dl/ytmp4?url=${encodeURIComponent(vid.url)}&quality=720&key=sasuke`;
-        let response = await fetch(apiUrl);
-        let json = await response.json();
-
-        if (!json.status || !json.data || !json.data.dl) {
-            await client.sendMessage(chatId, { react: { text: "❌", key: mek.key } });
-            return reply(`❌ *Error al procesar el video.*`);
+        if (isInvalidData(data)) {
+            throw new Error('Yahhh... Link videonya nggak ketemu atau resolusi ini nggak tersedia di server Ryzumi (╥﹏╥)');
         }
 
-        let cap = `🛸 *[ KAMRAN-MD ]* 🌌\n\n🎶 *Título:* ${vid.title}\n📁 *Formato:* MP4 (720p Document)\n\n⚙️ *KAMRAN-MD • Descargando...* 🌀`;
+        const safeTitle = (data.title || 'video').replace(/[\\/:*?"<>|]/g, '').slice(0, 50);
 
-        // Thumbnail aur caption bhejna
-        await client.sendMessage(chatId, { image: { url: vid.thumbnail }, caption: cap }, { quoted: mek });
+        const caption = `Ini videonya buat Kakak~! (๑>ᴗ<๑)\n\n` +
+            `🎥 *Title:* ${data.title}\n` +
+            `👤 *Author:* ${data.author}\n` +
+            `⏳ *Duration:* ${data.lengthSeconds}\n` +
+            `📺 *Quality:* ${data.quality || resolution}\n` +
+            `👀 *Views:* ${data.views}\n` +
+            `📅 *Uploaded:* ${data.uploadDate}\n\n` +
+            `> *© KAMRAN-MINI-BOT ッ*`;
 
-        // Clean filename for document
-        let cleanFileName = `${vid.title.replace(/[\\/:*?"<>|]/g, '').trim().substring(0, 100)}.mp4`;
-
-        // Strictly Document format mein video send karna
-        await client.sendMessage(chatId, { 
-            document: { url: json.data.dl }, 
+        await client.sendMessage(chatId, {
+            video: { url: data.url },
             mimetype: 'video/mp4',
-            fileName: cleanFileName,
-            caption: `🎬 *${vid.title}*\n\n> *© KAMRAN-MINI-BOT ッ*`
+            fileName: `${safeTitle}.mp4`,
+            caption: caption
         }, { quoted: mek });
 
-        await client.sendMessage(chatId, { react: { text: "✅", key: mek.key } });
+        await conn.sendMessage(chatId, { react: { text: "✅", key: mek.key } });
 
-    } catch (e) {
-        console.error('[YTMP4 ERROR]', e);
-        await client.sendMessage(chatId, { react: { text: "❌", key: mek.key } });
-        return reply(`❌ Error: ${e.message}`);
+    } catch (error) {
+        console.error('YTMP4 Error:', error);
+        await conn.sendMessage(chatId, { react: { text: "❌", key: mek.key } });
+        const errMsg = error.response?.data?.message || error.message;
+        return reply(`Uwaaa gawat! Ryzumi gagal unduh videonya: ${errMsg}.. (╥﹏╥)`);
     }
 });
