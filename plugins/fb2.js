@@ -43,7 +43,7 @@ cmd({
         }
 
         // Aapki Facebook API Endpoint
-        const apiUrl = `https://techxkamran.vercel.app/api/download/facebook?url=${encodeURIComponent(targetUrl)}`;
+        const apiUrl = `https://techxkamran.onrender.com/api/download/facebook?url=${encodeURIComponent(targetUrl)}`;
 
         const response = await axios.get(apiUrl, { timeout: 60000 }); // Badi video ke liye timeout 60 seconds kar diya hai
         const resData = response.data;
