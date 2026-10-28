@@ -1,18 +1,13 @@
 //---------------------------------------------------------------------------
-//           KAMRAN-MD - WHATSAPP BAN & STATUS CHECKER PLUGIN
+//           KAMRAN-MD - MOVIE DOCUMENT DOWNLOADER PLUGIN
 //---------------------------------------------------------------------------
 
 import { fileURLToPath } from 'url';
 import { cmd } from '../command.js';
-import { delay, makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, Browsers } from '@whiskeysockets/baileys';
-import pino from 'pino';
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
+import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
 
-// Helper function for Stylist Badi ABC Text
 const toStylistUpper = (text) => {
     if (!text || typeof text !== 'string') return '';
     const uppercaseMap = {
@@ -26,123 +21,95 @@ const toStylistUpper = (text) => {
     return text.split('').map(char => uppercaseMap[char] || char).join('');
 };
 
+async function getBuffer(url) {
+  try {
+    const response = await axios.get(url, {
+      responseType: 'arraybuffer',
+      headers: {
+        'DNT': 1,
+        'Upgrade-Insecure-Requests': 1,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
+        'Referer': 'https://www.youtube.com/'
+      },
+      timeout: 300000 // 5 minutes timeout for heavy movies
+    });
+    return Buffer.from(response.data);
+  } catch (err) {
+    console.error("Movie buffer download error:", err.message);
+    return null;
+  }
+}
+
 cmd({
-    pattern: "bancheck",
-    alias: ["bcheck", "checkban"],
-    use: '.bancheck <number>',
-    desc: "Check if a WhatsApp number is banned or active",
-    category: "tools",
-    react: "🕵️",
+    pattern: "movie",
+    alias: ["film", "fullmovie"],
+    use: '.movie <youtube_url>',
+    desc: "Download full movies as high quality documents via API",
+    category: "downloader",
+    react: "🎬",
     filename: __filename
-}, async (conn, mek, m, { from, text, reply }) => {
+},
+async (conn, mek, m, { from, text, reply, react }) => {
     try {
-        if (!text) {
-            let helpMsg = `❖ ── ✦ *${toStylistUpper('WhatsApp Ban Checker')}* ✦ ── ❖\n\n`;
+        const ytUrl = String(text || "").trim();
+        if (!ytUrl || !ytUrl.includes("http")) {
+            let helpMsg = `❖ ── ✦ *${toStylistUpper('Movie Document Downloader')}* ✦ ── ❖\n\n`;
             helpMsg += `╔═════ ⌈ *⚡ ${toStylistUpper('Usage Guide')}* ⌋ ═════✧\n`;
             helpMsg += `║ 📌 *${toStylistUpper('Example')}:*\n`;
-            helpMsg += `║ • .bancheck 923103448168\n`;
+            helpMsg += `║ • .movie https://youtu.be/...\n`;
             helpMsg += `╚══════════════════════✧\n\n`;
             helpMsg += `> 💫 _${toStylistUpper('Powered by Kamran-Md')}_`;
             return reply(helpMsg);
         }
 
-        const cleanNumber = text.replace(/[^0-9]/g, '');
-        if (cleanNumber.length < 10 || cleanNumber.length > 15) {
-            return reply(`❌ *${toStylistUpper('Invalid number format. Include country code.')}*`);
+        await react("🔍");
+        await reply(`🔍 _${toStylistUpper('Fetching movie information')}..._`);
+
+        const apiUrl = `https://eliteprotech-apis.zone.id/download/ytmp4?url=${encodeURIComponent(ytUrl)}`;
+        const response = await axios.get(apiUrl, { timeout: 30000 });
+        const resData = response.data;
+
+        if (!resData || !resData.status || !resData.result || !resData.result.url) {
+            await react("❌");
+            return reply(`🛸 *${toStylistUpper('Failed to fetch movie download link!')}*`);
         }
 
-        await conn.sendMessage(from, { react: { text: '⏳', key: m.key } });
-        const masked = cleanNumber.slice(0, 5) + '****' + cleanNumber.slice(-3);
-        
-        let status = "UNKNOWN";
-        let details = "";
-        let sessionPath = "";
-        let tempConn = null;
+        const movieInfo = resData.result;
+        const directVideoUrl = movieInfo.url;
+        const movieTitle = movieInfo.title ? movieInfo.title.trim() : 'Full Movie';
+        const fileSizeMb = movieInfo.size ? (movieInfo.size / (1024 * 1024)).toFixed(2) : 'N/A';
+        const cleanFileName = `${movieTitle.replace(/[^a-zA-Z0-9 ]/g, "_").trim()}.mp4`;
 
-        try {
-            // 1. Temporary session path banate hain
-            sessionPath = path.join(os.tmpdir(), `bancheck_${cleanNumber}_${Date.now()}`);
-            fs.mkdirSync(sessionPath, { recursive: true });
+        let finalCaption = `❖ ── ✦ *${toStylistUpper(movieTitle)}* ✦ ── ❖\n\n`;
+        finalCaption += `📦 *${toStylistUpper('File Size')}:* ${fileSizeMb} MB\n`;
+        finalCaption += `📁 *${toStylistUpper('Format')}:* Document (.mp4)\n\n`;
+        finalCaption += `> 💫 _${toStylistUpper('Powered by Kamran-Md')}_`;
 
-            const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
-            const { version } = await fetchLatestBaileysVersion();
-            const logger = pino({ level: 'silent' });
+        await react("📥");
+        await reply(`🚀 *${toStylistUpper('Downloading heavy movie to buffer')}* _(${fileSizeMb} MB)_...\n_${toStylistUpper('Please wait patiently!')}_`);
 
-            // 2. Temporary socket banate hain
-            tempConn = makeWASocket({
-                auth: { creds: state.creds, keys: state.keys },
-                printQRInTerminal: false,
-                logger,
-                version,
-                browser: Browsers.macOS('Safari'),
-                syncFullHistory: false,
-                connectTimeoutMs: 15000,
-                defaultQueryTimeoutMs: 15000
-            });
-
-            // Socket connection establish hone ke liye thoda wait dena zaroori hai
-            await delay(3000);
-
-            // 3. Pairing Code Request bhejte hain
-            let pairSuccess = false;
-            let errorMessage = "";
-
-            try {
-                const code = await tempConn.requestPairingCode(cleanNumber, 'KAMRANMD');
-                if (code) pairSuccess = true;
-            } catch (err) {
-                errorMessage = err.message || "Unknown error";
-                if (err.output?.statusCode) {
-                    errorMessage += ` (Status: ${err.output.statusCode})`;
-                }
-            }
-
-            // 4. Result Evaluate karte hain
-            if (pairSuccess) {
-                status = "✅ ACTIVE / NOT BANNED";
-                details = "Number is active. WhatsApp accepted the pairing request.";
-            } else {
-                const errStr = errorMessage.toLowerCase();
-                
-                if (errStr.includes('connection closed') || errStr.includes('401') || errStr.includes('403') || errStr.includes('404')) {
-                    status = "❌ BANNED / INVALID";
-                    details = "WhatsApp rejected the request. Number might be *banned*, *fake*, or doesn't exist.";
-                } else if (errStr.includes('429') || errStr.includes('rate limit') || errStr.includes('too many')) {
-                    status = "⚠️ RATE LIMITED";
-                    details = "WhatsApp temporarily blocked requests for this number. Try again later.";
-                } else {
-                    status = "❌ FAILED";
-                    details = `WhatsApp rejected the pairing request.\n*Reason:* ${errorMessage}`;
-                }
-            }
-
-        } catch (err) {
-            console.error("Bancheck Inner Error:", err);
-            status = "❌ ERROR";
-            details = "Failed to initiate socket connection.";
-        } finally {
-            // 5. Cleanup: Temporary session safely delete karo
-            try {
-                if (tempConn) tempConn.end(new Error('Done'));
-                if (sessionPath && fs.existsSync(sessionPath)) {
-                    fs.rmSync(sessionPath, { recursive: true, force: true });
-                }
-            } catch (e) {}
+        const movieBuffer = await getBuffer(directVideoUrl);
+        if (!movieBuffer) {
+            await react("❌");
+            return reply(`❌ *${toStylistUpper('Failed to download movie file from source server.')}*`);
         }
 
-        await conn.sendMessage(from, { react: { text: status.includes('✅') ? '✅' : '❌', key: m.key } });
+        await reply(`📤 _${toStylistUpper('Sending movie as document')}..._`);
 
-        let resText = `❖ ── ✦ *${toStylistUpper('WhatsApp Ban Checker')}* ✦ ── ❖\n\n`;
-        resText += `📱 *${toStylistUpper('Number')}:* \`${masked}\`\n`;
-        resText += `📊 *${toStylistUpper('Status')}:* ${status}\n\n`;
-        resText += `📝 *${toStylistUpper('Details')}:*\n${details}\n\n`;
-        resText += `> 💫 _${toStylistUpper('Powered by Kamran-Md')}_`;
+        let documentPayload = {
+            document: movieBuffer,
+            mimetype: "video/mp4",
+            fileName: cleanFileName,
+            caption: finalCaption,
+            contextInfo: { mentionedJid: [mek.sender] }
+        };
 
-        await reply(resText);
+        await conn.sendMessage(from, documentPayload, { quoted: mek });
+        await react("✅");
 
-    } catch (error) {
-        console.error("BANCHECK ERROR:", error);
-        await conn.sendMessage(from, { react: { text: '❌', key: m.key } });
-        reply(`❌ *${toStylistUpper('Failed to check the number. Please try again later.')}*`);
+    } catch (e) {
+        console.error("Movie Downloader Error:", e.message);
+        await react("❌");
+        return reply(`❌ *${toStylistUpper('Error Processing Request')}:* ${e.message}`);
     }
 });
