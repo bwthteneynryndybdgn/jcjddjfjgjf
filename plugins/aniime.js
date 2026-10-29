@@ -1,5 +1,5 @@
 //---------------------------------------------------------------------------
-//           KAMRAN-MD - GENSHIN IMPACT COSPLAY PLUGIN
+//           KAMRAN-MD - GENSHIN IMPACT COSPLAY PLUGIN (FIXED)
 //---------------------------------------------------------------------------
 
 import { fileURLToPath } from 'url';
@@ -40,12 +40,12 @@ async (conn, mek, m, { from, reply, react }) => {
         const response = await axios.get(apiUrl, { timeout: 30000 });
         const resData = response.data;
 
-        // API response structure check karna (url ya result)
-        const imageUrl = resData?.url || resData?.result || resData?.data;
+        // API response ke har possible path ko check karna
+        const imageUrl = resData?.url || resData?.result || resData?.data?.url || resData?.data;
 
-        if (!imageUrl) {
+        if (!imageUrl || typeof imageUrl !== 'string' || !imageUrl.startsWith('http')) {
             await react("❌");
-            return reply(`🛸 *${toStylistUpper('Failed to fetch cosplay image from API!')}*`);
+            return reply(`🛸 *${toStylistUpper('Failed to fetch cosplay image from API!')}*\n\n_API Response:_ \`${JSON.stringify(resData)}\``);
         }
 
         await react("📥");
