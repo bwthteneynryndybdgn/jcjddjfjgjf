@@ -1,5 +1,5 @@
 //---------------------------------------------------------------------------
-//           KAMRAN-MD - COMPLETE MULTI-COMMAND NSFW PLUGIN (FIXED)
+//           KAMRAN-MD - AUTO MEDIA DETECT NSFW PLUGIN
 //---------------------------------------------------------------------------
 
 import { fileURLToPath } from 'url';
@@ -30,21 +30,21 @@ const fetchAndSendMedia = async (conn, mek, m, from, reply, react, endpoint, tit
             return reply(`❌ Failed to fetch ${title} media from API!`);
         }
 
-        const isVideo = mediaUrl.endsWith('.mp4') || mediaUrl.includes('video') || endpoint === 'hentai-sfm';
+        // Check karna ke media video/gif hai ya photo
+        const isVideoOrGif = mediaUrl.endsWith('.mp4') || mediaUrl.endsWith('.gif') || mediaUrl.includes('.mp4') || mediaUrl.includes('.gif') || mediaUrl.includes('video') || endpoint === 'hentai-sfm';
 
         let finalCaption = `❖ ── ✦ *${title.toUpperCase()}* ✦ ── ❖\n\n`;
         finalCaption += `> 💫 _Powered by Kamran-Md_`;
 
-        if (isVideo) {
-            // Video direct playable message ke taur par bhejna
+        if (isVideoOrGif) {
             await conn.sendMessage(from, {
                 video: { url: mediaUrl },
                 caption: finalCaption,
                 mimetype: "video/mp4",
+                gifPlayback: mediaUrl.endsWith('.gif') || mediaUrl.includes('.gif'), // Agar GIF ho toh auto loop play ho
                 contextInfo: { mentionedJid: [mek.sender] }
             }, { quoted: mek });
         } else {
-            // Image direct photo ke taur par bhejna
             await conn.sendMessage(from, {
                 image: { url: mediaUrl },
                 caption: finalCaption,
@@ -125,12 +125,12 @@ async (conn, mek, m, { from, reply, react }) => { await fetchAndSendMedia(conn, 
 cmd({ pattern: "group", desc: "Fetch group media", category: "downloader", filename: __filename }, 
 async (conn, mek, m, { from, reply, react }) => { await fetchAndSendMedia(conn, mek, m, from, reply, react, "group", "Group"); });
 
-// 17. Hentai-Sfm Command (Supports both .hentaisfm and .hentai-sfm)
+// 17. Hentai-Sfm Command
 cmd({ pattern: "hentaisfm", alias: ["hentai-sfm"], desc: "Fetch hentai-sfm media", category: "downloader", filename: __filename }, 
 async (conn, mek, m, { from, reply, react }) => { await fetchAndSendMedia(conn, mek, m, from, reply, react, "hentai-sfm", "Hentai Sfm"); });
 
-// 18. Kiss Command (Supports both .kiss and .kiss2)
-cmd({ pattern: "kiss3", alias: ["kiss2"], desc: "Fetch kiss media", category: "downloader", filename: __filename }, 
+// 18. Kiss Command
+cmd({ pattern: "kiss", alias: ["kiss2"], desc: "Fetch kiss media", category: "downloader", filename: __filename }, 
 async (conn, mek, m, { from, reply, react }) => { await fetchAndSendMedia(conn, mek, m, from, reply, react, "kiss", "Kiss"); });
 
 // 19. Pegged Command
