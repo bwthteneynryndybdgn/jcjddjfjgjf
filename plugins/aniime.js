@@ -1,5 +1,5 @@
 //---------------------------------------------------------------------------
-//           KAMRAN-MD - AIO ALL-IN-ONE DOCUMENT DOWNLOADER
+//           KAMRAN-MD - MULTI-COMMAND NSFW DOWNLOADER PLUGIN
 //---------------------------------------------------------------------------
 
 import { fileURLToPath } from 'url';
@@ -8,91 +8,112 @@ import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
 
-const toStylistUpper = (text) => {
-    if (!text || typeof text !== 'string') return '';
-    const uppercaseMap = {
-        'a': 'ᴀ', 'b': 'ʙ', 'c': 'ᴄ', 'd': 'ᴅ', 'e': 'ᴇ', 'f': 'ғ', 'g': 'ɢ', 'h': 'ʜ', 'i': 'ɪ',
-        'j': 'ᴊ', 'k': 'ᴋ', 'l': 'ʟ', 'm': 'ᴍ', 'n': 'ɴ', 'o': 'ᴏ', 'p': 'ᴘ', 'q': 'ǫ', 'r': 'ʀ',
-        's': 's', 't': 'ᴛ', 'u': 'ᴜ', 'v': 'ᴠ', 'w': 'ᴡ', 'x': 'x', 'y': 'ʏ', 'z': 'ᴢ',
-        'A': 'ᴀ', 'B': 'ʙ', 'C': 'ᴄ', 'D': 'ᴅ', 'E': 'ᴇ', 'F': 'ғ', 'G': 'ɢ', 'H': 'ʜ', 'I': 'ɪ',
-        'J': 'ᴊ', 'K': 'ᴋ', 'L': 'ʟ', 'M': 'ᴍ', 'N': 'ɴ', 'O': 'ᴏ', 'P': 'ᴘ', 'Q': 'ǫ', 'R': 'ʀ',
-        'S': 's', 'T': 'ᴛ', 'U': 'ᴜ', 'V': 'ᴠ', 'W': 'ᴡ', 'X': 'x', 'Y': 'ʏ', 'Z': 'ᴢ'
-    };
-    return text.split('').map(char => uppercaseMap[char] || char).join('');
+const fetchAndSend = async (conn, mek, m, from, reply, react, endpoint, title) => {
+    try {
+        await react("🔥");
+        const res = await axios.get(`https://prexzyapis.com/nsfw/${endpoint}`, { timeout: 30000 });
+        const url = res.data?.url || res.data?.result || res.data;
+        
+        if (!url || typeof url !== 'string' || !url.startsWith('http')) {
+            await react("❌");
+            return reply("❌ Failed to fetch media from API!");
+        }
+
+        const isVideo = url.endsWith('.mp4') || url.includes('video') || endpoint === 'hentai-sfm';
+        const mimetype = isVideo ? 'video/mp4' : 'image/jpeg';
+        const fileName = `${endpoint}_${Date.now()}.${isVideo ? 'mp4' : 'jpg'}`;
+
+        await conn.sendMessage(from, {
+            document: { url },
+            mimetype: mimetype,
+            fileName: fileName,
+            caption: `❖ ── ✦ *${title.toUpperCase()}* ✦ ── ❖\n\n> 💫 _Powered by Kamran-Md_`,
+            contextInfo: { mentionedJid: [mek.sender] }
+        }, { quoted: mek });
+
+        await react("✅");
+    } catch (e) {
+        await react("❌");
+        reply(`❌ Error: ${e.message}`);
+    }
 };
 
-cmd({
-    pattern: "aio74",
-    alias: ["download53", "dl64", "all54"],
-    use: '.aio <media_url>',
-    desc: "Download videos/media from any supported platform as document via AIO API",
-    category: "downloader",
-    react: "📥",
-    filename: __filename
-},
-async (conn, mek, m, { from, text, reply, react }) => {
-    try {
-        const targetUrl = String(text || "").trim();
-        if (!targetUrl || !targetUrl.includes("http")) {
-            let helpMsg = `❖ ── ✦ *${toStylistUpper('AIO Document Downloader')}* ✦ ── ❖\n\n`;
-            helpMsg += `╔═════ ⌈ *⚡ ${toStylistUpper('Usage Guide')}* ⌋ ═════✧\n`;
-            helpMsg += `║ 📌 *${toStylistUpper('Example')}:*\n`;
-            helpMsg += `║ • .aio https://youtu.be/...\n`;
-            helpMsg += `╚══════════════════════✧\n\n`;
-            helpMsg += `> 💫 _${toStylistUpper('Powered by Kamran-Md')}_`;
-            return reply(helpMsg);
-        }
+// 1. Sixtynine Command
+cmd({ pattern: "sixtynine", desc: "Fetch sixtynine media", category: "downloader", filename: __filename }, 
+async (conn, mek, m, { from, reply, react }) => { await fetchAndSend(conn, mek, m, from, reply, react, "sixtynine", "Sixtynine"); });
 
-        await react("🔍");
-        await conn.sendPresenceUpdate('composing', from);
-        await reply(`🔍 _${toStylistUpper('Fetching media details from AIO API')}..._`);
+// 2. Anal Command
+cmd({ pattern: "anal", desc: "Fetch anal media", category: "downloader", filename: __filename }, 
+async (conn, mek, m, { from, reply, react }) => { await fetchAndSend(conn, mek, m, from, reply, react, "anal", "Anal"); });
 
-        const apiUrl = `https://prexzyapis.com/download/aio?url=${encodeURIComponent(targetUrl)}`;
-        const response = await axios.get(apiUrl, { timeout: 30000 });
-        const resData = response.data;
+// 3. Ass Command
+cmd({ pattern: "ass", desc: "Fetch ass media", category: "downloader", filename: __filename }, 
+async (conn, mek, m, { from, reply, react }) => { await fetchAndSend(conn, mek, m, from, reply, react, "ass", "Ass"); });
 
-        if (!resData || !resData.status) {
-            await react("❌");
-            return reply(`🛸 *${toStylistUpper('Failed to fetch media from AIO API!')}*`);
-        }
+// 4. Bdsm Command
+cmd({ pattern: "bdsm", desc: "Fetch bdsm media", category: "downloader", filename: __filename }, 
+async (conn, mek, m, { from, reply, react }) => { await fetchAndSend(conn, mek, m, from, reply, react, "bdsm", "Bdsm"); });
 
-        // Result ya data object ko handle karna
-        const mediaInfo = resData.result || resData.data || resData;
-        const directVideoUrl = mediaInfo.url || mediaInfo.videoUrl || mediaInfo.download || (mediaInfo.medias && mediaInfo.medias[0]?.url);
+// 5. Black Command
+cmd({ pattern: "black", desc: "Fetch black media", category: "downloader", filename: __filename }, 
+async (conn, mek, m, { from, reply, react }) => { await fetchAndSend(conn, mek, m, from, reply, react, "black", "Black"); });
 
-        if (!directVideoUrl) {
-            await react("❌");
-            return reply(`❌ *${toStylistUpper('Direct download link not found in API response.')}*`);
-        }
+// 6. Bottomless Command
+cmd({ pattern: "bottomless", desc: "Fetch bottomless media", category: "downloader", filename: __filename }, 
+async (conn, mek, m, { from, reply, react }) => { await fetchAndSend(conn, mek, m, from, reply, react, "bottomless", "Bottomless"); });
 
-        const mediaTitle = mediaInfo.title ? mediaInfo.title.trim() : 'Downloaded Media';
-        const cleanFileName = `${mediaTitle.replace(/[^a-zA-Z0-9 ]/g, "_").trim()}.mp4`;
+// 7. Collared Command
+cmd({ pattern: "collared", desc: "Fetch collared media", category: "downloader", filename: __filename }, 
+async (conn, mek, m, { from, reply, react }) => { await fetchAndSend(conn, mek, m, from, reply, react, "collared", "Collared"); });
 
-        let finalCaption = `❖ ── ✦ *${toStylistUpper(mediaTitle)}* ✦ ── ❖\n\n`;
-        if (mediaInfo.duration) {
-            finalCaption += `⏱️ *${toStylistUpper('Duration')}:* ${mediaInfo.duration}\n`;
-        }
-        finalCaption += `📁 *${toStylistUpper('Format')}:* Document (.mp4)\n\n`;
-        finalCaption += `> 💫 _${toStylistUpper('Powered by Kamran-Md')}_`;
+// 8. Cum Command
+cmd({ pattern: "cum", desc: "Fetch cum media", category: "downloader", filename: __filename }, 
+async (conn, mek, m, { from, reply, react }) => { await fetchAndSend(conn, mek, m, from, reply, react, "cum", "Cum"); });
 
-        await react("📥");
-        await conn.sendPresenceUpdate('composing', from);
-        await reply(`🚀 *${toStylistUpper('Preparing document for chat')}...*`);
+// 9. Dick Command
+cmd({ pattern: "dick", desc: "Fetch dick media", category: "downloader", filename: __filename }, 
+async (conn, mek, m, { from, reply, react }) => { await fetchAndSend(conn, mek, m, from, reply, react, "dick", "Dick"); });
 
-        let documentPayload = {
-            document: { url: directVideoUrl },
-            mimetype: "video/mp4",
-            fileName: cleanFileName,
-            caption: finalCaption,
-            contextInfo: { mentionedJid: [mek.sender] }
-        };
+// 10. Cumsluts Command
+cmd({ pattern: "cumsluts", desc: "Fetch cumsluts media", category: "downloader", filename: __filename }, 
+async (conn, mek, m, { from, reply, react }) => { await fetchAndSend(conn, mek, m, from, reply, react, "cumsluts", "Cumsluts"); });
 
-        await conn.sendMessage(from, documentPayload, { quoted: mek });
-        await react("✅");
+// 11. Dom Command
+cmd({ pattern: "dom", desc: "Fetch dom media", category: "downloader", filename: __filename }, 
+async (conn, mek, m, { from, reply, react }) => { await fetchAndSend(conn, mek, m, from, reply, react, "dom", "Dom"); });
 
-    } catch (e) {
-        console.error("AIO Downloader Error:", e.message);
-        await react("❌");
-        return reply(`❌ *${toStylistUpper('Error Processing Request')}:* ${e.message}`);
-    }
-});
+// 12. Easter Command
+cmd({ pattern: "easter", desc: "Fetch easter media", category: "downloader", filename: __filename }, 
+async (conn, mek, m, { from, reply, react }) => { await fetchAndSend(conn, mek, m, from, reply, react, "easter", "Easter"); });
+
+// 13. Feet Command
+cmd({ pattern: "feet", desc: "Fetch feet media", category: "downloader", filename: __filename }, 
+async (conn, mek, m, { from, reply, react }) => { await fetchAndSend(conn, mek, m, from, reply, react, "feet", "Feet"); });
+
+// 14. Finger Command
+cmd({ pattern: "finger", desc: "Fetch finger media", category: "downloader", filename: __filename }, 
+async (conn, mek, m, { from, reply, react }) => { await fetchAndSend(conn, mek, m, from, reply, react, "finger", "Finger"); });
+
+// 15. Extreme Command
+cmd({ pattern: "extreme", desc: "Fetch extreme media", category: "downloader", filename: __filename }, 
+async (conn, mek, m, { from, reply, react }) => { await fetchAndSend(conn, mek, m, from, reply, react, "extreme", "Extreme"); });
+
+// 16. Group Command
+cmd({ pattern: "group", desc: "Fetch group media", category: "downloader", filename: __filename }, 
+async (conn, mek, m, { from, reply, react }) => { await fetchAndSend(conn, mek, m, from, reply, react, "group", "Group"); });
+
+// 17. Hentai-Sfm Command
+cmd({ pattern: "hentaisfm", alias: ["hentai-sfm"], desc: "Fetch hentai-sfm media", category: "downloader", filename: __filename }, 
+async (conn, mek, m, { from, reply, react }) => { await fetchAndSend(conn, mek, m, from, reply, react, "hentai-sfm", "Hentai Sfm"); });
+
+// 18. Kiss Command
+cmd({ pattern: "kiss2", desc: "Fetch kiss media", category: "downloader", filename: __filename }, 
+async (conn, mek, m, { from, reply, react }) => { await fetchAndSend(conn, mek, m, from, reply, react, "kiss", "Kiss"); });
+
+// 19. Pegged Command
+cmd({ pattern: "pegged", desc: "Fetch pegged media", category: "downloader", filename: __filename }, 
+async (conn, mek, m, { from, reply, react }) => { await fetchAndSend(conn, mek, m, from, reply, react, "pegged", "Pegged"); });
+
+// 20. Tattoo Command
+cmd({ pattern: "tattoo", desc: "Fetch tattoo media", category: "downloader", filename: __filename }, 
+async (conn, mek, m, { from, reply, react }) => { await fetchAndSend(conn, mek, m, from, reply, react, "tattoo", "Tattoo"); });
