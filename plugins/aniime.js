@@ -119,7 +119,7 @@ cmd({ pattern: "hentaisfm", alias: ["hentai-sfm"], desc: "Fetch hentai-sfm media
 async (conn, mek, m, { from, reply, react }) => { await fetchAndSendMedia(conn, mek, m, from, reply, react, "hentai-sfm", "Hentai Sfm"); });
 
 // 18. Kiss Command
-cmd({ pattern: "kiss", desc: "Fetch kiss media", category: "downloader", filename: __filename }, 
+cmd({ pattern: "kiss2", desc: "Fetch kiss media", category: "downloader", filename: __filename }, 
 async (conn, mek, m, { from, reply, react }) => { await fetchAndSendMedia(conn, mek, m, from, reply, react, "kiss", "Kiss"); });
 
 // 19. Pegged Command
