@@ -1,10 +1,9 @@
 //---------------------------------------------------------------------------
-//           KAMRAN-MD - MULTI-COMMAND FETCH NSFW PLUGIN
+//           KAMRAN-MD - COMPLETE MULTI-COMMAND NSFW PLUGIN
 //---------------------------------------------------------------------------
 
 import { fileURLToPath } from 'url';
 import { cmd } from '../command.js';
-import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -13,12 +12,18 @@ const fetchAndSendMedia = async (conn, mek, m, from, reply, react, endpoint, tit
         await react("🔥");
         await conn.sendPresenceUpdate('composing', from);
 
-        // Aapke bataye hue fetch method ki tarah API call
-        const response = await fetch(`https://prexzyapis.com/nsfw/${endpoint}`);
-        const data = await response.json();
+        const targetUrl = `https://prexzyapis.com/nsfw/${endpoint}`;
+        const response = await fetch(targetUrl);
+        const textResponse = await response.text();
 
-        // Data se media URL nikalna
-        const mediaUrl = data?.url || data?.result || data?.data;
+        let mediaUrl = "";
+
+        try {
+            const jsonData = JSON.parse(textResponse);
+            mediaUrl = jsonData?.url || jsonData?.result || jsonData?.data;
+        } catch (err) {
+            mediaUrl = textResponse.startsWith('http') ? textResponse : targetUrl;
+        }
 
         if (!mediaUrl || typeof mediaUrl !== 'string' || !mediaUrl.startsWith('http')) {
             await react("❌");
@@ -119,7 +124,7 @@ cmd({ pattern: "hentaisfm", alias: ["hentai-sfm"], desc: "Fetch hentai-sfm media
 async (conn, mek, m, { from, reply, react }) => { await fetchAndSendMedia(conn, mek, m, from, reply, react, "hentai-sfm", "Hentai Sfm"); });
 
 // 18. Kiss Command
-cmd({ pattern: "kiss2", desc: "Fetch kiss media", category: "downloader", filename: __filename }, 
+cmd({ pattern: "kiss", desc: "Fetch kiss media", category: "downloader", filename: __filename }, 
 async (conn, mek, m, { from, reply, react }) => { await fetchAndSendMedia(conn, mek, m, from, reply, react, "kiss", "Kiss"); });
 
 // 19. Pegged Command
