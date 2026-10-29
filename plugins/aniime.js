@@ -1,5 +1,5 @@
 //---------------------------------------------------------------------------
-//           KAMRAN-MD - KISS COMMAND PLUGIN
+//           KAMRAN-MD - KISS POST API PLUGIN
 //---------------------------------------------------------------------------
 
 import { fileURLToPath } from 'url';
@@ -10,7 +10,7 @@ const __filename = fileURLToPath(import.meta.url);
 cmd({
     pattern: "kiss",
     alias: ["kissing", "kiss2"],
-    desc: "Fetch random kiss media (image/video/gif)",
+    desc: "Fetch random kiss media via POST request",
     category: "downloader",
     react: "💋",
     filename: __filename
@@ -20,17 +20,21 @@ async (conn, mek, m, { from, reply, react }) => {
         await react("🔥");
         await conn.sendPresenceUpdate('composing', from);
 
-        const targetUrl = `https://prexzyapis.com/nsfw/kiss`;
-        const response = await fetch(targetUrl);
-        const textResponse = await response.text();
+        // Aapke bataye hue POST method ke sath fetch request
+        const response = await fetch('https://prexzyapis.com/nsfw/kiss', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+        });
 
+        const textResponse = await response.text();
         let mediaUrl = "";
 
         try {
-            const jsonData = JSON.parse(textResponse);
-            mediaUrl = jsonData?.url || jsonData?.result || jsonData?.data;
+            const data = JSON.parse(textResponse);
+            mediaUrl = data?.url || data?.result || data?.data;
         } catch (err) {
-            mediaUrl = textResponse.startsWith('http') ? textResponse : targetUrl;
+            mediaUrl = textResponse.startsWith('http') ? textResponse : 'https://prexzyapis.com/nsfw/kiss';
         }
 
         if (!mediaUrl || typeof mediaUrl !== 'string' || !mediaUrl.startsWith('http')) {
@@ -62,7 +66,7 @@ async (conn, mek, m, { from, reply, react }) => {
         await react("✅");
 
     } catch (e) {
-        console.error("Kiss Command Error:", e.message);
+        console.error("Kiss POST Error:", e.message);
         await react("❌");
         reply(`❌ Error: ${e.message}`);
     }
