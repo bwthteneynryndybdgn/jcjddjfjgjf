@@ -8,8 +8,8 @@ import { cmd } from '../command.js';
 const __filename = fileURLToPath(import.meta.url);
 
 cmd({
-    pattern: "video",
-    alias: ["ytmp4", "ytvideo"],
+    pattern: "video65",
+    alias: ["ytmp444", "ytvideo66"],
     use: '.video <youtube_url>',
     desc: "Download YouTube video as a document via Xrina API",
     category: "downloader",
