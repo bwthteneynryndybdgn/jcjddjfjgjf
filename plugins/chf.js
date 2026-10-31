@@ -1,140 +1,132 @@
-import { cmd } from '../command.js';
+// plugins/channel_forward.js
 import { fileURLToPath } from 'url';
-import { generateWAMessageFromContent, downloadContentFromMessage } from '@whiskeysockets/baileys';
-import axios from 'axios';
-import * as Crypto from 'crypto';
+import { cmd } from '../command.js';
+import config from '../config.js';
 
 const __filename = fileURLToPath(import.meta.url);
 
-// Helper: Stream to Buffer (Media download ke liye)
-const streamToBuffer = async (stream) => {
-    const chunks = [];
-    for await (const chunk of stream) chunks.push(chunk);
-    return Buffer.concat(chunks);
+// Helper for Stylish Text
+const toStylistUpper = (text) => {
+    if (!text || typeof text !== 'string') return '';
+    const map = {
+        'a': 'ᴀ', 'b': 'ʙ', 'c': 'ᴄ', 'd': 'ᴅ', 'e': 'ᴇ', 'f': 'ғ', 'g': 'ɢ', 'h': 'ʜ', 'i': 'ɪ',
+        'j': 'ᴊ', 'k': 'ᴋ', 'l': 'ʟ', 'm': 'ᴍ', 'n': 'ɴ', 'o': 'ᴏ', 'p': 'ᴘ', 'q': 'ǫ', 'r': 'ʀ',
+        's': 's', 't': 'ᴛ', 'u': 'ᴜ', 'v': 'ᴠ', 'w': 'ᴡ', 'x': 'x', 'y': 'ʏ', 'z': 'ᴢ'
+    };
+    return text.split('').map(char => map[char.toLowerCase()] || char).join('');
 };
 
 cmd({
-    pattern: "chforward",
-    alias: ["chfrd", "cfwd"],
-    desc: "Forward messages to groups and channels",
-    category: "owner",
+    pattern: "fxorward",
+    alias: ["chforward", "sendch", "fwd"],
+    react: '📢',
+    desc: "Forward media to your WhatsApp Channel",
+    category: "channel",
     filename: __filename
-}, async (client, message, match, { isCreator, reply }) => {
+}, async (client, message, m, { from, prefix, command, q, isCreator }) => {
+    
+    // 1. Check if user is replying to a message
+    if (!message.quoted) {
+        return await client.sendMessage(from, {
+            text: `❌ *${toStylistUpper('Please reply to a photo, video, or voice note!')}*\n\n*${toStylistUpper('Example')}:*\n1. Send/Forward a video to bot\n2. Reply to it with ${prefix + command}`
+        }, { quoted: message });
+    }
+
     try {
-        if (!isCreator) return await reply("*📛 Owner Only Command*");
-        if (!message.quoted) return await reply("*🍁 Please reply to a message to forward*");
+        // React: Processing
+        await client.sendMessage(from, { react: { text: '⏳', key: message.key } });
 
-        let textInput = typeof match === "string" ? match.trim() : "";
-        if (!textInput) return await reply("*🍁 Usage:* `.forward jid1,jid2,...`\nReply to a message first!");
-
-        const rawJids = textInput.split(',').map(jid => jid.trim()).filter(Boolean);
-        const validJids = rawJids.map(jid => {
-            if (jid.includes('@')) {
-                const numbers = jid.match(/\d+/g);
-                if (!numbers) return null;
-                if (jid.endsWith('@g.us')) return `${numbers.join('')}@g.us`;
-                if (jid.endsWith('@s.whatsapp.net')) return `${numbers.join('')}@s.whatsapp.net`;
-                if (jid.endsWith('@newsletter')) return `${numbers.join('')}@newsletter`;
-            } else if (/^\d+$/.test(jid)) {
-                return `${jid}@g.us`;
-            }
-            return null;
-        }).filter(Boolean).slice(0, 50);
-
-        if (!validJids.length) return await reply("❌ No valid JIDs found");
-        const uniqueJids = [...new Set(validJids)];
+        // 2. Get Channel ID from Config (Important: User must set this in config.js)
+        // Agar config mein CHANNEL_ID nahi hai, toh error dega
+        const channelId = config.CHANNEL_ID || "120363418144382782@newsletter"; // Default fallback
         
-        await reply(`🔄 Forwarding to ${uniqueJids.length} chats...`);
-
-        let successCount = 0;
-        let failedCount = 0;
-
-        const quotedContent = message.msg?.contextInfo?.quotedMessage;
-        if (!quotedContent) return await reply("❌ Could not extract quoted content");
-
-        const mediaKey = Object.keys(quotedContent).find(k => 
-            ['imageMessage', 'videoMessage', 'audioMessage', 'documentMessage'].includes(k)
-        );
-
-        for (const [index, jid] of uniqueJids.entries()) {
-            try {
-                const isNewsletter = jid.endsWith('@newsletter');
-                let messageContent = JSON.parse(JSON.stringify(quotedContent)); // Deep Copy
-
-                // 🔥 CHANNEL SPECIFIC LOGIC (Local Upload Path)
-                if (isNewsletter && mediaKey) {
-                    // 1. Media Buffer Download
-                    const mediaType = mediaKey.replace('Message', '').toLowerCase();
-                    const stream = await downloadContentFromMessage(messageContent[mediaKey], mediaType);
-                    const buffer = await streamToBuffer(stream);
-                    if (!buffer) throw new Error("Download failed");
-
-                    // 2. Get Auth & Host
-                    const mediaConn = await client.query({
-                        tag: 'iq', attrs: { type: 'set', xmlns: 'w:m', to: 's.whatsapp.net' },
-                        content: [{ tag: 'media_conn', attrs: {} }]
-                    });
-                    const auth = encodeURIComponent(mediaConn.content[0].attrs.auth);
-                    const host = mediaConn.content[0].attrs.hostname;
-
-                    // 3. Define Channel Path
-                    const pathMap = {
-                        image: '/newsletter/newsletter-image',
-                        video: '/newsletter/newsletter-video',
-                        audio: '/newsletter/newsletter-audio',
-                        document: '/newsletter/newsletter-document'
-                    };
-                    const path = pathMap[mediaType];
-                    if (!path) throw new Error("Unsupported media type for channel");
-
-                    // 4. Upload to Local Path
-                    const uploadUrl = `https://${host}${path}?auth=${auth}&server_thumb_gen=1`;
-                    const res = await axios.post(uploadUrl, buffer, {
-                        headers: {
-                            'Content-Type': 'application/octet-stream',
-                            'Origin': 'https://web.whatsapp.com'
-                        },
-                        maxBodyLength: Infinity,
-                        maxContentLength: Infinity
-                    });
-
-                    if (!res.data || !res.data.direct_path) throw new Error("Upload failed");
-
-                    // 5. Update Content Data
-                    const mediaObj = messageContent[mediaKey];
-                    mediaObj.url = res.data.url;
-                    mediaObj.directPath = res.data.direct_path;
-                    mediaObj.fileSha256 = res.data.file_sha256;
-                    mediaObj.fileEncSha256 = res.data.file_enc_sha256;
-                    mediaObj.fileLength = buffer.length;
-                    mediaObj.mediaKey = res.data.media_key || Crypto.randomBytes(32).toString('base64');
-
-                }
-
-                // 🔥 SEND MESSAGE
-                const forwardData = generateWAMessageFromContent(jid, messageContent, { 
-                    userJid: client.user.id 
-                });
-                await client.relayMessage(jid, forwardData.message, { 
-                    messageId: forwardData.key.id 
-                });
-
-                successCount++;
-                if ((index + 1) % 5 === 0 && uniqueJids.length > 5) {
-                    await reply(`📤 Sent to ${index + 1}/${uniqueJids.length}...`);
-                }
-                await new Promise(r => setTimeout(r, 1000));
-                
-            } catch (error) {
-                console.error(`Forward error to ${jid}:`, error.message);
-                failedCount++;
-            }
+        // 3. Prepare the message to forward
+        // Hum quoted message ke content ko copy karke channel par bhejenge
+        const quotedMsg = message.quoted;
+        
+        // Message type detect karna (Image, Video, Audio, Document)
+        let messageType = quotedMsg.mtype;
+        
+        // Caption agar text hai toh
+        let captionText = quotedMsg.caption || "";
+        if(captionText) {
+            captionText += `\n\n> 📢 _Forwarded via ${config.BOT_NAME || 'Bot'}_`;
+        } else {
+            captionText = `> 📢 _Forwarded via ${config.BOT_NAME || 'Bot'}_`;
         }
 
-        await reply(`✅ *Forward Complete!*\n\n📤 Success: ${successCount}\n❌ Failed: ${failedCount}`);
+        // 4. Send to Channel based on Type
+        let sendOptions = {
+            contextInfo: {
+                forwardingScore: 999,
+                isForwarded: true,
+                forwardedNewsletterMessageInfo: {
+                    newsletterJid: channelId,
+                    newsletterName: config.BOT_NAME || "Channel Name",
+                    serverMessageId: 1
+                }
+            }
+        };
+
+        if (messageType.includes('image')) {
+            await client.sendMessage(channelId, {
+                image: await quotedMsg.download(),
+                caption: captionText,
+                ...sendOptions
+            });
+        } 
+        else if (messageType.includes('video')) {
+            await client.sendMessage(channelId, {
+                video: await quotedMsg.download(),
+                caption: captionText,
+                mimetype: 'video/mp4',
+                ...sendOptions
+            });
+        } 
+        else if (messageType.includes('audio')) {
+            await client.sendMessage(channelId, {
+                audio: await quotedMsg.download(),
+                mimetype: 'audio/mp4',
+                ptt: false, // Voice note as audio file
+                ...sendOptions
+            });
+        } 
+        else if (messageType.includes('ptv')) { 
+             // PTV means View Once Video or Voice Note usually
+             await client.sendMessage(channelId, {
+                audio: await quotedMsg.download(),
+                mimetype: 'audio/mp4',
+                ptt: true, // Voice note style
+                ...sendOptions
+            });
+        }
+        else if (messageType.includes('document')) {
+            await client.sendMessage(channelId, {
+                document: await quotedMsg.download(),
+                mimetype: quotedMsg.mimetype,
+                fileName: quotedMsg.fileName || "File",
+                caption: captionText,
+                ...sendOptions
+            });
+        }
+        else {
+            // For simple text messages
+            await client.sendMessage(channelId, {
+                text: `${quotedMsg.text}\n\n> 📢 _Forwarded via Bot_`,
+                ...sendOptions
+            });
+        }
+
+        // Success Reaction & Reply
+        await client.sendMessage(from, { react: { text: '✅', key: message.key } });
+        await client.sendMessage(from, {
+            text: `✅ *${toStylistUpper('Successfully forwarded to Channel!')}*`
+        }, { quoted: message });
 
     } catch (error) {
-        console.error("Forward Error:", error);
-        await reply(`💢 Error: ${error.message.substring(0, 100)}`);
+        console.error("Channel Forward Error:", error);
+        await client.sendMessage(from, {
+            text: `❌ *${toStylistUpper('Error forwarding')}:*\nMake sure I am an admin in the channel and CHANNEL_ID is set in config.`
+        }, { quoted: message });
     }
 });
