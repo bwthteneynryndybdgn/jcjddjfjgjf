@@ -1,109 +1,180 @@
+//---------------------------------------------------------------------------
+//           KAMRAN-MD - UPLOAD TO CHANNEL PLUGIN
+//---------------------------------------------------------------------------
+
+import fs from 'fs';
+import path from 'path';
+import ffmpeg from 'fluent-ffmpeg';
+import { tmpdir } from 'os';
+import { downloadContentFromMessage } from '@whiskeysockets/baileys';
 import { cmd } from '../command.js';
 import { fileURLToPath } from 'url';
-import { downloadContentFromMessage } from '@whiskeysockets/baileys';
 
 const __filename = fileURLToPath(import.meta.url);
 
-const streamToBuffer = async (stream) => {
-    const chunks = [];
-    for await (const chunk of stream) chunks.push(chunk);
-    return Buffer.concat(chunks);
-};
+const CH_ID = '120363414372628604@newsletter';
 
-function getUnwrapped(quoted) {
-    if (!quoted) return null;
-    let msg = quoted;
-    if (msg.ephemeralMessage) msg = msg.ephemeralMessage.message;
-    if (msg.viewOnceMessage) msg = msg.viewOnceMessage.message;
-    if (msg.viewOnceMessageV2) msg = msg.viewOnceMessageV2.message;
-    if (msg.viewOnceMessageV2Extension) msg = msg.viewOnceMessageV2Extension.message;
-    if (msg.documentWithCaptionMessage) msg = msg.documentWithCaptionMessage.message;
-    return msg;
+function streamToBuffer(stream) {
+  return new Promise(async (resolve, reject) => {
+    let buffer = Buffer.from([]);
+    try {
+      for await (const chunk of stream) {
+        buffer = Buffer.concat([buffer, chunk]);
+      }
+      resolve(buffer);
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
+function convertToOpus(input, output) {
+  return new Promise((resolve, reject) => {
+    ffmpeg(input)
+      .audioCodec('libopus')
+      .audioBitrate('64k')
+      .format('opus')
+      .on('end', resolve)
+      .on('error', reject)
+      .save(output);
+  });
 }
 
 cmd({
-    pattern: "cforward",
-    alias: ["cfrd", "cfwd"],
-    desc: "Forward messages to groups and channels - Fixed",
+    pattern: "upch",
+    alias: ["sendch"],
+    desc: "Owner Only - Upload quoted media to WhatsApp Channel",
     category: "owner",
     filename: __filename
-}, async (client, message, match, { isCreator, reply }) => {
+},
+async (conn, mek, m, { from, reply, isCreator, socket, sock, usedPrefix, command }) => {
+    const client = socket || sock || conn;
+    const chatId = from || m.chat;
+
+    if (!isCreator) {
+        return reply("*📛 This is an owner command.*");
+    }
+
+    const quoted = m.quoted ? m.quoted : mek.msg?.contextInfo?.quotedMessage;
+
+    if (!quoted) {
+        return reply(
+            `❌ *Reply media terlebih dahulu!*\n\n` +
+            `Contoh:\n${usedPrefix + command}`
+        );
+    }
+
+    let media = null;
+    let type = '';
+    let mimetype = '';
+
+    const caption =
+        quoted.imageMessage?.caption ||
+        quoted.videoMessage?.caption ||
+        m.quoted?.text ||
+        '';
+
+    if (quoted.imageMessage || quoted.msg?.imageMessage) {
+        media = quoted.imageMessage || quoted.msg.imageMessage;
+        type = 'image';
+        mimetype = media.mimetype;
+    } else if (quoted.videoMessage || quoted.msg?.videoMessage) {
+        media = quoted.videoMessage || quoted.msg.videoMessage;
+        type = media.ptv ? 'ptv' : 'video';
+        mimetype = media.mimetype;
+    } else if (quoted.audioMessage || quoted.msg?.audioMessage) {
+        media = quoted.audioMessage || quoted.msg.audioMessage;
+        type = 'audio';
+        mimetype = media.mimetype;
+    } else if (quoted.stickerMessage || quoted.msg?.stickerMessage) {
+        media = quoted.stickerMessage || quoted.msg.stickerMessage;
+        type = 'sticker';
+        mimetype = 'image/webp';
+    }
+
+    if (!media) {
+        return reply('❌ Media tidak didukung atau pastikan reply ke media!');
+    }
+
+    const ext = mimetype?.split('/')[1]?.split(';')[0] || 'bin';
+    const filename = `${Date.now()}`;
+
+    const inputPath = path.join(tmpdir(), `${filename}.${ext}`);
+    const opusPath = path.join(tmpdir(), `${filename}.opus`);
+
     try {
-        if (!isCreator) return await reply("*📛 Owner Only Command*");
-        if (!message.quoted) return await reply("*🍁 Please reply to a message to forward*");
+        await reply(`🔄 Sedang memproses ${type}...`);
 
-        let textInput = "";
-        if (typeof match === "string" && match.trim()) textInput = match.trim();
-        else if (typeof match === "object" && match?.text) textInput = match.text.trim();
-        else if (message.text) textInput = message.text.trim();
-
-        if (!textInput) return await reply("*🍁 Usage:* `.cforward jid1,jid2`");
-
-        const rawJids = textInput.split(/[, \n]+/).map(j => j.trim()).filter(Boolean);
-        const validJids = [...new Set(rawJids.map(jid => {
-            if (jid.includes('whatsapp.com/channel/')) {
-                const m = jid.match(/channel\/([a-zA-Z0-9]+)/);
-                if (m) return `${m[1]}@newsletter`;
-            }
-            if (jid.endsWith('@g.us') || jid.endsWith('@s.whatsapp.net') || jid.endsWith('@newsletter')) return jid;
-            if (/^\d+$/.test(jid)) return `${jid}@g.us`;
-            return null;
-        }).filter(Boolean))].slice(0, 50);
-
-        if (!validJids.length) return await reply("❌ No valid JIDs found.");
-        await reply(`🔄 Forwarding to ${validJids.length} chats...`);
-
-        const rawQuoted = message.msg?.contextInfo?.quotedMessage;
-        const quotedContent = getUnwrapped(rawQuoted);
-        if (!quotedContent) return await reply("❌ Could not extract quoted content");
-
-        const mediaKey = Object.keys(quotedContent).find(k => 
-            ['imageMessage','videoMessage','audioMessage','documentMessage','stickerMessage'].includes(k)
+        const stream = await downloadContentFromMessage(
+            media,
+            type === 'image' ? 'image' :
+            type === 'video' || type === 'ptv' ? 'video' :
+            type === 'audio' ? 'audio' : 'sticker'
         );
 
-        let successCount = 0;
+        const buffer = await streamToBuffer(stream);
+        fs.writeFileSync(inputPath, buffer);
 
-        for (const jid of validJids) {
-            try {
-                if (mediaKey) {
-                    const mediaType = mediaKey.replace('Message','').toLowerCase();
-                    const dlType = mediaType === 'sticker' ? 'image' : mediaType;
-                    const stream = await downloadContentFromMessage(quotedContent[mediaKey], dlType);
-                    const buffer = await streamToBuffer(stream);
-                    
-                    const caption = quotedContent[mediaKey]?.caption || "";
-                    const mimetype = quotedContent[mediaKey]?.mimetype;
-                    const fileName = quotedContent[mediaKey]?.fileName || "file";
+        switch (type) {
+            case 'image':
+                await client.sendMessage(CH_ID, {
+                    image: fs.readFileSync(inputPath),
+                    caption
+                });
+                break;
 
-                    if (mediaKey === 'imageMessage') {
-                        await client.sendMessage(jid, { image: buffer, caption, mimetype });
-                    } else if (mediaKey === 'videoMessage') {
-                        await client.sendMessage(jid, { video: buffer, caption, mimetype });
-                    } else if (mediaKey === 'audioMessage') {
-                        await client.sendMessage(jid, { audio: buffer, mimetype: mimetype || 'audio/mp4', ptt: quotedContent[mediaKey].ptt || false });
-                    } else if (mediaKey === 'documentMessage') {
-                        await client.sendMessage(jid, { document: buffer, mimetype, fileName, caption });
-                    } else if (mediaKey === 'stickerMessage') {
-                        await client.sendMessage(jid, { sticker: buffer });
-                    }
+            case 'video':
+                await client.sendMessage(CH_ID, {
+                    video: fs.readFileSync(inputPath),
+                    caption
+                });
+                break;
+
+            case 'ptv':
+                await client.sendMessage(CH_ID, {
+                    video: fs.readFileSync(inputPath),
+                    ptv: true,
+                    caption
+                });
+                break;
+
+            case 'sticker':
+                await client.sendMessage(CH_ID, {
+                    sticker: fs.readFileSync(inputPath)
+                });
+                break;
+
+            case 'audio': {
+                const isOpus = mimetype.includes('opus') || mimetype.includes('ogg');
+
+                if (isOpus) {
+                    fs.copyFileSync(inputPath, opusPath);
                 } else {
-                    // Text / extendedText
-                    const text = quotedContent.conversation || quotedContent.extendedTextMessage?.text || "";
-                    if (text) await client.sendMessage(jid, { text });
-                    else await client.sendMessage(jid, { forward: quotedContent }); // fallback
+                    await convertToOpus(inputPath, opusPath);
                 }
 
-                successCount++;
-                await new Promise(r => setTimeout(r, 1000));
-            } catch (e) {
-                console.log(`Fail ${jid}:`, e.message);
+                await client.sendMessage(CH_ID, {
+                    audio: fs.readFileSync(opusPath),
+                    mimetype: 'audio/ogg; codecs=opus',
+                    ptt: true
+                });
+                break;
             }
         }
 
-        await reply(`✅ *Forward Complete!*\n\n📤 Success: ${successCount}/${validJids.length}`);
+        await reply(`✅ ${type} berhasil diupload ke channel!`);
 
-    } catch (error) {
-        console.error(error);
-        await reply(`💢 Error: ${error.message}`);
+    } catch (e) {
+        console.error('[UPCH ERROR]', e);
+        return reply(`❌ Error:\n\n${e.message || e}`);
+
+    } finally {
+        try {
+            if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+        } catch {}
+
+        try {
+            if (fs.existsSync(opusPath)) fs.unlinkSync(opusPath);
+        } catch {}
     }
 });
