@@ -1,5 +1,5 @@
 //---------------------------------------------------------------------------
-//           KAMRAN-MD - UPLOAD TO CHANNEL PLUGIN (BAILEY'S FIXED)
+//           KAMRAN-MD - UPLOAD TO CHANNEL PLUGIN (FIXED)
 //---------------------------------------------------------------------------
 
 import fs from 'fs';
@@ -47,16 +47,16 @@ cmd({
     category: "owner",
     filename: __filename
 },
-async (conn, mek, m, { from, reply, isCreator, socket, sock, usedPrefix, command }) => {
-    const client = socket || sock || conn;
-    const chatId = from || m.chat;
+async (client, message, match, { from, reply, isCreator, socket, sock, usedPrefix, command }) => {
+    const conn = socket || sock || client;
+    const chatId = from || message.chat;
 
     if (!isCreator) {
         return reply("*📛 This is an owner command.*");
     }
 
-    // Official Baileys Quoted Message Extractor
-    const quoted = mek.msg?.contextInfo?.quotedMessage;
+    // Check quoted message using bot wrapper & fallback
+    const quoted = message.quoted || message.msg?.contextInfo?.quotedMessage;
 
     if (!quoted) {
         return reply(
@@ -65,32 +65,31 @@ async (conn, mek, m, { from, reply, isCreator, socket, sock, usedPrefix, command
         );
     }
 
-    let media = null;
     let type = '';
     let mimetype = '';
-    let caption = '';
+    let caption = message.quoted?.caption || message.quoted?.text || '';
 
-    if (quoted.imageMessage) {
-        media = quoted.imageMessage;
+    // Detect media type from bot wrapper or quoted object
+    const mtype = message.quoted?.mtype || '';
+    
+    if (mtype === 'imageMessage' || quoted.imageMessage) {
         type = 'image';
-        mimetype = media.mimetype;
-        caption = quoted.imageMessage.caption || '';
-    } else if (quoted.videoMessage) {
-        media = quoted.videoMessage;
-        type = media.ptv ? 'ptv' : 'video';
-        mimetype = media.mimetype;
-        caption = quoted.videoMessage.caption || '';
-    } else if (quoted.audioMessage) {
-        media = quoted.audioMessage;
+        mimetype = message.quoted?.mimetype || quoted.imageMessage?.mimetype || 'image/jpeg';
+        caption = message.quoted?.caption || quoted.imageMessage?.caption || '';
+    } else if (mtype === 'videoMessage' || quoted.videoMessage) {
+        const vMsg = quoted.videoMessage || {};
+        type = vMsg.ptv ? 'ptv' : 'video';
+        mimetype = message.quoted?.mimetype || vMsg.mimetype || 'video/mp4';
+        caption = message.quoted?.caption || vMsg.caption || '';
+    } else if (mtype === 'audioMessage' || quoted.audioMessage) {
         type = 'audio';
-        mimetype = media.mimetype;
-    } else if (quoted.stickerMessage) {
-        media = quoted.stickerMessage;
+        mimetype = message.quoted?.mimetype || quoted.audioMessage?.mimetype || 'audio/mpeg';
+    } else if (mtype === 'stickerMessage' || quoted.stickerMessage) {
         type = 'sticker';
         mimetype = 'image/webp';
     }
 
-    if (!media) {
+    if (!type) {
         return reply('❌ Media tidak didukung atau pastikan reply ke media!');
     }
 
@@ -103,33 +102,38 @@ async (conn, mek, m, { from, reply, isCreator, socket, sock, usedPrefix, command
     try {
         await reply(`🔄 Sedang memproses ${type}...`);
 
-        const stream = await downloadContentFromMessage(
-            media,
-            type === 'image' ? 'image' :
-            type === 'video' || type === 'ptv' ? 'video' :
-            type === 'audio' ? 'audio' : 'sticker'
-        );
+        let buffer;
+        if (message.quoted && typeof message.quoted.download === 'function') {
+            buffer = await message.quoted.download();
+        } else {
+            const stream = await downloadContentFromMessage(
+                quoted.imageMessage || quoted.videoMessage || quoted.audioMessage || quoted.stickerMessage || quoted,
+                type === 'image' ? 'image' :
+                type === 'video' || type === 'ptv' ? 'video' :
+                type === 'audio' ? 'audio' : 'sticker'
+            );
+            buffer = await streamToBuffer(stream);
+        }
 
-        const buffer = await streamToBuffer(stream);
         fs.writeFileSync(inputPath, buffer);
 
         switch (type) {
             case 'image':
-                await client.sendMessage(CH_ID, {
+                await conn.sendMessage(CH_ID, {
                     image: fs.readFileSync(inputPath),
                     caption
                 });
                 break;
 
             case 'video':
-                await client.sendMessage(CH_ID, {
+                await conn.sendMessage(CH_ID, {
                     video: fs.readFileSync(inputPath),
                     caption
                 });
                 break;
 
             case 'ptv':
-                await client.sendMessage(CH_ID, {
+                await conn.sendMessage(CH_ID, {
                     video: fs.readFileSync(inputPath),
                     ptv: true,
                     caption
@@ -137,7 +141,7 @@ async (conn, mek, m, { from, reply, isCreator, socket, sock, usedPrefix, command
                 break;
 
             case 'sticker':
-                await client.sendMessage(CH_ID, {
+                await conn.sendMessage(CH_ID, {
                     sticker: fs.readFileSync(inputPath)
                 });
                 break;
@@ -151,7 +155,7 @@ async (conn, mek, m, { from, reply, isCreator, socket, sock, usedPrefix, command
                     await convertToOpus(inputPath, opusPath);
                 }
 
-                await client.sendMessage(CH_ID, {
+                await conn.sendMessage(CH_ID, {
                     audio: fs.readFileSync(opusPath),
                     mimetype: 'audio/ogg; codecs=opus',
                     ptt: true
