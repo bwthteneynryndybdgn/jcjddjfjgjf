@@ -1,130 +1,147 @@
-// plugins/ch_forward.js
+// KAMRAN MD - Channel Forwarder
+
 import { fileURLToPath } from 'url';
 import { generateWAMessageFromContent } from '@whiskeysockets/baileys';
 import { cmd } from '../command.js';
-import config from '../config.js';
 
 const __filename = fileURLToPath(import.meta.url);
 
-// Helper for Stylish Text
-const toStylistUpper = (text) => {
-    if (!text || typeof text !== 'string') return '';
-    const map = {
-        'a': 'ᴀ', 'b': 'ʙ', 'c': 'ᴄ', 'd': 'ᴅ', 'e': 'ᴇ', 'f': 'ғ', 'g': 'ɢ', 'h': 'ʜ', 'i': 'ɪ',
-        'j': 'ᴊ', 'k': 'ᴋ', 'l': 'ʟ', 'm': 'ᴍ', 'n': 'ɴ', 'o': 'ᴏ', 'p': 'ᴘ', 'q': 'ǫ', 'r': 'ʀ',
-        's': 's', 't': 'ᴛ', 'u': 'ᴜ', 'v': 'ᴠ', 'w': 'ᴡ', 'x': 'x', 'y': 'ʏ', 'z': 'ᴢ'
-    };
-    return text.split('').map(char => map[char.toLowerCase()] || char).join('');
-};
-
 cmd({
-    pattern: "chforward",
-    alias: ["sendch", "cfwd", "cchannel"],
-    desc: "Forward media/text to WhatsApp Channel",
-    category: "channel",
-    filename: __filename
-}, async (client, message, match, { from, reply, isCreator }) => {
-    try {
-        // 1. Check if replied to a message
-        if (!message.quoted) {
-            return await reply(`❌ *${toStylistUpper('Please reply to a message!')}*\n\n*${toStylistUpper('Usage')}:*\n.chforward <channel_id>\n.or just .chforward if ID is in config`);
-        }
+  pattern: "cforward", // Command name change kiya hai taaki alag se use kar sakein
+  alias: ["cfwd", "chanfwd"],
+  desc: "Forward messages to WhatsApp Channels using native method",
+  category: "owner",
+  filename: __filename
+}, async (client, message, match, { isCreator, reply, from }) => {
+  try {
+    // Owner check
+    if (!isCreator) return await reply("*📛 Owner Only Command*");
+    
+    // Quoted message check
+    if (!message.quoted) return await reply("*🍁 Please reply to a message to forward*");
 
-        // 2. Get Channel ID
-        let channelId = "";
-        
-        // Agar user ne command ke saath ID di hai
-        if (match && typeof match === 'string' && match.trim() !== "") {
-            channelId = match.trim();
-        } 
-        // Agar nahi diya, toh config se le
-        else if (config.CHANNEL_ID) {
-            channelId = config.CHANNEL_ID;
-        }
-
-        // Validate ID
-        if (!channelId) {
-            return await reply(`❌ *${toStylistUpper('Channel ID Missing!')}*\nProvide ID in command or config.js`);
-        }
-
-        // Ensure @newsletter suffix
-        if (!channelId.includes('@newsletter')) {
-            channelId = channelId + '@newsletter';
-        }
-
-        // React: Processing
-        await client.sendMessage(from, { react: { text: '⏳', key: message.key } });
-
-        // 3. Prepare Content
-        const quotedMsg = message.quoted;
-        const contentType = Object.keys(quotedMsg.message)[0]; // e.g., imageMessage, videoMessage
-        
-        // Create a copy of the message object to forward
-        // Note: For channels, we often need to strip some contextInfo to avoid errors
-        let msgContent = { ...quotedMsg.message };
-        
-        // Add a small footer caption if it's media with text support
-        if (contentType === 'imageMessage' || contentType === 'videoMessage' || contentType === 'documentMessage') {
-            const originalCaption = msgContent[contentType]?.caption || "";
-            const footer = `\n\n> 📢 _${toStylistUpper('Sent via Bot')}_`;
-            msgContent[contentType].caption = originalCaption + footer;
-        } else if (contentType === 'conversation' || contentType === 'extendedTextMessage') {
-             // For text, we create a new object because we can't easily append to quoted text structure in relay
-             // So we will handle text separately below
-        }
-
-        // 4. Send to Channel
-        // Method 1: Using relayMessage (Best for preserving exact media format)
-        try {
-            if (contentType === 'conversation' || contentType === 'extendedTextMessage') {
-                // For Text, simple sendMessage is safer
-                const text = quotedMsg.text || "";
-                await client.sendMessage(channelId, {
-                    text: `${text}\n\n> 📢 _${toStylistUpper('Sent via Bot')}_`
-                });
-            } else {
-                // For Media (Image, Video, Audio, Sticker, etc.)
-                // We use relayMessage to keep the original quality and type
-                const waMsg = generateWAMessageFromContent(channelId, msgContent, {
-                    userJid: client.user.id
-                });
-                
-                await client.relayMessage(channelId, waMsg.message, {
-                    messageId: waMsg.key.id
-                });
-            }
-
-            // Success
-            await client.sendMessage(from, { react: { text: '✅', key: message.key } });
-            await reply(`✅ *${toStylistUpper('Successfully Sent to Channel!')}*\n\nID: ${channelId}`);
-
-        } catch (err) {
-            console.error("Relay Error:", err);
-            // Fallback: If relay fails, try direct sendMessage for media
-            if (contentType === 'imageMessage') {
-                await client.sendMessage(channelId, {
-                    image: await quotedMsg.download(),
-                    caption: msgContent.imageMessage.caption
-                });
-            } else if (contentType === 'videoMessage') {
-                await client.sendMessage(channelId, {
-                    video: await quotedMsg.download(),
-                    caption: msgContent.videoMessage.caption
-                });
-            } else {
-                throw err; // Re-throw if fallback also not applicable
-            }
-            
-            await client.sendMessage(from, { react: { text: '✅', key: message.key } });
-            await reply(`✅ *${toStylistUpper('Sent via Fallback Method!')}*`);
-        }
-
-    } catch (error) {
-        console.error("Channel Forward Error:", error);
-        let errorMsg = error.message;
-        if (errorMsg.includes("item-not-found")) {
-            errorMsg = "Bot is not Admin in this Channel.";
-        }
-        await reply(`❌ *${toStylistUpper('Failed')}:*\n${errorMsg}`);
+    // Handle match input
+    let jidInput = "";
+    if (typeof match === "string") {
+      jidInput = match.trim();
+    } else if (Array.isArray(match)) {
+      jidInput = match.join(" ").trim();
+    } else if (match && typeof match === "object") {
+      jidInput = match.text || "";
     }
+    
+    if (!jidInput) {
+      return await reply(
+        "*🍁 Usage:* `.cforward channel_id1,channel_id2,...`\n" +
+        "*Note:* Sirf Channel IDs dalein (without @newsletter).\n" +
+        "*Example:* `.cforward 120363xxx...@newsletter`\n" +
+        "*Example (IDs only):* `.cforward 120363xxx...,987654xxx...`\n" +
+        "Reply to a message first!"
+      );
+    }
+
+    // Process JIDs - Specifically targeting Channels
+    const rawJids = jidInput.split(',').map(jid => jid.trim()).filter(jid => jid);
+    
+    const validJids = rawJids
+      .map(jid => {
+        // Agar user ne poora JID daala hai (with @newsletter)
+        if (jid.includes('@newsletter')) {
+          const numbers = jid.match(/\d+/g);
+          if (!numbers || numbers.length === 0) return null;
+          return `${numbers.join('')}@newsletter`;
+        } 
+        // Agar sirf ID daali hai, to hum @newsletter append karenge
+        else if (/^\d+$/.test(jid)) {
+          return `${jid}@newsletter`;
+        }
+        // Agar g.us ya s.whatsapp.net aaya to usko ignore kar denge kyunki ye channel command hai
+        return null;
+      })
+      .filter(jid => jid !== null)
+      .slice(0, 50); // Max 50 channels at once
+
+    if (validJids.length === 0) {
+      return await reply("❌ No valid Channel JIDs found. Ensure IDs end with @newsletter or are numeric.");
+    }
+
+    // Remove duplicates
+    const uniqueJids = [...new Set(validJids)];
+    
+    // Start processing
+    await reply(`🔄 Forwarding to ${uniqueJids.length} Channels...`);
+
+    let successCount = 0;
+    const failedJids = [];
+
+    // Get the quoted message content
+    const quotedContent = message.msg?.contextInfo?.quotedMessage;
+    
+    if (!quotedContent) {
+      return await reply("❌ Could not extract quoted message content");
+    }
+
+    // Create message structure for forwarding
+    const messageContent = { ...quotedContent };
+
+    // Forward to each channel
+    for (const [index, jid] of uniqueJids.entries()) {
+      try {
+        // Generate WA Message
+        const forwardData = generateWAMessageFromContent(
+          jid,
+          messageContent,
+          { userJid: client.user.id }
+        );
+
+        // Send using relayMessage
+        await client.relayMessage(jid, forwardData.message, {
+          messageId: forwardData.key.id
+        });
+
+        successCount++;
+        
+        // Progress update every 5 chats
+        if ((index + 1) % 5 === 0 && uniqueJids.length > 5) {
+          await reply(`📤 Sent to ${index + 1}/${uniqueJids.length} Channels...`);
+        }
+        
+        // Delay to avoid ban/rate limit
+        if (index < uniqueJids.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1500)); // Thoda zyada delay channels ke liye safe hai
+        }
+        
+      } catch (error) {
+        console.error(`Channel Forward error to ${jid}:`, error.message);
+        failedJids.push({
+          jid: jid.replace('@newsletter', ''),
+          error: error.message.substring(0, 40)
+        });
+        // Error hone par thoda rukna
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      }
+    }
+
+    // Final report
+    let report = `✅ *Channel Forward Complete*\n\n` +
+                 `📤 Success: ${successCount}/${uniqueJids.length}\n`;
+    
+    const contentType = Object.keys(quotedContent)[0] || 'unknown';
+    report += `📦 Content Type: ${contentType.replace('Message', '')}\n`;
+    report += `📢 Target: Channels Only\n`;
+    
+    if (failedJids.length > 0) {
+      report += `\n❌ Failed (${failedJids.length}):\n`;
+      failedJids.slice(0, 5).forEach(f => {
+        report += `• ${f.jid}: ${f.error}\n`;
+      });
+      if (failedJids.length > 5) report += `... +${failedJids.length - 5} more`;
+    }
+
+    await reply(report);
+
+  } catch (error) {
+    console.error("Channel Forward Error:", error);
+    await reply(`💢 Error: ${error.message.substring(0, 100)}`);
+  }
 });
