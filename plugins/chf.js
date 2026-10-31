@@ -1,4 +1,4 @@
-// KAMRAN MD - Universal Channel Forwarder (Media + Text)
+// KAMRAN MD - Fixed Universal Channel Forwarder
 
 import { fileURLToPath } from 'url';
 import { generateWAMessageFromContent, downloadMediaMessage } from '@whiskeysockets/baileys';
@@ -9,7 +9,7 @@ const __filename = fileURLToPath(import.meta.url);
 cmd({
   pattern: "cforward",
   alias: ["cfwd", "chanfwd"],
-  desc: "Forward Text, Photo, Video, Audio to WhatsApp Channels",
+  desc: "Forward Text, Photo, Video, Audio to WhatsApp Channels (Fixed)",
   category: "owner",
   filename: __filename
 }, async (client, message, match, { isCreator, reply, from }) => {
@@ -19,6 +19,10 @@ cmd({
     
     // Quoted message check
     if (!message.quoted) return await reply("*🍁 Please reply to a message to forward*");
+
+    // Safe access to quoted message content
+    const quotedMsg = message.quoted.message;
+    if (!quotedMsg) return await reply("❌ Could not access quoted message content.");
 
     // Handle match input
     let jidInput = "";
@@ -62,22 +66,28 @@ cmd({
 
     const uniqueJids = [...new Set(validJids)];
     
-    await reply(`🔄 Processing Media/Text for ${uniqueJids.length} Channels...`);
+    await reply(`🔄 Preparing content for ${uniqueJids.length} Channels...`);
 
     let successCount = 0;
     const failedJids = [];
 
-    // Detect Message Type
-    const mtype = Object.keys(message.quoted.message)[0];
+    // Detect Message Type Safely
+    const msgKeys = Object.keys(quotedMsg);
+    if (msgKeys.length === 0) return await reply("❌ Empty message content.");
+    
+    const mtype = msgKeys[0]; // e.g., imageMessage, videoMessage, conversation
     const isMedia = ['imageMessage', 'videoMessage', 'audioMessage', 'documentMessage'].includes(mtype);
     
     let mediaBuffer = null;
     let mediaMimeType = '';
+    let caption = '';
 
     // If it's media, download it first
     if (isMedia) {
       try {
-        await reply("📥 Downloading media...");
+        // Show downloading status only once
+        if (uniqueJids.length > 0) await reply("📥 Downloading media...");
+        
         mediaBuffer = await downloadMediaMessage(
           message.quoted,
           'buffer',
@@ -85,14 +95,25 @@ cmd({
           { logger: console, reuploadRequest: client.updateMediaMessage }
         );
         
-        // Get mime type based on message type
-        if (mtype === 'imageMessage') mediaMimeType = 'image/jpeg';
-        else if (mtype === 'videoMessage') mediaMimeType = 'video/mp4';
-        else if (mtype === 'audioMessage') mediaMimeType = 'audio/mpeg';
-        else if (mtype === 'documentMessage') mediaMimeType = message.quoted.message.document.mimetype || 'application/octet-stream';
+        // Extract details based on type
+        const msgData = quotedMsg[mtype];
+        
+        if (mtype === 'imageMessage') {
+            mediaMimeType = 'image/jpeg';
+            caption = msgData.caption || '';
+        } else if (mtype === 'videoMessage') {
+            mediaMimeType = 'video/mp4';
+            caption = msgData.caption || '';
+        } else if (mtype === 'audioMessage') {
+            mediaMimeType = 'audio/mpeg'; // Default, might vary
+        } else if (mtype === 'documentMessage') {
+            mediaMimeType = msgData.mimetype || 'application/octet-stream';
+            caption = msgData.caption || '';
+        }
         
       } catch (err) {
-        return await reply("❌ Failed to download media. It might be expired or too large.");
+        console.error("Download Error:", err);
+        return await reply("❌ Failed to download media. File might be too large or expired.");
       }
     }
 
@@ -102,44 +123,43 @@ cmd({
         let msgContent = {};
 
         if (isMedia && mediaBuffer) {
-          // Construct Media Message manually to ensure it sends correctly
+          // Construct Media Message manually
           if (mtype === 'imageMessage') {
             msgContent = {
               image: mediaBuffer,
-              caption: message.quoted.message.imageMessage.caption || '',
+              caption: caption,
               mimetype: mediaMimeType
             };
           } else if (mtype === 'videoMessage') {
             msgContent = {
               video: mediaBuffer,
-              caption: message.quoted.message.videoMessage.caption || '',
+              caption: caption,
               mimetype: mediaMimeType,
-              gifPlayback: message.quoted.message.videoMessage.gifPlayback || false
+              gifPlayback: quotedMsg[mtype].gifPlayback || false
             };
           } else if (mtype === 'audioMessage') {
             msgContent = {
               audio: mediaBuffer,
               mimetype: mediaMimeType,
-              ptt: message.quoted.message.audioMessage.ptt || false
+              ptt: quotedMsg[mtype].ptt || false
             };
           } else if (mtype === 'documentMessage') {
             msgContent = {
               document: mediaBuffer,
               mimetype: mediaMimeType,
-              fileName: message.quoted.message.document.fileName || 'file',
-              caption: message.quoted.message.document.caption || ''
+              fileName: quotedMsg[mtype].fileName || 'file',
+              caption: caption
             };
           }
         } else {
-          // For Text Messages, use the original quoted content structure
-          // We copy the text message part specifically
-          if (message.quoted.message.conversation) {
-             msgContent = { conversation: message.quoted.message.conversation };
-          } else if (message.quoted.message.extendedTextMessage) {
-             msgContent = { extendedTextMessage: message.quoted.message.extendedTextMessage };
+          // For Text Messages
+          if (mtype === 'conversation') {
+             msgContent = { conversation: quotedMsg.conversation };
+          } else if (mtype === 'extendedTextMessage') {
+             msgContent = { extendedTextMessage: quotedMsg.extendedTextMessage };
           } else {
-             // Fallback for other types
-             msgContent = message.quoted.message;
+             // Fallback: Try sending the whole object if it's not standard text/media
+             msgContent = quotedMsg;
           }
         }
 
@@ -159,7 +179,7 @@ cmd({
           await reply(`📤 Sent to ${index + 1}/${uniqueJids.length} Channels...`);
         }
         
-        // Delay
+        // Delay to prevent ban
         if (index < uniqueJids.length - 1) {
           await new Promise(resolve => setTimeout(resolve, 1500));
         }
@@ -170,6 +190,7 @@ cmd({
           jid: jid.replace('@newsletter', ''),
           error: error.message.substring(0, 40)
         });
+        // Longer delay on error
         await new Promise(resolve => setTimeout(resolve, 3000));
       }
     }
