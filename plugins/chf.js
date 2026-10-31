@@ -1,186 +1,148 @@
-// KAMRAN MD - Final Fixed Channel Forwarder
-
-import { fileURLToPath } from 'url';
-import { generateWAMessageFromContent, downloadMediaMessage } from '@whiskeysockets/baileys';
 import { cmd } from '../command.js';
+import { fileURLToPath } from 'url';
+import { generateWAMessageFromContent, downloadContentFromMessage } from '@whiskeysockets/baileys';
+import axios from 'axios';
+import * as Crypto from 'crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 
+// Helper: Stream to Buffer
+const streamToBuffer = async (stream) => {
+    const chunks = [];
+    for await (const chunk of stream) chunks.push(chunk);
+    return Buffer.concat(chunks);
+};
+
+// 🔥 CUSTOM UPLOADER (Newsletter Path)
+async function uploadToChannel(conn, buffer, mediaType) {
+    // 1. Auth & Host fetch karo
+    const mediaConn = await conn.query({
+        tag: 'iq', attrs: { type: 'set', xmlns: 'w:m', to: 's.whatsapp.net' },
+        content: [{ tag: 'media_conn', attrs: {} }]
+    });
+    const auth = encodeURIComponent(mediaConn.content[0].attrs.auth);
+    const host = mediaConn.content[0].attrs.hostname;
+
+    // 2. Path define karo (Newsletter)
+    const pathMap = {
+        image: '/newsletter/newsletter-image',
+        video: '/newsletter/newsletter-video',
+        audio: '/newsletter/newsletter-audio',
+        document: '/newsletter/newsletter-document'
+    };
+    const path = pathMap[mediaType];
+    if (!path) throw new Error("Unsupported media type");
+
+    // 3. Upload URL
+    const uploadUrl = `https://${host}${path}?auth=${auth}&server_thumb_gen=1`;
+
+    // 4. Direct Upload
+    const res = await axios.post(uploadUrl, buffer, {
+        headers: {
+            'Content-Type': 'application/octet-stream',
+            'Origin': 'https://web.whatsapp.com'
+        },
+        maxBodyLength: Infinity,
+        maxContentLength: Infinity
+    });
+
+    if (!res.data || !res.data.direct_path) {
+        throw new Error("Upload failed: No direct_path in response");
+    }
+
+    return res.data; // { url, direct_path, file_sha256, ... }
+}
+
 cmd({
-  pattern: "cforward",
-  alias: ["cfwd", "chanfwd"],
-  desc: "Forward any message to WhatsApp Channels",
-  category: "owner",
-  filename: __filename
-}, async (client, message, match, { isCreator, reply, from }) => {
-  try {
-    // 1. Owner Check
-    if (!isCreator) return await reply("*📛 Owner Only Command*");
-    
-    // 2. Quoted Message Check (Safe Way)
-    // Hum directly message.quoted ko check karenge, kyunki baaz dafa .message undefined hota hai agar quoted object hi na ho
-    if (!message.quoted || !message.quoted.message) {
-        return await reply("*🍁 Please reply to a valid message (Text/Photo/Video/Audio)*");
-    }
+    pattern: "cforward",
+    alias: ["cfrd", "cfwd"],
+    desc: "Forward messages to groups and channels",
+    category: "owner",
+    filename: __filename
+}, async (client, message, match, { isCreator, reply }) => {
+    try {
+        if (!isCreator) return await reply("*📛 Owner Only Command*");
+        if (!message.quoted) return await reply("*🍁 Please reply to a message to forward*");
 
-    const qmsg = message.quoted;
-    const qcontent = qmsg.message;
+        let textInput = "";
+        if (typeof match === "string" && match.trim()) textInput = match.trim();
+        else if (typeof match === "object" && match.text) textInput = match.text.trim();
+        else if (message.text) textInput = message.text.trim();
 
-    // 3. Handle JID Input
-    let jidInput = "";
-    if (typeof match === "string") {
-      jidInput = match.trim();
-    } else if (Array.isArray(match)) {
-      jidInput = match.join(" ").trim();
-    } else if (match && typeof match === "object") {
-      jidInput = match.text || "";
-    }
-    
-    if (!jidInput) {
-      return await reply(
-        "*🍁 Usage:* `.cforward channel_id1,channel_id2,...`\n" +
-        "*Example:* `.cforward 120363xxx...@newsletter`\n" +
-        "*Note:* Reply to the message you want to forward."
-      );
-    }
+        if (!textInput) return await reply("*🍁 Usage:* `.forward jid1,jid2,...`\nReply to a message first!");
 
-    // 4. Process JIDs (Filter for Channels only)
-    const rawJids = jidInput.split(',').map(jid => jid.trim()).filter(jid => jid);
-    
-    const validJids = rawJids
-      .map(jid => {
-        // Agar @newsletter already hai
-        if (jid.endsWith('@newsletter')) {
-          return jid; 
-        }
-        // Agar sirf numbers hain, to @newsletter laga do
-        else if (/^\d+$/.test(jid)) {
-          return `${jid}@newsletter`;
-        }
-        // Baaki sab ignore (groups/personal chats)
-        return null;
-      })
-      .filter(jid => jid !== null)
-      .slice(0, 50); // Max 50 channels
-
-    if (validJids.length === 0) {
-      return await reply("❌ No valid Channel IDs found. Use format: ID@newsletter or just ID.");
-    }
-
-    const uniqueJids = [...new Set(validJids)];
-    
-    // 5. Detect Message Type & Prepare Content
-    const mtype = Object.keys(qcontent)[0];
-    const isMedia = ['imageMessage', 'videoMessage', 'audioMessage', 'documentMessage'].includes(mtype);
-    
-    await reply(`🔄 Processing ${isMedia ? 'Media' : 'Text'} for ${uniqueJids.length} Channels...`);
-
-    let mediaBuffer = null;
-    let msgPayload = {};
-
-    if (isMedia) {
-        try {
-            // Download Media
-            mediaBuffer = await downloadMediaMessage(
-                qmsg,
-                'buffer',
-                {},
-                { logger: console, reuploadRequest: client.updateMediaMessage }
-            );
-
-            const mediaData = qcontent[mtype];
-
-            if (mtype === 'imageMessage') {
-                msgPayload = {
-                    image: mediaBuffer,
-                    caption: mediaData.caption || '',
-                    mimetype: mediaData.mimetype || 'image/jpeg'
-                };
-            } else if (mtype === 'videoMessage') {
-                msgPayload = {
-                    video: mediaBuffer,
-                    caption: mediaData.caption || '',
-                    mimetype: mediaData.mimetype || 'video/mp4',
-                    gifPlayback: mediaData.gifPlayback || false
-                };
-            } else if (mtype === 'audioMessage') {
-                msgPayload = {
-                    audio: mediaBuffer,
-                    mimetype: mediaData.mimetype || 'audio/mpeg',
-                    ptt: mediaData.ptt || false
-                };
-            } else if (mtype === 'documentMessage') {
-                msgPayload = {
-                    document: mediaBuffer,
-                    mimetype: mediaData.mimetype || 'application/octet-stream',
-                    fileName: mediaData.fileName || 'file',
-                    caption: mediaData.caption || ''
-                };
+        const rawJids = textInput.split(/[, ]+/).map(jid => jid.trim()).filter(Boolean);
+        
+        const validJids = rawJids.map(jid => {
+            if (jid.includes('whatsapp.com/channel/')) {
+                const match = jid.match(/channel\/([a-zA-Z0-9]+)/);
+                if (match) return `${match[1]}@newsletter`;
             }
-        } catch (err) {
-            console.error("Media Download Error:", err);
-            return await reply("❌ Failed to download media. It might be too large or expired.");
+            if (jid.endsWith('@g.us') || jid.endsWith('@s.whatsapp.net') || jid.endsWith('@newsletter')) {
+                return jid;
+            }
+            if (/^\d+$/.test(jid)) return `${jid}@g.us`;
+            return null;
+        }).filter(Boolean).slice(0, 50);
+
+        if (!validJids.length) return await reply("❌ No valid JIDs found.");
+
+        const uniqueJids = [...new Set(validJids)];
+        await reply(`🔄 Forwarding to ${uniqueJids.length} chats...`);
+
+        let successCount = 0;
+        const quotedContent = message.msg?.contextInfo?.quotedMessage;
+        if (!quotedContent) return await reply("❌ Could not extract quoted content");
+
+        const mediaKey = Object.keys(quotedContent).find(k => 
+            ['imageMessage', 'videoMessage', 'audioMessage', 'documentMessage'].includes(k)
+        );
+
+        for (const [index, jid] of uniqueJids.entries()) {
+            try {
+                const isNewsletter = jid.endsWith('@newsletter');
+                let messageContent = JSON.parse(JSON.stringify(quotedContent)); // Deep Copy
+
+                if (isNewsletter && mediaKey) {
+                    // 🟢 CHANNEL WITH CUSTOM UPLOADER
+                    const mediaType = mediaKey.replace('Message', '').toLowerCase();
+                    const stream = await downloadContentFromMessage(messageContent[mediaKey], mediaType);
+                    const buffer = await streamToBuffer(stream);
+                    if (!buffer) throw new Error("Download failed");
+
+                    // 🔥 Custom Uploader Call
+                    const uploadRes = await uploadToChannel(client, buffer, mediaType);
+
+                    // Content Update
+                    const mediaObj = messageContent[mediaKey];
+                    mediaObj.url = uploadRes.url;
+                    mediaObj.directPath = uploadRes.direct_path;
+                    mediaObj.fileSha256 = uploadRes.file_sha256;
+                    mediaObj.fileEncSha256 = uploadRes.file_enc_sha256;
+                    mediaObj.fileLength = buffer.length;
+                    mediaObj.mediaKey = uploadRes.media_key || Crypto.randomBytes(32).toString('base64');
+
+                    // Send
+                    const forwardData = generateWAMessageFromContent(jid, messageContent, { userJid: client.user.id });
+                    await client.relayMessage(jid, forwardData.message, { messageId: forwardData.key.id });
+
+                } else {
+                    // 🟢 NORMAL GROUPS/PERSONAL
+                    const forwardData = generateWAMessageFromContent(jid, messageContent, { userJid: client.user.id });
+                    await client.relayMessage(jid, forwardData.message, { messageId: forwardData.key.id });
+                }
+
+                successCount++;
+                await new Promise(r => setTimeout(r, 1500));
+            } catch (error) {
+                console.error(`Forward error to ${jid}:`, error.message);
+            }
         }
-    } else {
-        // Handle Text Messages
-        if (mtype === 'conversation') {
-            msgPayload = { conversation: qcontent.conversation };
-        } else if (mtype === 'extendedTextMessage') {
-            msgPayload = { extendedTextMessage: qcontent.extendedTextMessage };
-        } else {
-            // Fallback for other types (stickers, contacts etc if needed later)
-            msgPayload = qcontent;
-        }
+
+        await reply(`✅ *Forward Complete!*\n\n📤 Success: ${successCount}/${uniqueJids.length}`);
+
+    } catch (error) {
+        console.error("Forward Error:", error);
+        await reply(`💢 Error: ${error.message.substring(0, 100)}`);
     }
-
-    // 6. Forward Loop
-    let successCount = 0;
-    const failedJids = [];
-
-    for (const [index, jid] of uniqueJids.entries()) {
-      try {
-        // Generate Message
-        const forwardData = generateWAMessageFromContent(jid, msgPayload, {
-            userJid: client.user.id
-        });
-
-        // Send via Relay
-        await client.relayMessage(jid, forwardData.message, {
-            messageId: forwardData.key.id
-        });
-
-        successCount++;
-
-        // Progress Update
-        if ((index + 1) % 5 === 0 && uniqueJids.length > 5) {
-          await reply(`📤 Sent to ${index + 1}/${uniqueJids.length} Channels...`);
-        }
-        
-        // Delay
-        if (index < uniqueJids.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1500));
-        }
-        
-      } catch (error) {
-        console.error(`Forward error to ${jid}:`, error.message);
-        failedJids.push(jid.replace('@newsletter', ''));
-        await new Promise(resolve => setTimeout(resolve, 3000));
-      }
-    }
-
-    // 7. Final Report
-    let report = `✅ *Channel Forward Complete*\n\n` +
-                 `📤 Success: ${successCount}/${uniqueJids.length}\n` +
-                 `📦 Type: ${mtype.replace('Message', '').toUpperCase()}\n`;
-    
-    if (failedJids.length > 0) {
-      report += `\n❌ Failed (${failedJids.length}): ${failedJids.slice(0,3).join(', ')}...`;
-    }
-
-    await reply(report);
-
-  } catch (error) {
-    console.error("Global Error:", error);
-    await reply(`💢 Error: ${error.message}`);
-  }
 });
