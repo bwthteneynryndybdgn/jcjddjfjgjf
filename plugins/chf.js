@@ -1,5 +1,6 @@
-// plugins/channel_forward.js
+// plugins/ch_forward.js
 import { fileURLToPath } from 'url';
+import { generateWAMessageFromContent } from '@whiskeysockets/baileys';
 import { cmd } from '../command.js';
 import config from '../config.js';
 
@@ -17,114 +18,113 @@ const toStylistUpper = (text) => {
 };
 
 cmd({
-    pattern: "forward",
-    alias: ["chforward", "sendch", "fwd"],
-    react: '📢',
-    desc: "Forward media to any WhatsApp Channel",
+    pattern: "chforward",
+    alias: ["sendch", "cfwd", "cchannel"],
+    desc: "Forward media/text to WhatsApp Channel",
     category: "channel",
     filename: __filename
-}, async (client, message, m, { from, prefix, command, args, q, isCreator }) => {
-    
-    // 1. Check if user replied to a message
-    if (!message.quoted) {
-        return await client.sendMessage(from, {
-            text: `❌ *${toStylistUpper('Reply to a photo/video/voice!')}*\n\n*${toStylistUpper('How to use')}:*\n1. Send media to bot\n2. Reply with: ${prefix + command} <channel_id>\n\n*${toStylistUpper('Example')}:*\n${prefix + command} 120363414372628604@newsletter`
-        }, { quoted: message });
-    }
-
-    // 2. Get Channel ID from Command Arguments
-    let channelId = q?.trim();
-    
-    // Agar user ne channel ID nahi diya, toh config se le
-    if (!channelId) {
-        channelId = config.CHANNEL_ID;
-    }
-    
-    // Agar dono jagah ID nahi hai
-    if (!channelId) {
-        return await client.sendMessage(from, {
-            text: `❌ *${toStylistUpper('Channel ID missing!')}*\n\n*${toStylistUpper('Usage')}:*\n${prefix + command} <channel_id>\n\n*${toStylistUpper('Example')}:*\n${prefix + command} 120363414372628604@newsletter`
-        }, { quoted: message });
-    }
-
-    // Ensure ID format is correct (@newsletter)
-    if (!channelId.includes('@newsletter')) {
-        channelId = channelId + '@newsletter';
-    }
-
+}, async (client, message, match, { from, reply, isCreator }) => {
     try {
+        // 1. Check if replied to a message
+        if (!message.quoted) {
+            return await reply(`❌ *${toStylistUpper('Please reply to a message!')}*\n\n*${toStylistUpper('Usage')}:*\n.chforward <channel_id>\n.or just .chforward if ID is in config`);
+        }
+
+        // 2. Get Channel ID
+        let channelId = "";
+        
+        // Agar user ne command ke saath ID di hai
+        if (match && typeof match === 'string' && match.trim() !== "") {
+            channelId = match.trim();
+        } 
+        // Agar nahi diya, toh config se le
+        else if (config.CHANNEL_ID) {
+            channelId = config.CHANNEL_ID;
+        }
+
+        // Validate ID
+        if (!channelId) {
+            return await reply(`❌ *${toStylistUpper('Channel ID Missing!')}*\nProvide ID in command or config.js`);
+        }
+
+        // Ensure @newsletter suffix
+        if (!channelId.includes('@newsletter')) {
+            channelId = channelId + '@newsletter';
+        }
+
         // React: Processing
         await client.sendMessage(from, { react: { text: '⏳', key: message.key } });
 
+        // 3. Prepare Content
         const quotedMsg = message.quoted;
-        let messageType = quotedMsg.mtype;
+        const contentType = Object.keys(quotedMsg.message)[0]; // e.g., imageMessage, videoMessage
         
-        // Download Media
-        const buffer = await quotedMsg.download();
-        if (!buffer) throw new Error("Media download failed");
-
-        // Prepare Caption
-        let userCaption = quotedMsg.caption || "";
-        const botFooter = `\n\n> 📢 _${toStylistUpper('Sent via Bot')}_`;
+        // Create a copy of the message object to forward
+        // Note: For channels, we often need to strip some contextInfo to avoid errors
+        let msgContent = { ...quotedMsg.message };
         
-        // 3. Send to Channel based on Type
-        if (messageType.includes('image')) {
-            await client.sendMessage(channelId, {
-                image: buffer,
-                caption: userCaption + botFooter
-            });
-        } 
-        else if (messageType.includes('video')) {
-            await client.sendMessage(channelId, {
-                video: buffer,
-                caption: userCaption + botFooter,
-                mimetype: 'video/mp4'
-            });
-        } 
-        else if (messageType.includes('audio')) {
-            // Voice Note or Audio File
-            await client.sendMessage(channelId, {
-                audio: buffer,
-                mimetype: 'audio/mp4',
-                ptt: messageType.includes('ptv')
-            });
-        } 
-        else if (messageType.includes('document')) {
-            await client.sendMessage(channelId, {
-                document: buffer,
-                mimetype: quotedMsg.mimetype,
-                fileName: quotedMsg.fileName || "File",
-                caption: userCaption + botFooter
-            });
-        }
-        else if (messageType === 'extendedTextMessage' || messageType === 'conversation') {
-            // Text Message
-            await client.sendMessage(channelId, {
-                text: `${quotedMsg.text}${botFooter}`
-            });
-        }
-        else {
-            throw new Error("Unsupported format");
+        // Add a small footer caption if it's media with text support
+        if (contentType === 'imageMessage' || contentType === 'videoMessage' || contentType === 'documentMessage') {
+            const originalCaption = msgContent[contentType]?.caption || "";
+            const footer = `\n\n> 📢 _${toStylistUpper('Sent via Bot')}_`;
+            msgContent[contentType].caption = originalCaption + footer;
+        } else if (contentType === 'conversation' || contentType === 'extendedTextMessage') {
+             // For text, we create a new object because we can't easily append to quoted text structure in relay
+             // So we will handle text separately below
         }
 
-        // Success Message
-        await client.sendMessage(from, { react: { text: '✅', key: message.key } });
-        await client.sendMessage(from, {
-            text: `✅ *${toStylistUpper('Sent to Channel Successfully!')}*\n\n*${toStylistUpper('Channel')}:* ${channelId}`
-        }, { quoted: message });
+        // 4. Send to Channel
+        // Method 1: Using relayMessage (Best for preserving exact media format)
+        try {
+            if (contentType === 'conversation' || contentType === 'extendedTextMessage') {
+                // For Text, simple sendMessage is safer
+                const text = quotedMsg.text || "";
+                await client.sendMessage(channelId, {
+                    text: `${text}\n\n> 📢 _${toStylistUpper('Sent via Bot')}_`
+                });
+            } else {
+                // For Media (Image, Video, Audio, Sticker, etc.)
+                // We use relayMessage to keep the original quality and type
+                const waMsg = generateWAMessageFromContent(channelId, msgContent, {
+                    userJid: client.user.id
+                });
+                
+                await client.relayMessage(channelId, waMsg.message, {
+                    messageId: waMsg.key.id
+                });
+            }
+
+            // Success
+            await client.sendMessage(from, { react: { text: '✅', key: message.key } });
+            await reply(`✅ *${toStylistUpper('Successfully Sent to Channel!')}*\n\nID: ${channelId}`);
+
+        } catch (err) {
+            console.error("Relay Error:", err);
+            // Fallback: If relay fails, try direct sendMessage for media
+            if (contentType === 'imageMessage') {
+                await client.sendMessage(channelId, {
+                    image: await quotedMsg.download(),
+                    caption: msgContent.imageMessage.caption
+                });
+            } else if (contentType === 'videoMessage') {
+                await client.sendMessage(channelId, {
+                    video: await quotedMsg.download(),
+                    caption: msgContent.videoMessage.caption
+                });
+            } else {
+                throw err; // Re-throw if fallback also not applicable
+            }
+            
+            await client.sendMessage(from, { react: { text: '✅', key: message.key } });
+            await reply(`✅ *${toStylistUpper('Sent via Fallback Method!')}*`);
+        }
 
     } catch (error) {
         console.error("Channel Forward Error:", error);
-        
         let errorMsg = error.message;
         if (errorMsg.includes("item-not-found")) {
-            errorMsg = "Bot is not Admin in Channel or Channel ID is wrong.";
-        } else if (errorMsg.includes("not-authorized")) {
-            errorMsg = "Bot doesn't have permission to post.";
+            errorMsg = "Bot is not Admin in this Channel.";
         }
-        
-        await client.sendMessage(from, {
-            text: `❌ *${toStylistUpper('Failed')}:*\n${errorMsg}`
-        }, { quoted: message });
+        await reply(`❌ *${toStylistUpper('Failed')}:*\n${errorMsg}`);
     }
 });
