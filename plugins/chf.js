@@ -1,5 +1,5 @@
 //---------------------------------------------------------------------------
-//           KAMRAN-MD - UPLOAD TO CHANNEL PLUGIN
+//           KAMRAN-MD - UPLOAD TO CHANNEL PLUGIN (BAILEY'S FIXED)
 //---------------------------------------------------------------------------
 
 import fs from 'fs';
@@ -55,7 +55,8 @@ async (conn, mek, m, { from, reply, isCreator, socket, sock, usedPrefix, command
         return reply("*📛 This is an owner command.*");
     }
 
-    const quoted = m.quoted ? m.quoted : mek.msg?.contextInfo?.quotedMessage;
+    // Official Baileys Quoted Message Extractor
+    const quoted = mek.msg?.contextInfo?.quotedMessage;
 
     if (!quoted) {
         return reply(
@@ -67,27 +68,24 @@ async (conn, mek, m, { from, reply, isCreator, socket, sock, usedPrefix, command
     let media = null;
     let type = '';
     let mimetype = '';
+    let caption = '';
 
-    const caption =
-        quoted.imageMessage?.caption ||
-        quoted.videoMessage?.caption ||
-        m.quoted?.text ||
-        '';
-
-    if (quoted.imageMessage || quoted.msg?.imageMessage) {
-        media = quoted.imageMessage || quoted.msg.imageMessage;
+    if (quoted.imageMessage) {
+        media = quoted.imageMessage;
         type = 'image';
         mimetype = media.mimetype;
-    } else if (quoted.videoMessage || quoted.msg?.videoMessage) {
-        media = quoted.videoMessage || quoted.msg.videoMessage;
+        caption = quoted.imageMessage.caption || '';
+    } else if (quoted.videoMessage) {
+        media = quoted.videoMessage;
         type = media.ptv ? 'ptv' : 'video';
         mimetype = media.mimetype;
-    } else if (quoted.audioMessage || quoted.msg?.audioMessage) {
-        media = quoted.audioMessage || quoted.msg.audioMessage;
+        caption = quoted.videoMessage.caption || '';
+    } else if (quoted.audioMessage) {
+        media = quoted.audioMessage;
         type = 'audio';
         mimetype = media.mimetype;
-    } else if (quoted.stickerMessage || quoted.msg?.stickerMessage) {
-        media = quoted.stickerMessage || quoted.msg.stickerMessage;
+    } else if (quoted.stickerMessage) {
+        media = quoted.stickerMessage;
         type = 'sticker';
         mimetype = 'image/webp';
     }
