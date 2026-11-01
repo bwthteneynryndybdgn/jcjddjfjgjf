@@ -1,89 +1,96 @@
-//---------------------------------------------------------------------------
-//           KAMRAN-MD - WEATHER SEARCH PLUGIN
-//---------------------------------------------------------------------------
-
+// plugins/weather.js
 import { fileURLToPath } from 'url';
 import { cmd } from '../command.js';
+import config from '../config.js';
 import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
 
-// Helper function for Stylist Badi ABC Text
+// Stylish Text Helper
 const toStylistUpper = (text) => {
     if (!text || typeof text !== 'string') return '';
-    const uppercaseMap = {
+    const map = {
         'a': 'ᴀ', 'b': 'ʙ', 'c': 'ᴄ', 'd': 'ᴅ', 'e': 'ᴇ', 'f': 'ғ', 'g': 'ɢ', 'h': 'ʜ', 'i': 'ɪ',
         'j': 'ᴊ', 'k': 'ᴋ', 'l': 'ʟ', 'm': 'ᴍ', 'n': 'ɴ', 'o': 'ᴏ', 'p': 'ᴘ', 'q': 'ǫ', 'r': 'ʀ',
-        's': 's', 't': 'ᴛ', 'u': 'ᴜ', 'v': 'ᴠ', 'w': 'ᴡ', 'x': 'x', 'y': 'ʏ', 'z': 'ᴢ',
-        'A': 'ᴀ', 'B': 'ʙ', 'C': 'ᴄ', 'D': 'ᴅ', 'E': 'ᴇ', 'F': 'ғ', 'G': 'ɢ', 'H': 'ʜ', 'I': 'ɪ',
-        'J': 'ᴊ', 'K': 'ᴋ', 'L': 'ʟ', 'M': 'ᴍ', 'N': 'ɴ', 'O': 'ᴏ', 'P': 'ᴘ', 'Q': 'ǫ', 'R': 'ʀ',
-        'S': 's', 'T': 'ᴛ', 'U': 'ᴜ', 'V': 'ᴠ', 'W': 'ᴡ', 'X': 'x', 'Y': 'ʏ', 'Z': 'ᴢ'
+        's': 's', 't': 'ᴛ', 'u': 'ᴜ', 'v': 'ᴠ', 'w': 'ᴡ', 'x': 'x', 'y': 'ʏ', 'z': 'ᴢ'
     };
-    return text.split('').map(char => uppercaseMap[char] || char).join('');
+    return text.split('').map(char => map[char.toLowerCase()] || char).join('');
 };
 
 cmd({
     pattern: "weather",
-    alias: ["wsearch", "weathersearch"],
-    use: '.weather <city name>',
-    desc: "Search weather locations and coordinates via Omegatech API",
-    category: "tools",
-    react: "🌤️",
+    alias: ["wa", "mosam"],
+    react: '🌤️',
+    desc: "Check live weather of any city",
+    category: "search",
     filename: __filename
-},
-async (conn, mek, m, { from, text, reply }) => {
+}, async (client, message, m, { from, prefix, command, q }) => {
     try {
-        const query = String(text || "").trim();
-        if (!query) {
-            let helpMsg = `❖ ── ✦ *${toStylistUpper('Weather Search')}* ✦ ── ❖\n\n`;
-            helpMsg += `╔═════ ⌈ *⚡ ${toStylistUpper('Usage Guide')}* ⌋ ═════✧\n`;
-            helpMsg += `║ 📌 *${toStylistUpper('Example')}:*\n`;
-            helpMsg += `║ • .weather Lahore\n`;
-            helpMsg += `╚══════════════════════✧\n\n`;
-            helpMsg += `> 💫 _${toStylistUpper('Powered by Kamran-Md')}_`;
-            return reply(helpMsg);
+        // 1. Input Check
+        if (!q) {
+            return await client.sendMessage(from, {
+                text: `❖─── ✦ *${toStylistUpper('Weather Checker')}* ✦ ───❖\n\n║ ⚠️ ${toStylistUpper('Please provide a city name!')}\n\n║  ${toStylistUpper('Example:')}\n║ • .weather Islamabad\n║ • .weather Lahore\n╚══════════════════════✧`
+            }, { quoted: message });
         }
 
-        await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
+        // React: Searching
+        await client.sendMessage(from, { react: { text: '🔍', key: message.key } });
 
-        const apiUrl = `https://api.omegatech.app/api/Search/weather?action=search&query=${encodeURIComponent(query)}&lang=en`;
-        const response = await axios.get(apiUrl, { timeout: 30000 });
+        // 2. API Call (Shizo Top Weather API)
+        const apiUrl = `https://api.shizo.top/tools/weather?apikey=shizo&city=${encodeURIComponent(q.trim())}`;
+        const response = await axios.get(apiUrl, { timeout: 15000 });
         const resData = response.data;
 
-        if (!resData || !resData.success || !resData.data || resData.data.length === 0) {
-            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return reply(`❌ *${toStylistUpper('No weather locations found for this query.')}*`);
+        // 3. Validation based on your JSON structure
+        if (!resData || !resData.status || !resData.data) {
+            throw new Error("City not found or API error");
         }
 
-        const locations = resData.data;
+        const data = resData.data;
+        
+        // Extracting values from your specific JSON format
+        const city = data.city || q;
+        const country = data.country || "Unknown";
+        const temp = data.temperature || "N/A";
+        const feelsLike = data.feels_like || "N/A";
+        const humidity = data.humidity || "N/A";
+        const windSpeed = data.wind?.speed || "N/A";
+        const condition = data.weather?.[0]?.description || "Unknown";
+        const iconCode = data.weather?.[0]?.icon || "";
 
-        let listText = `❖ ── ✦ *${toStylistUpper('Weather Locations')}* ✦ ── ❖\n\n`;
-        listText += `╔═════ ⌈ *⚡ ${toStylistUpper('Search Info')}* ⌋ ═════✧\n`;
-        listText += `║ 🔎 *${toStylistUpper('Query')}:* ${query}\n`;
-        listText += `║ ✨ *${toStylistUpper('Results Found')}:* ${locations.length}\n`;
-        listText += `╚══════════════════════✧\n\n`;
-        listText += `╔═════ ⌈ *📂 ${toStylistUpper('Locations List')}* ⌋ ═════✧\n`;
+        // Map OpenWeather icon codes to Emojis for better look
+        let weatherEmoji = "🌡️";
+        if (iconCode.includes('01')) weatherEmoji = "☀️";
+        else if (iconCode.includes('02')) weatherEmoji = "⛅";
+        else if (iconCode.includes('03') || iconCode.includes('04')) weatherEmoji = "☁️";
+        else if (iconCode.includes('09') || iconCode.includes('10')) weatherEmoji = "🌧️";
+        else if (iconCode.includes('11')) weatherEmoji = "⛈️";
+        else if (iconCode.includes('13')) weatherEmoji = "❄️";
+        else if (iconCode.includes('50')) weatherEmoji = "🌫️";
 
-        locations.forEach((loc, index) => {
-            listText += `║ *${index + 1}.* ${loc.name} (${loc.country})\n`;
-            listText += `║ 🔑 *${toStylistUpper('Key')}:* \`${loc.key}\`\n`;
-            listText += `║ 🌐 *${toStylistUpper('Coords')}:* ${loc.lat}, ${loc.lon}\n`;
-            if (index !== locations.length - 1) listText += `║─────────────────────║\n`;
-        });
+        // 4. Stylish Caption Design
+        const caption = `❖─── ✦ *${toStylistUpper('Live Weather Update')}* ✦ ───❖
 
-        listText += `╚══════════════════════✧\n\n`;
-        listText += `> 💫 _${toStylistUpper('Powered by Kamran-Md')}_`;
+╔═════ ⌈ *${weatherEmoji} ${toStylistUpper(city.toUpperCase())}* ⌋ ═════✧
+║ 📍 *${toStylistUpper('Country')}:* ${country}
+║ 🌡️ *${toStylistUpper('Temperature')}:* ${temp}°C
+║ 🥵 *${toStylistUpper('Feels Like')}:* ${feelsLike}°C
+║ 💧 *${toStylistUpper('Humidity')}:* ${humidity}%
+║ 💨 *${toStylistUpper('Wind Speed')}:* ${windSpeed} m/s
+║ ☁️ *${toStylistUpper('Condition')}:* ${toStylistUpper(condition)}
+╚══════════════════════✧
 
-        await conn.sendMessage(from, { 
-            text: listText,
-            contextInfo: { mentionedJid: [mek.sender] }
-        }, { quoted: mek });
+> 💫 _${toStylistUpper(config.DESCRIPTION || 'Powered by Bot')}_`;
 
-        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
+        // 5. Send Message
+        await client.sendMessage(from, { text: caption }, { quoted: message });
+        await client.sendMessage(from, { react: { text: '✅', key: message.key } });
 
-    } catch (e) {
-        console.error("Weather Search Error:", e);
-        await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-        return reply(`❌ Error: ${e.message}`);
+    } catch (error) {
+        console.error("Weather Error:", error);
+        await client.sendMessage(from, {
+            text: `❖─── ✦ *${toStylistUpper('Error')}* ✦ ───❖\n\n║ ❌ ${toStylistUpper(error.message || 'Failed to fetch weather')}\n╚══════════════════════✧`
+        }, { quoted: message });
+        await client.sendMessage(from, { react: { text: '❌', key: message.key } });
     }
 });
