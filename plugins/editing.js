@@ -18,11 +18,15 @@ const toStylistUpper = (text) => {
     return text.split('').map(char => map[char.toLowerCase()] || char).join('');
 };
 
-// Reliable Upload Function (Catbox.moe - No Key Required)
+// FIXED Upload Function for Catbox.moe
 async function uploadImage(buffer) {
     try {
         const formData = new FormData();
-        // Catbox requires field name 'fileToUpload'
+        
+        // ⚠️ YE LINE FIX HAI: Catbox ko batana padta hai ki ye file upload hai
+        formData.append('reqtype', 'fileupload'); 
+        
+        // File append karna
         formData.append('fileToUpload', buffer, {
             filename: 'image.jpg',
             contentType: 'image/jpeg'
@@ -36,14 +40,13 @@ async function uploadImage(buffer) {
             timeout: 30000
         });
 
-        // Catbox returns plain text URL on success
         const url = response.data.trim();
         if (url && url.startsWith('http')) {
             return url;
         }
         throw new Error(`Upload failed: ${url}`);
     } catch (e) {
-        console.error('Upload Error:', e.response?.data || e.message);
+        console.error('Catbox Upload Error:', e.response?.data || e.message);
         throw new Error('Failed to upload image to server');
     }
 }
@@ -84,7 +87,7 @@ cmd({
             const buffer = await message.quoted.download();
             if (!buffer || buffer.length === 0) throw new Error("Download failed");
             
-            // Upload using Catbox
+            // Upload using Fixed Catbox Function
             imageUrl = await uploadImage(buffer);
         }
 
