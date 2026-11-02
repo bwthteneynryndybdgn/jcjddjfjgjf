@@ -18,36 +18,29 @@ const toStylistUpper = (text) => {
     return text.split('').map(char => map[char.toLowerCase()] || char).join('');
 };
 
-// FIXED Upload Function for Catbox.moe
+// STABLE Upload Function using ImgBB (No API Key Required for basic)
 async function uploadImage(buffer) {
     try {
         const formData = new FormData();
-        
-        // ⚠️ YE LINE FIX HAI: Catbox ko batana padta hai ki ye file upload hai
-        formData.append('reqtype', 'fileupload'); 
-        
-        // File append karna
-        formData.append('fileToUpload', buffer, {
-            filename: 'image.jpg',
-            contentType: 'image/jpeg'
-        });
+        // ImgBB requires 'image' field with base64 or binary
+        formData.append('image', buffer.toString('base64'));
 
-        const response = await axios.post('https://catbox.moe/user/api.php', formData, {
+        const response = await axios.post('https://api.imgbb.com/1/upload', formData, {
             headers: {
-                ...formData.getHeaders(),
-                'Content-Type': 'multipart/form-data'
+                ...formData.getHeaders()
             },
             timeout: 30000
         });
 
-        const url = response.data.trim();
-        if (url && url.startsWith('http')) {
-            return url;
+        if (response.data?.data?.url) {
+            return response.data.data.url;
         }
-        throw new Error(`Upload failed: ${url}`);
+        
+        // Fallback if JSON structure changes
+        throw new Error(`ImgBB Error: ${JSON.stringify(response.data)}`);
     } catch (e) {
-        console.error('Catbox Upload Error:', e.response?.data || e.message);
-        throw new Error('Failed to upload image to server');
+        console.error('ImgBB Upload Error:', e.response?.data || e.message);
+        throw new Error('Image upload failed. Please try again.');
     }
 }
 
@@ -87,7 +80,7 @@ cmd({
             const buffer = await message.quoted.download();
             if (!buffer || buffer.length === 0) throw new Error("Download failed");
             
-            // Upload using Fixed Catbox Function
+            // Upload using Stable ImgBB
             imageUrl = await uploadImage(buffer);
         }
 
