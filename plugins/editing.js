@@ -18,28 +18,31 @@ const toStylistUpper = (text) => {
     return text.split('').map(char => map[char.toLowerCase()] || char).join('');
 };
 
-// STABLE Upload Function using ImgBB (No API Key Required for basic)
+// STABLE Upload Function using Telegraph (NO API KEY REQUIRED)
 async function uploadImage(buffer) {
     try {
         const formData = new FormData();
-        // ImgBB requires 'image' field with base64 or binary
-        formData.append('image', buffer.toString('base64'));
+        // Telegraph requires field name 'file'
+        formData.append('file', buffer, {
+            filename: 'image.jpg',
+            contentType: 'image/jpeg'
+        });
 
-        const response = await axios.post('https://api.imgbb.com/1/upload', formData, {
+        const response = await axios.post('https://telegra.ph/upload', formData, {
             headers: {
                 ...formData.getHeaders()
             },
             timeout: 30000
         });
 
-        if (response.data?.data?.url) {
-            return response.data.data.url;
+        // Telegraph returns array of objects with src property
+        if (response.data && Array.isArray(response.data) && response.data[0]?.src) {
+            return `https://telegra.ph${response.data[0].src}`;
         }
         
-        // Fallback if JSON structure changes
-        throw new Error(`ImgBB Error: ${JSON.stringify(response.data)}`);
+        throw new Error(`Upload failed: ${JSON.stringify(response.data)}`);
     } catch (e) {
-        console.error('ImgBB Upload Error:', e.response?.data || e.message);
+        console.error('Telegraph Upload Error:', e.response?.data || e.message);
         throw new Error('Image upload failed. Please try again.');
     }
 }
@@ -80,7 +83,7 @@ cmd({
             const buffer = await message.quoted.download();
             if (!buffer || buffer.length === 0) throw new Error("Download failed");
             
-            // Upload using Stable ImgBB
+            // Upload using Telegraph (No Key Needed)
             imageUrl = await uploadImage(buffer);
         }
 
