@@ -118,8 +118,8 @@ async (conn, mek, m, { from, reply, userConfig }) => {
         const NEWSLETTER_JID = custom.newsletterJid || userConfig?.NEWSLETTER_JID || config.NEWSLETTER_JID || "120363418144382782@newsletter";
         const NEWSLETTER_NAME = userConfig?.NEWSLETTER_NAME || config.NEWSLETTER_NAME || BOT_NAME;
         
-        // DP / Image URL or Saved Path Setup
-        let BOT_DP = custom.botDp || userConfig?.BOT_DP || userConfig?.BOT_IMAGE || userConfig?.BOT_MEDIA_URL || config.BOT_DP || config.BOT_IMAGE || config.BOT_MEDIA_URL;
+        // DP / Image URL Setup
+        const BOT_DP = custom.botDp || userConfig?.BOT_DP || userConfig?.BOT_IMAGE || userConfig?.BOT_MEDIA_URL || config.BOT_DP || config.BOT_IMAGE || config.BOT_MEDIA_URL;
         
         // System Stats
         const totalRam = (os.totalmem() / 1024 / 1024 / 1024).toFixed(2);
@@ -147,11 +147,9 @@ ${menuSections}
 > 💡 _${DESCRIPTION || 'Powered by WhatsApp Bot'}_`;
 
         let imageToUse;
-        const localImagePath = path.join(__dirname, '../lib/kamranmd.jpg');
+        const localImagePath = path.join(__dirname, '../lib/jawadmd.jpg');
         
-        if (BOT_DP && fs.existsSync(BOT_DP)) {
-            imageToUse = BOT_DP; // Local saved image path
-        } else if (isValidUrl(BOT_DP)) {
+        if (isValidUrl(BOT_DP)) {
             try {
                 await axios.head(BOT_DP, { timeout: 3000 });
                 imageToUse = BOT_DP;
@@ -188,7 +186,7 @@ ${menuSections}
 cmd({
     pattern: "setmenu",
     alias: ["setmenuconfig"],
-    use: '.setmenu dp <url> OR reply image with .setmenu dp',
+    use: '.setmenu dp <url> OR .setmenu channel <link>',
     desc: "Configure menu DP, channel link, and newsletter JID",
     category: "owner",
     react: "⚙️",
@@ -197,14 +195,11 @@ cmd({
 async (conn, mek, m, { from, args, reply }) => {
     try {
         const fullText = args.join(" ");
-        const quoted = m.quoted ? m.quoted : m;
-        const mime = (quoted.msg || quoted).mimetype || '';
 
-        if (!fullText && !mime.includes('image')) {
+        if (!fullText) {
             return reply(`⚙️ *Menu Setup Guide:*
-1️⃣ Set Menu DP (Image URL ya Image ko reply karke):
-   📌 \`.setmenu dp https://example.com/image.jpg\`
-   📌 Ya kisi photo ko reply karke likhein: \`.setmenu dp\`
+1️⃣ Set Menu DP Image URL:
+   📌 \`.setmenu dp https://i.imgur.com/xxx.jpg\`
 
 2️⃣ Set Channel Link & Newsletter JID:
    📌 \`.setmenu https://whatsapp.com/channel/xxx | 1203634...@@newsletter\``);
@@ -212,7 +207,7 @@ async (conn, mek, m, { from, args, reply }) => {
 
         // Agar WhatsApp channel link diya hai direct
         if (fullText.includes("whatsapp.com/channel")) {
-            const parts = fullText.split("|").map(v => v.trims ? v.trim() : v.trim());
+            const parts = fullText.split("|").map(v => v.trim());
             const channelLink = parts.find(p => p.includes("whatsapp.com/channel")) || parts[0];
             const newsletterJid = parts.find(p => p.includes("@newsletter")) || "120363418144382782@newsletter";
 
@@ -223,21 +218,12 @@ async (conn, mek, m, { from, args, reply }) => {
         const subCommand = args[0]?.toLowerCase();
 
         if (subCommand === "dp" || subCommand === "image" || subCommand === "url") {
-            let imageUrl = args.slice(1).join(" ").trim();
-
-            // Agar user ne image ko reply kiya hai aur URL nahi diya
-            if (!imageUrl && mime.includes('image')) {
-                const mediaPath = await conn.downloadAndSaveMediaMessage(quoted);
-                saveCustomSettings({ botDp: mediaPath });
-                return reply(`✅ *Success!* Replied image has been saved successfully as Menu DP!`);
+            const url = args.slice(1).join(" ").trim();
+            if (!url || !isValidUrl(url)) {
+                return reply("❌ Please provide a valid image URL!\nExample: `.setmenu dp https://i.imgur.com/xxx.jpg`");
             }
-
-            if (!imageUrl || !isValidUrl(imageUrl)) {
-                return reply("❌ Please provide a valid image URL or reply to an image!\nExample: `.setmenu dp https://i.imgur.com/xxx.jpg`");
-            }
-
-            saveCustomSettings({ botDp: imageUrl });
-            return reply(`✅ *Success!* Menu DP URL has been updated successfully.\n🔗 \`${imageUrl}\``);
+            saveCustomSettings({ botDp: url });
+            return reply(`✅ *Success!* Menu DP URL has been updated successfully.\n🔗 \`${url}\``);
         }
 
         if (subCommand === "channel" || subCommand === "link" || subCommand === "newsletter") {
