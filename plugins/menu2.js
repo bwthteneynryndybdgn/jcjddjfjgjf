@@ -67,8 +67,8 @@ const saveCustomSettings = (newSettings) => {
 
 // ==================== 1. MAIN MENU & MENU2 COMMAND ====================
 cmd({
-    pattern: "menu3",
-    alias: ["m", "help2", "allmenu2", "fullmenu2", "menu2"],
+    pattern: "menu2",
+    alias: ["m", "help2", "allmenu2", "fullmenu2", "menu"],
     use: '.menu / .menu2',
     desc: "Show all bot commands",
     category: "main",
@@ -113,7 +113,7 @@ async (conn, mek, m, { from, reply, userConfig }) => {
         const VERSION = userConfig?.VERSION || config.VERSION || "10.0.0";
         const DESCRIPTION = userConfig?.DESCRIPTION || config.DESCRIPTION || "";
         
-        // Channel & Newsletter Settings (Custom saved or Config)
+        // Channel & Newsletter Settings
         const CHANNEL_LINK = custom.channelLink || userConfig?.CHANNEL_LINK || config.CHANNEL_LINK || "https://whatsapp.com/channel/YOUR_CHANNEL";
         const NEWSLETTER_JID = custom.newsletterJid || userConfig?.NEWSLETTER_JID || config.NEWSLETTER_JID || "120363418144382782@newsletter";
         const NEWSLETTER_NAME = userConfig?.NEWSLETTER_NAME || config.NEWSLETTER_NAME || BOT_NAME;
@@ -186,43 +186,55 @@ ${menuSections}
 cmd({
     pattern: "setmenu",
     alias: ["setmenuconfig"],
-    use: '.setmenu dp <url> OR .setmenu channel <link> | <jid>',
+    use: '.setmenu dp <url> OR .setmenu channel <link>',
     desc: "Configure menu DP, channel link, and newsletter JID",
     category: "owner",
     react: "⚙️",
     filename: __filename
 },
-async (conn, mek, m, { from, args, reply, isOwner }) => {
+async (conn, mek, m, { from, args, reply }) => {
     try {
-        if (!isOwner) return reply("⚠️ *Owner Only Command!*");
+        const fullText = args.join(" ");
 
-        const subCommand = args[0]?.toLowerCase();
-        const value = args.slice(1).join(" ");
-
-        if (!subCommand) {
+        if (!fullText) {
             return reply(`⚙️ *Menu Setup Guide:*
-1️⃣ Set Menu DP Image/Video URL:
+1️⃣ Set Menu DP Image URL:
    📌 \`.setmenu dp https://example.com/image.jpg\`
 
 2️⃣ Set Channel Link & Newsletter JID:
-   📌 \`.setmenu channel https://whatsapp.com/channel/xxx | 1203634...@@newsletter\``);
+   📌 \`.setmenu channel https://whatsapp.com/channel/xxx | 1203634...@@newsletter\`
+   *(Aap direct link bhi bhej sakte hain, bot automatically detect kar lega)*`);
+        }
+
+        const subCommand = args[0]?.toLowerCase();
+
+        // Agar direct WhatsApp channel link diya hai bina sub-command ke
+        if (fullText.includes("whatsapp.com/channel")) {
+            const parts = fullText.split("|").map(v => v.trim());
+            const channelLink = parts.find(p => p.includes("whatsapp.com/channel")) || parts[0];
+            const newsletterJid = parts.find(p => p.includes("@newsletter")) || "120363418144382782@newsletter";
+
+            saveCustomSettings({ channelLink, newsletterJid });
+            return reply(`✅ *Success!* Channel Link & Newsletter JID updated successfully!\n📢 *Channel:* \`${channelLink}\`\n📡 *JID:* \`${newsletterJid}\``);
         }
 
         if (subCommand === "dp" || subCommand === "image" || subCommand === "url") {
-            if (!value || !isValidUrl(value)) {
-                return reply("❌ Please provide a valid image/media URL!\nExample: `.setmenu dp https://i.imgur.com/xxx.jpg`");
+            const url = args.slice(1).join(" ").trim();
+            if (!url || !isValidUrl(url)) {
+                return reply("❌ Please provide a valid image URL!\nExample: `.setmenu dp https://i.imgur.com/xxx.jpg`");
             }
-            saveCustomSettings({ botDp: value.trim() });
-            return reply(`✅ *Success!* Menu DP URL has been updated successfully.\n🔗 \`${value.trim()}\``);
+            saveCustomSettings({ botDp: url });
+            return reply(`✅ *Success!* Menu DP URL has been updated successfully.\n🔗 \`${url}\``);
         }
 
         if (subCommand === "channel" || subCommand === "link" || subCommand === "newsletter") {
+            const value = args.slice(1).join(" ");
             const parts = value.split("|").map(v => v.trim());
             const channelLink = parts[0];
             const newsletterJid = parts[1];
 
             if (!channelLink) {
-                return reply("❌ Please provide valid details!\nExample: `.setmenu channel https://whatsapp.com/channel/xyz | 120363418144382782@newsletter`");
+                return reply("❌ Please provide a valid channel link!");
             }
 
             const updateData = { channelLink };
@@ -234,10 +246,9 @@ async (conn, mek, m, { from, args, reply, isOwner }) => {
             return reply(`✅ *Success!* Menu Setup updated successfully!\n📢 *Channel:* \`${channelLink}\`\n📡 *Newsletter JID:* \`${newsletterJid || 'Unchanged'}\``);
         }
 
-        return reply("❌ Invalid option! Type `.setmenu` to see instructions.");
+        return reply("❌ Invalid format! Type `.setmenu` to see instructions.");
 
     } catch (e) {
         console.log(e);
-        reply(`Error: ${e}`);
     }
 });
