@@ -68,7 +68,7 @@ const saveCustomSettings = (newSettings) => {
 // ==================== 1. MAIN MENU & MENU2 COMMAND ====================
 cmd({
     pattern: "menu2",
-    alias: ["m", "help2", "allmenu2", "fullmenu2", "menu"],
+    alias: ["m", "help2", "allmenu2", "fullmenu2", "menu3"],
     use: '.menu / .menu2',
     desc: "Show all bot commands",
     category: "main",
