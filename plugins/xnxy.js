@@ -5,14 +5,10 @@ import { cmd } from '../command.js';
 const __filename = fileURLToPath(import.meta.url);
 const XV_API = "https://jerrycoder.oggyapi.workers.dev";
 
-// ⚠️ YAHAN APNA NUMBER DALEIN (Country Code ke saath, + nahi lagana)
-// Example: 919876543210@s.whatsapp.net
-const OWNER_NUMBER = 'YOUR_NUMBER_HERE@s.whatsapp.net'; 
-
 const AXIOS_DEFAULTS = {
     timeout: 30000,
     headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         'Accept': 'application/json'
     }
 };
@@ -20,15 +16,22 @@ const AXIOS_DEFAULTS = {
 async function tryRequest(fn, tries = 3) {
     let err;
     for (let i = 1; i <= tries; i++) {
-        try { return await fn(); } 
-        catch (e) { err = e; await new Promise(r => setTimeout(r, i * 1000)); }
+        try {
+            return await fn();
+        } catch (e) {
+            err = e;
+            await new Promise(r => setTimeout(r, i * 1000));
+        }
     }
     throw err;
 }
 
 async function react(sock, mek, emoji) {
-    try { await sock.sendMessage(mek.key.remoteJid, { react: { text: emoji, key: mek.key } }); } 
-    catch (e) {}
+    try {
+        await sock.sendMessage(mek.key.remoteJid, {
+            react: { text: emoji, key: mek.key }
+        });
+    } catch (e) {}
 }
 
 function xBox(data) {
@@ -76,25 +79,19 @@ cmd({
     pattern: "xxxvideo",
     alias: ["xxx", "porn", "sex", "sexyvideos", "pornhub", "xvideos", "sexy"],
     desc: "Search or download Xvideos/XNXX (Owner Only)",
-    category: "adult",
+    category: "owner", // Category changed to owner
     react: "🔞",
     filename: __filename
-}, async (sock, mek, m, { reply }) => {
+}, async (sock, mek, m, { isCreator, reply }) => {
 
-    // 🔒 STRICT OWNER CHECK
-    const sender = m.sender || mek.key.participant || mek.key.remoteJid;
-    
-    // Agar sender owner nahi hai to turant block kar do
-    if (sender !== OWNER_NUMBER) {
-        await react(sock, mek, "🚫");
-        return reply("❌ *ACCESS DENIED*\n\nYeh command sirf Bot Owner ke liye active hai.\nAap ise use nahi kar sakte.");
-    }
+    // 🔒 Framework ka built-in isCreator check
+    if (!isCreator) return await reply("📛 *Owner Only Command*\n\nYeh command sirf Bot Owner ke liye active hai.");
 
     try {
         const text = m.message?.conversation || m.message?.extendedTextMessage?.text || "";
         const query = text.split(" ").slice(1).join(" ").trim();
 
-        if (!query) return reply("⚠️ *Usage:*\n.xvideo <name or link>");
+        if (!query) return reply("⚠️ *Usage:*\n.xxxvideo <name or link>");
 
         await react(sock, mek, "🔍");
 
@@ -108,6 +105,7 @@ cmd({
                 const results = await searchXvideos(query);
                 videoData = results[0];
                 videoUrl = videoData.url;
+                
                 if (!videoData.title && videoData.o_title) videoData.title = videoData.o_title;
                 if (!videoData.thumbnail && videoData.thumb) videoData.thumbnail = videoData.thumb;
             } catch (searchErr) {
@@ -116,7 +114,7 @@ cmd({
             }
         }
 
-        await sock.sendMessage(m.chat, {
+        await sock.sendMessage(m.chat || mek.key.remoteJid, {
             image: { url: videoData.thumbnail || videoData.thumb || "https://files.catbox.moe/16i1l7.jpg" },
             caption: xBox(videoData)
         }, { quoted: mek });
@@ -124,13 +122,14 @@ cmd({
         await react(sock, mek, "⏳");
 
         let file;
-        try { file = await downloadXvideo(videoUrl); } 
-        catch (e) { 
+        try { 
+            file = await downloadXvideo(videoUrl); 
+        } catch (e) { 
             await react(sock, mek, "❌"); 
             return reply(`❌ Download Error: ${e.message}`); 
         }
 
-        await sock.sendMessage(m.chat, {
+        await sock.sendMessage(m.chat || mek.key.remoteJid, {
             video: { url: file.url },
             mimetype: "video/mp4",
             fileName: `${file.title || videoData.title}.mp4`,
