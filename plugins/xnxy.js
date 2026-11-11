@@ -4,13 +4,13 @@ import { cmd } from '../command.js';
 
 const __filename = fileURLToPath(import.meta.url);
 
-// Updated API Base URL based on your screenshot
+// Updated API Base URL
 const XV_API = "https://jerrycoder.oggyapi.workers.dev";
 
 const AXIOS_DEFAULTS = {
     timeout: 30000,
     headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         'Accept': 'application/json'
     }
 };
@@ -35,7 +35,7 @@ async function react(sock, mek, emoji) {
         await sock.sendMessage(mek.key.remoteJid, {
             react: { text: emoji, key: mek.key }
         });
-    } catch (e) {} // Ignore reaction errors
+    } catch (e) {}
 }
 
 // 📦 Stylish info box
@@ -51,36 +51,64 @@ function xBox(data) {
 *╰━━━━━━━━━━━━━━━━━━⊷*`;
 }
 
-// 🔍 Search API (Updated for JerryCoder)
+// 🔍 Search API (FIXED)
 async function searchXvideos(query) {
-    // Endpoint: /search/xnxx?q=...
-    const api = `${XV_API}/search/xnxx?q=${encodeURIComponent(query)}`;
+    // Ensure query is properly encoded
+    const apiUrl = `${XV_API}/search/xnxx?q=${encodeURIComponent(query)}`;
     
-    const res = await tryRequest(() => axios.get(api, AXIOS_DEFAULTS));
+    console.log(`[SEARCH] Fetching: ${apiUrl}`);
     
-    // The API returns an array of objects directly
-    if (Array.isArray(res.data) && res.data.length > 0) {
-        return res.data; 
+    const res = await tryRequest(() => axios.get(apiUrl, AXIOS_DEFAULTS));
+    const data = res.data;
+
+    // Debugging: Log the keys of the response to understand structure
+    console.log("[SEARCH] Response Keys:", Object.keys(data));
+
+    let results = [];
+
+    // Handle different possible response structures
+    if (Array.isArray(data)) {
+        results = data;
+    } else if (data.result && Array.isArray(data.result)) {
+        results = data.result;
+    } else if (data.data && Array.isArray(data.data)) {
+        results = data.data;
+    } else if (data.videos && Array.isArray(data.videos)) {
+        results = data.videos;
     }
-    throw new Error("No results found");
+
+    if (results.length > 0) {
+        console.log(`[SEARCH] Found ${results.length} videos.`);
+        return results;
+    }
+    
+    throw new Error("No results found or API structure changed");
 }
 
-// 🎬 Download API (Updated for JerryCoder)
+// 🎬 Download API
 async function downloadXvideo(url) {
-    // Endpoint: /down/xnxx?url=...
     const api = `${XV_API}/down/xnxx?url=${encodeURIComponent(url)}`;
+    
+    console.log(`[DOWNLOAD] Fetching: ${api}`);
     
     const res = await tryRequest(() => axios.get(api, AXIOS_DEFAULTS));
     
-    // Check for success status and extract low_quality link
-    if (res.data.status === "success" && res.data.downloads?.low_quality) {
-        return {
-            url: res.data.downloads.low_quality,
-            title: res.data.o_title || "Video",
-            thumb: res.data.thumbnail
-        };
+    // Check for success status
+    if (res.data.status === "success") {
+        // Try low_quality first, then high_quality, then direct_download
+        const dlLink = res.data.downloads?.low_quality || 
+                       res.data.downloads?.high_quality || 
+                       res.data.downloads?.direct_download;
+                       
+        if (dlLink) {
+            return {
+                url: dlLink,
+                title: res.data.o_title || "Video",
+                thumb: res.data.thumbnail
+            };
+        }
     }
-    throw new Error("Download link not found");
+    throw new Error("Download link extraction failed");
 }
 
 // ===============================
@@ -110,19 +138,30 @@ cmd({
         // 🔗 Direct link handling
         if (query.startsWith("http")) {
             videoUrl = query;
-            // If it's a direct link, we might need to fetch details first or just use placeholders
-            // For this logic, we assume the user wants to download immediately.
-            // We will fetch details inside the download step or use generic ones.
-            videoData = { title: "Direct Video", duration: "Unknown", views: "N/A", thumb: "" };
+            videoData = { 
+                title: "Direct Link Video", 
+                duration: "Unknown", 
+                views: "N/A", 
+                thumbnail: "" 
+            };
         } 
         // 🔎 Search handling
         else {
-            const results = await searchXvideos(query);
-            videoData = results[0]; // Take the first result
-            
-            // Map API fields to our standard fields if necessary
-            // API returns: title, duration, views, thumbnail, url
-            videoUrl = videoData.url;
+            try {
+                const results = await searchXvideos(query);
+                videoData = results[0]; // Take the first result
+                
+                // Normalize fields just in case
+                videoUrl = videoData.url;
+                
+                // If API uses different keys, map them here
+                if (!videoData.title && videoData.o_title) videoData.title = videoData.o_title;
+                if (!videoData.thumbnail && videoData.thumb) videoData.thumbnail = videoData.thumb;
+
+            } catch (searchErr) {
+                await react(sock, mek, "❌");
+                return reply(`❌ Search Error: ${searchErr.message}\nTry a different keyword.`);
+            }
         }
 
         // 📦 Send Info Box
@@ -138,9 +177,8 @@ cmd({
         try {
             file = await downloadXvideo(videoUrl);
         } catch (e) {
-            // Fallback if download fails (sometimes APIs are strict about URLs)
-            console.log("Primary download failed, trying fallback...");
-            throw e; 
+            await react(sock, mek, "❌");
+            return reply(`❌ Download Error: ${e.message}`);
         }
 
         // 📤 Send Video
@@ -159,6 +197,6 @@ cmd({
     } catch (e) {
         console.error(e);
         await react(sock, mek, "❌");
-        reply(`❌ Error: ${e.message || "Download failed!"}`);
+        reply(`❌ System Error: ${e.message}`);
     }
 });
