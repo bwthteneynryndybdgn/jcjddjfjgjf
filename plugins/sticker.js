@@ -44,10 +44,7 @@ cmd(
             } else if (mime === "videoMessage") {
                 media = await mek.quoted.download();
                 
-                if (typeof converter.videoToWebp !== 'function') {
-                     throw new Error("videoToWebp function not found in converter.js");
-                }
-                
+                // Call the new method added to converter.js
                 const webpBuffer = await converter.videoToWebp(media);
                 
                 let sticker = new Sticker(webpBuffer, {
@@ -94,10 +91,7 @@ cmd({
         
         const gifBuffer = Buffer.from(await response.arrayBuffer());
         
-        if (typeof converter.gifToSticker !== 'function') {
-             throw new Error("gifToSticker function not found in converter.js");
-        }
-        
+        // Call the new method added to converter.js
         const stickerBuffer = await converter.gifToSticker(gifBuffer);
 
         await conn.sendMessage(m.chat, { sticker: stickerBuffer }, { quoted: mek });
