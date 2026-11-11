@@ -31,10 +31,7 @@ cmd({
         const response = await axios.get(apiUrl, { timeout: 30000 });
         const resData = response.data;
 
-        // DEBUG: Check your bot's console/terminal to see the exact API structure
-        console.log("API Response:", JSON.stringify(resData, null, 2));
-
-        // Check if API returned success
+        // Check if API returned success and result object
         if (!resData || !resData.status || !resData.result) {
             await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
             return reply("❌ Could not find any results for that song.");
@@ -42,27 +39,16 @@ cmd({
 
         const info = resData.result;
         
-        // Extract metadata safely
+        // ✅ FIXED: Use 'download_url' instead of 'mp3'
+        const audioUrl = info.download_url; 
         const title = info.title || text;
         const thumbnail = info.thumbnail || '';
-        const duration = info.duration_timestamp || info.duration || '';
-        const author = info.author || info.channel || '';
+        const duration = info.duration || '';
+        const author = info.channel || '';
 
-        // FIX: Try multiple possible keys for the MP3 URL
-        // APIs often change keys between 'mp3', 'download', 'url', 'link', or nested objects
-        let audioUrl = info.mp3 || 
-                       info.download || 
-                       info.url || 
-                       info.link || 
-                       info.audio ||
-                       (info.media && (info.media.mp3 || info.media.download || info.media.url));
-
-        // If still no URL, check if the API returned an error message in the result
         if (!audioUrl) {
             await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            // Show available keys to help debugging
-            const availableKeys = Object.keys(info).join(', ');
-            return reply(`❌ Failed to retrieve MP3 link.\nAvailable keys in response: ${availableKeys}`);
+            return reply("❌ Failed to retrieve the MP3 download link from the API response.");
         }
 
         // Prepare info caption
