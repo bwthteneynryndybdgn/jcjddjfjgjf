@@ -1,124 +1,62 @@
-//---------------------------------------------------------------------------
-//           KAMRAN-MD - YOUTUBE PLAY / SONG DOWNLOADER PLUGIN
-//---------------------------------------------------------------------------
-
-import { fileURLToPath } from 'url';
 import { cmd } from '../command.js';
 import axios from 'axios';
 
-const __filename = fileURLToPath(import.meta.url);
-
-// Helper function for Stylist Badi ABC Text
-const toStylistUpper = (text) => {
-    if (!text || typeof text !== 'string') return '';
-    const uppercaseMap = {
-        'a': 'ᴀ', 'b': 'ʙ', 'c': 'ᴄ', 'd': 'ᴅ', 'e': 'ᴇ', 'f': 'ғ', 'g': 'ɢ', 'h': 'ʜ', 'i': 'ɪ',
-        'j': 'ᴊ', 'k': 'ᴋ', 'l': 'ʟ', 'm': 'ᴍ', 'n': 'ɴ', 'o': 'ᴏ', 'p': 'ᴘ', 'q': 'ǫ', 'r': 'ʀ',
-        's': 's', 't': 'ᴛ', 'u': 'ᴜ', 'v': 'ᴠ', 'w': 'ᴡ', 'x': 'x', 'y': 'ʏ', 'z': 'ᴢ',
-        'A': 'ᴀ', 'B': 'ʙ', 'C': 'ᴄ', 'D': 'ᴅ', 'E': 'ᴇ', 'F': 'ғ', 'G': 'ɢ', 'H': 'ʜ', 'I': 'ɪ',
-        'J': 'ᴊ', 'K': 'ᴋ', 'L': 'ʟ', 'M': 'ᴍ', 'N': 'ɴ', 'O': 'ᴏ', 'P': 'ᴘ', 'Q': 'ǫ', 'R': 'ʀ',
-        'S': 's', 'T': 'ᴛ', 'U': 'ᴜ', 'V': 'ᴠ', 'W': 'ᴡ', 'X': 'x', 'Y': 'ʏ', 'Z': 'ᴢ'
-    };
-    return text.split('').map(char => uppercaseMap[char] || char).join('');
-};
-
 cmd({
-    pattern: "play344",
-    alias: ["ytplay4", "song6", "audio7"],
-    use: '.play <song name>',
-    desc: "Search song, show details with photo, and download as Audio",
-    category: "downloader",
-    react: "🎵",
-    filename: __filename
-},
-async (conn, mek, m, { from, text, reply }) => {
+    pattern: 'play',
+    alias: ['ytplay', 'song', 'music'],
+    desc: 'Search and download audio from YouTube',
+    category: 'downloader',
+    react: '🎵',
+    use: '<song name>'
+}, async (conn, mek, m, { args, reply, from }) => {
     try {
-        const query = String(text || "").trim();
-        if (!query) return reply(`⚠️ *${toStylistUpper('Usage')}:* .play <song name>`);
+        // 1. Validate Input
+        if (!args[0]) {
+            return reply(`*🎵 YouTube Player*\n\nPlease provide a song name.\n\nExample: \`.play Pal Jalebi\``);
+        }
 
-        // Step 1: React with loading emoji
-        await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
+        const query = args.join(' ');
+        await reply(`*🔍 Searching for:* ${query}...`);
 
-        // Step 2: Fetch data from NexRay API
-        const api = `https://api.nexray.web.id/downloader/ytplay?q=${encodeURIComponent(query)}`;
-        const { data } = await axios.get(api, { 
-            timeout: 60000,
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
-        });
+        // 2. Fetch Data from API
+        const apiUrl = `https://api.nexray.web.id/downloader/ytplay?q=${encodeURIComponent(query)}`;
+        const { data } = await axios.get(apiUrl);
 
+        // 3. Check Response Status
         if (!data || !data.status || !data.result) {
-            return reply(`❌ *${toStylistUpper('No audio found for your query.')}*`);
+            return reply('❌ *Error:* Could not find any results for this song.');
         }
 
-        const resData = data.result;
-        const mediaTitle = resData.title || query;
-        const thumbnail = resData.thumbnail || "";
-        const duration = resData.duration || "N/A";
-        const views = resData.views || "N/A";
-        const authorName = resData.channel || "Unknown Channel";
-        const downloadUrl = resData.download_url;
+        const result = data.result;
+        
+        // 4. Prepare Message Content
+        const caption = `*🎵 Now Playing*\n\n` +
+                        `*Title:* ${result.title}\n` +
+                        `*Channel:* ${result.channel}\n` +
+                        `*Duration:* ${result.duration}\n` +
+                        `*Views:* ${result.views}\n` +
+                        `*Uploaded:* ${result.upload_at}\n\n` +
+                        `*📥 Downloading Audio...*`;
 
-        if (!downloadUrl) {
-            return reply(`❌ *${toStylistUpper('Download link not found.')}*`);
-        }
-
-        // Step 3: Styled Info Card
-        let infoText = `❖ ── ✦ *${toStylistUpper('Song Details')}* ✦ ── ❖\n\n`;
-        infoText += `╔═════ ⌈ *⚡ ${toStylistUpper('Media Info')}* ⌋ ═════✧\n`;
-        infoText += `║ 📌 *${toStylistUpper('Title')}:* ${mediaTitle}\n`;
-        infoText += `║ 👤 *${toStylistUpper('Channel')}:* ${authorName}\n`;
-        infoText += `║ ⏱️ *${toStylistUpper('Duration')}:* ${duration}\n`;
-        infoText += `║ 👁️ *${toStylistUpper('Views')}:* ${views}\n`;
-        infoText += `╚══════════════════════✧\n\n`;
-        infoText += `> 💫 _${toStylistUpper('Audio is downloading, please wait...')}_`;
-
-        if (thumbnail) {
-            await conn.sendMessage(from, { 
-                image: { url: thumbnail }, 
-                caption: infoText,
-                contextInfo: { mentionedJid: [mek.sender] }
-            }, { quoted: mek });
-        } else {
-            await conn.sendMessage(from, { 
-                text: infoText,
-                contextInfo: { mentionedJid: [mek.sender] }
-            }, { quoted: mek });
-        }
-
-        // Step 4: Download Audio Buffer to prevent expiry/streaming issues
-        const audioBuffer = await axios.get(downloadUrl, {
-            responseType: 'arraybuffer',
-            headers: { 
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Range': 'bytes=0-'
-            },
-            timeout: 90000,
-            maxContentLength: Infinity,
-            maxBodyLength: Infinity
-        }).then(res => res.data);
-
-        // Step 5: Send Audio File
-        let finalCaption = `❖ ── ✦ *${toStylistUpper('Song Download')}* ✦ ── ❖\n\n`;
-        finalCaption += `╔═════ ⌈ *⚡ ${toStylistUpper('File Info')}* ⌋ ═════✧\n`;
-        finalCaption += `║ 📌 *${toStylistUpper('Title')}:* ${mediaTitle}\n`;
-        finalCaption += `╚══════════════════════✧\n\n`;
-        finalCaption += `> 💫 _${toStylistUpper('Powered by Kamran-Md')}_`;
-
+        // 5. Send Audio
+        // We use the direct download_url provided in the JSON
         await conn.sendMessage(from, {
-            audio: audioBuffer,
+            audio: { url: result.download_url },
             mimetype: 'audio/mpeg',
-            ptt: false,
-            fileName: `${mediaTitle.replace(/[/\\?%*:|"<>]/g, '').trim()}.mp3`,
-            caption: finalCaption,
-            contextInfo: { mentionedJid: [mek.sender] }
+            contextInfo: {
+                externalAdReply: {
+                    title: result.title,
+                    body: result.channel,
+                    thumbnailUrl: result.thumbnail,
+                    sourceUrl: result.url,
+                    mediaType: 1,
+                    renderLargerThumbnail: true
+                }
+            }
         }, { quoted: mek });
 
-        // Success reaction
-        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
-
-    } catch (e) {
-        console.log("Play command error:", e.message);
-        try { await conn.sendMessage(from, { react: { text: "❌", key: mek.key } }); } catch (err) {}
-        reply(`❌ Error: ${e.message}`);
+    } catch (error) {
+        console.error('Play Error:', error);
+        reply('❌ *Failed to process request.* Please try again later.');
     }
 });
