@@ -31,15 +31,12 @@ cmd({
         const response = await axios.get(apiUrl, { timeout: 30000 });
         const resData = response.data;
 
-        // Check if API returned success and result object
         if (!resData || !resData.status || !resData.result) {
             await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
             return reply("❌ Could not find any results for that song.");
         }
 
         const info = resData.result;
-        
-        // ✅ FIXED: Use 'download_url' instead of 'mp3'
         const audioUrl = info.download_url; 
         const title = info.title || text;
         const thumbnail = info.thumbnail || '';
@@ -67,9 +64,19 @@ cmd({
             await reply(caption);
         }
 
-        // Send the audio file using direct mp3 link
+        // ✅ FIX: Download file via axios first to bypass 403/404 restrictions
+        const fileResponse = await axios.get(audioUrl, {
+            responseType: 'arraybuffer',
+            timeout: 60000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Referer': 'https://www.youtube.com/'
+            }
+        });
+
+        // Send the audio file as a buffer instead of a URL
         await conn.sendMessage(from, {
-            audio: { url: audioUrl },
+            audio: fileResponse.data,
             mimetype: 'audio/mp4',
             ptt: false
         }, { quoted: mek });
@@ -78,8 +85,8 @@ cmd({
         await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
 
     } catch (error) {
-        console.error("YTPlay Error:", error);
-        reply(`❌ Error: ${error.message}`);
+        console.error("YTPlay Error:", error.response?.status || error.message);
+        reply(`❌ Error: ${error.response?.data?.message || error.message}`);
         await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
     }
 });
