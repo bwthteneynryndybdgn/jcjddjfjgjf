@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { Sticker, StickerTypes } from 'wa-sticker-formatter';
 import { cmd } from '../command.js';
 // Import specific functions directly
-import { videoToWebp, gifToSticker, fetchGif } from '../lib/converter.js'; 
+import { videoToWebp, gifToSticker, fetchGif } from '../lib/fetchgif.js'; 
 
 cmd(
     {
