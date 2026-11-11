@@ -21,40 +21,32 @@ cmd({
             );
         }
 
-        // Loading reaction
         await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
-        // Call the API endpoint
         const encodedQuery = encodeURIComponent(text.trim());
-        const apiUrl = `https://api.nexray.web.id/downloader/ytplay?q=${encodedQuery}`;
+        const apiUrl = `https://api.nexray.eu.cc/downloader/ytplay?q=${encodedQuery}`;
         
         const response = await axios.get(apiUrl, { timeout: 30000 });
         const resData = response.data;
 
-        if (!resData || !resData.status || !resData.result) {
+        if (!resData?.status || !resData?.result?.download_url) {
             await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
             return reply("❌ Could not find any results for that song.");
         }
 
         const info = resData.result;
-        const audioUrl = info.download_url; 
+        const audioUrl = info.download_url;
         const title = info.title || text;
         const thumbnail = info.thumbnail || '';
         const duration = info.duration || '';
         const author = info.channel || '';
 
-        if (!audioUrl) {
-            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return reply("❌ Failed to retrieve the MP3 download link from the API response.");
-        }
-
-        // Prepare info caption
+        // Send metadata first so user sees progress while we proxy-download
         let caption = `🎶 *Title:* ${title}\n`;
         if (author) caption += `👤 *Artist/Channel:* ${author}\n`;
         if (duration) caption += `⏱️ *Duration:* ${duration}\n`;
-        caption += `📁 *Status:* Downloading audio...`;
+        caption += `📁 *Status:* Fetching audio...`;
 
-        // Send thumbnail and details first
         if (thumbnail) {
             await conn.sendMessage(from, { 
                 image: { url: thumbnail }, 
@@ -64,24 +56,24 @@ cmd({
             await reply(caption);
         }
 
-        // ✅ FIX: Download file via axios first to bypass 403/404 restrictions
+        // ✅ PROXY DOWNLOAD: Fetch file with browser headers to bypass 403/404
         const fileResponse = await axios.get(audioUrl, {
             responseType: 'arraybuffer',
             timeout: 60000,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Referer': 'https://www.youtube.com/'
+                'Referer': 'https://www.youtube.com/',
+                'Accept': '*/*'
             }
         });
 
-        // Send the audio file as a buffer instead of a URL
+        // Send audio as buffer instead of URL
         await conn.sendMessage(from, {
             audio: fileResponse.data,
             mimetype: 'audio/mp4',
             ptt: false
         }, { quoted: mek });
 
-        // Success reaction
         await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
 
     } catch (error) {
