@@ -31,22 +31,42 @@ cmd({
         const response = await axios.get(apiUrl, { timeout: 30000 });
         const resData = response.data;
 
-        // Check if API returned success and result object
-        if (!resData || !resData.status || !resData.result) {
+        // DEBUG: Log the entire response to your console to see the actual structure
+        console.log("API Response:", JSON.stringify(resData, null, 2));
+
+        // Check if API returned success
+        if (!resData || !resData.status) {
             await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return reply("❌ Could not find any results for that song.");
+            return reply("❌ API returned an error or no status.");
         }
 
         const info = resData.result;
-        const audioUrl = info.mp3; // Exact key from your API log
+        
+        if (!info) {
+            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+            return reply("❌ No results found in API response.");
+        }
+
+        // Extract metadata
         const title = info.title || text;
         const thumbnail = info.thumbnail || '';
-        const duration = info.duration_timestamp || '';
-        const author = info.author || '';
+        const duration = info.duration_timestamp || info.duration || '';
+        const author = info.author || info.channel || '';
+
+        // Try multiple possible keys for the MP3 URL
+        // Common keys: mp3, download, url, link, audio
+        let audioUrl = info.mp3 || info.download || info.url || info.link || info.audio;
+
+        // If still not found, check if it's nested deeper (e.g., result.media.mp3)
+        if (!audioUrl && info.media) {
+            audioUrl = info.media.mp3 || info.media.download || info.media.url;
+        }
 
         if (!audioUrl) {
             await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return reply("❌ Failed to retrieve the MP3 download link from the API response.");
+            // Helpful error message showing available keys
+            const availableKeys = Object.keys(info).join(', ');
+            return reply(`❌ Failed to retrieve MP3 link.\nAvailable keys in response: ${availableKeys}`);
         }
 
         // Prepare info caption
@@ -69,7 +89,7 @@ cmd({
         await conn.sendMessage(from, {
             audio: { url: audioUrl },
             mimetype: 'audio/mp4',
-            ptt: false // Set true if you want voice note style
+            ptt: false
         }, { quoted: mek });
 
         // Success reaction
@@ -81,4 +101,3 @@ cmd({
         await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
     }
 });
-    
