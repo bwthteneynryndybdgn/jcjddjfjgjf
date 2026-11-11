@@ -2,11 +2,9 @@ import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import { Sticker, StickerTypes } from 'wa-sticker-formatter';
 import { cmd } from '../command.js';
-import StickerMaker from '../lib/converter.js';
-// اگر config فائل کی ضرورت ہو تو نیچے والی لائن کو ان کمنٹ کر لیں
-// import config from '../config.js';
+// Import specific functions directly
+import { videoToWebp, gifToSticker, fetchGif } from '../lib/converter.js'; 
 
-// Mega Sticker Command
 cmd(
     {
         pattern: 'sticker',
@@ -22,16 +20,14 @@ cmd(
         
         let mime = mek.quoted.mtype;
         
-        // Determine pack name: use provided text or default from userConfig or global config
+        // Determine pack name
         const defaultPackName = userConfig?.STICKER_NAME || global.config?.STICKER_NAME || "DR KAMRAN";
         let pack = q ? q : defaultPackName;
         
         try {
             let media, stickerBuffer;
             
-            // Handle different media types
             if (mime === "imageMessage" || mime === "stickerMessage") {
-                // For images and stickers - use wa-sticker-formatter directly
                 media = await mek.quoted.download();
                 
                 let sticker = new Sticker(media, {
@@ -47,7 +43,9 @@ cmd(
             } else if (mime === "videoMessage") {
                 // For videos - convert to WebP first
                 media = await mek.quoted.download();
-                const webpBuffer = await StickerMaker.videoToWebp(media);
+                
+                // Use the imported function directly
+                const webpBuffer = await videoToWebp(media);
                 
                 let sticker = new Sticker(webpBuffer, {
                     pack: pack,
@@ -63,7 +61,6 @@ cmd(
                 return reply("*Please reply to an image, video, GIF, or sticker*");
             }
             
-            // Send the sticker
             return conn.sendMessage(mek.chat, { sticker: stickerBuffer }, { quoted: mek });
             
         } catch (error) {
@@ -73,7 +70,7 @@ cmd(
     }
 );
 
-// attp command with userConfig support
+// attp command
 cmd({
     pattern: "attp",
     desc: "Convert text to a GIF sticker.",
@@ -85,8 +82,9 @@ cmd({
     try {
         if (!args[0]) return reply("*Please provide text!*");
 
-        const gifBuffer = await StickerMaker.fetchGif(`https://api-fix.onrender.com/api/maker/attp?text=${encodeURIComponent(args[0])}`);
-        const stickerBuffer = await StickerMaker.gifToSticker(gifBuffer);
+        // Use imported functions directly
+        const gifBuffer = await fetchGif(`https://api-fix.onrender.com/api/maker/attp?text=${encodeURIComponent(args[0])}`);
+        const stickerBuffer = await gifToSticker(gifBuffer);
 
         await conn.sendMessage(m.chat, { sticker: stickerBuffer }, { quoted: mek });
     } catch (error) {
