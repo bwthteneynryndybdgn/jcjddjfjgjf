@@ -2,7 +2,7 @@ import { cmd } from '../command.js';
 import axios from 'axios';
 
 cmd({
-    pattern: 'play',
+    pattern: 'play643',
     alias: ['ytplay', 'song', 'music'],
     desc: 'Search and download audio from YouTube',
     category: 'downloader',
