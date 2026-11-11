@@ -3,8 +3,6 @@ import axios from 'axios';
 import { cmd } from '../command.js';
 
 const __filename = fileURLToPath(import.meta.url);
-
-// Updated API Base URL
 const XV_API = "https://jerrycoder.oggyapi.workers.dev";
 
 const AXIOS_DEFAULTS = {
@@ -15,7 +13,6 @@ const AXIOS_DEFAULTS = {
     }
 };
 
-// 🔁 Retry helper
 async function tryRequest(fn, tries = 3) {
     let err;
     for (let i = 1; i <= tries; i++) {
@@ -29,7 +26,6 @@ async function tryRequest(fn, tries = 3) {
     throw err;
 }
 
-// ❤️ React helper
 async function react(sock, mek, emoji) {
     try {
         await sock.sendMessage(mek.key.remoteJid, {
@@ -38,7 +34,6 @@ async function react(sock, mek, emoji) {
     } catch (e) {}
 }
 
-// 📦 Stylish info box
 function xBox(data) {
     return `
 ‎*╔ஜ۩▒█ *ᴋᴀᴍʀᴀɴ ᴍᴅ* █▒۩ஜ╗*
@@ -51,30 +46,23 @@ function xBox(data) {
 *╰━━━━━━━━━━━━━━━━━━⊷*`;
 }
 
-// 🔍 Search API (FIXED)
+// ✅ FIXED SEARCH FUNCTION
 async function searchXvideos(query) {
-    // Ensure query is properly encoded
     const apiUrl = `${XV_API}/search/xnxx?q=${encodeURIComponent(query)}`;
-    
     console.log(`[SEARCH] Fetching: ${apiUrl}`);
     
     const res = await tryRequest(() => axios.get(apiUrl, AXIOS_DEFAULTS));
     const data = res.data;
 
-    // Debugging: Log the keys of the response to understand structure
-    console.log("[SEARCH] Response Keys:", Object.keys(data));
-
     let results = [];
-
-    // Handle different possible response structures
-    if (Array.isArray(data)) {
+    
+    // Primary fix: check 'results' key first based on your logs
+    if (data.results && Array.isArray(data.results)) {
+        results = data.results;
+    } else if (Array.isArray(data)) {
         results = data;
     } else if (data.result && Array.isArray(data.result)) {
         results = data.result;
-    } else if (data.data && Array.isArray(data.data)) {
-        results = data.data;
-    } else if (data.videos && Array.isArray(data.videos)) {
-        results = data.videos;
     }
 
     if (results.length > 0) {
@@ -82,20 +70,16 @@ async function searchXvideos(query) {
         return results;
     }
     
-    throw new Error("No results found or API structure changed");
+    throw new Error("No results found");
 }
 
-// 🎬 Download API
 async function downloadXvideo(url) {
     const api = `${XV_API}/down/xnxx?url=${encodeURIComponent(url)}`;
-    
     console.log(`[DOWNLOAD] Fetching: ${api}`);
     
     const res = await tryRequest(() => axios.get(api, AXIOS_DEFAULTS));
     
-    // Check for success status
     if (res.data.status === "success") {
-        // Try low_quality first, then high_quality, then direct_download
         const dlLink = res.data.downloads?.low_quality || 
                        res.data.downloads?.high_quality || 
                        res.data.downloads?.direct_download;
@@ -111,9 +95,6 @@ async function downloadXvideo(url) {
     throw new Error("Download link extraction failed");
 }
 
-// ===============================
-// 🔞 COMMAND: .xvideo <query|link>
-// ===============================
 cmd({
     pattern: "xxxvideo",
     alias: ["xxx", "porn", "sex", "sexyvideos", "pornhub", "xvideos", "sexy"],
@@ -135,7 +116,6 @@ cmd({
         let videoData;
         let videoUrl;
 
-        // 🔗 Direct link handling
         if (query.startsWith("http")) {
             videoUrl = query;
             videoData = { 
@@ -144,17 +124,13 @@ cmd({
                 views: "N/A", 
                 thumbnail: "" 
             };
-        } 
-        // 🔎 Search handling
-        else {
+        } else {
             try {
                 const results = await searchXvideos(query);
-                videoData = results[0]; // Take the first result
-                
-                // Normalize fields just in case
+                videoData = results[0];
                 videoUrl = videoData.url;
                 
-                // If API uses different keys, map them here
+                // Normalize field names
                 if (!videoData.title && videoData.o_title) videoData.title = videoData.o_title;
                 if (!videoData.thumbnail && videoData.thumb) videoData.thumbnail = videoData.thumb;
 
@@ -164,7 +140,6 @@ cmd({
             }
         }
 
-        // 📦 Send Info Box
         await sock.sendMessage(m.chat, {
             image: { url: videoData.thumbnail || videoData.thumb || "https://files.catbox.moe/16i1l7.jpg" },
             caption: xBox(videoData)
@@ -172,7 +147,6 @@ cmd({
 
         await react(sock, mek, "⏳");
 
-        // 🎬 Download Logic
         let file;
         try {
             file = await downloadXvideo(videoUrl);
@@ -181,7 +155,6 @@ cmd({
             return reply(`❌ Download Error: ${e.message}`);
         }
 
-        // 📤 Send Video
         await sock.sendMessage(m.chat, {
             video: { url: file.url },
             mimetype: "video/mp4",
