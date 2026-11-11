@@ -31,40 +31,36 @@ cmd({
         const response = await axios.get(apiUrl, { timeout: 30000 });
         const resData = response.data;
 
-        // DEBUG: Log the entire response to your console to see the actual structure
+        // DEBUG: Check your bot's console/terminal to see the exact API structure
         console.log("API Response:", JSON.stringify(resData, null, 2));
 
         // Check if API returned success
-        if (!resData || !resData.status) {
+        if (!resData || !resData.status || !resData.result) {
             await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return reply("❌ API returned an error or no status.");
+            return reply("❌ Could not find any results for that song.");
         }
 
         const info = resData.result;
         
-        if (!info) {
-            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return reply("❌ No results found in API response.");
-        }
-
-        // Extract metadata
+        // Extract metadata safely
         const title = info.title || text;
         const thumbnail = info.thumbnail || '';
         const duration = info.duration_timestamp || info.duration || '';
         const author = info.author || info.channel || '';
 
-        // Try multiple possible keys for the MP3 URL
-        // Common keys: mp3, download, url, link, audio
-        let audioUrl = info.mp3 || info.download || info.url || info.link || info.audio;
+        // FIX: Try multiple possible keys for the MP3 URL
+        // APIs often change keys between 'mp3', 'download', 'url', 'link', or nested objects
+        let audioUrl = info.mp3 || 
+                       info.download || 
+                       info.url || 
+                       info.link || 
+                       info.audio ||
+                       (info.media && (info.media.mp3 || info.media.download || info.media.url));
 
-        // If still not found, check if it's nested deeper (e.g., result.media.mp3)
-        if (!audioUrl && info.media) {
-            audioUrl = info.media.mp3 || info.media.download || info.media.url;
-        }
-
+        // If still no URL, check if the API returned an error message in the result
         if (!audioUrl) {
             await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            // Helpful error message showing available keys
+            // Show available keys to help debugging
             const availableKeys = Object.keys(info).join(', ');
             return reply(`❌ Failed to retrieve MP3 link.\nAvailable keys in response: ${availableKeys}`);
         }
