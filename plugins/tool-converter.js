@@ -1,152 +1,94 @@
-import converter from '../lib/converter.js'; // Changed from 'import * as converter'
-import { cmd } from '../command.js';
 import { fileURLToPath } from 'url';
+import crypto from 'crypto';
+import { Sticker, StickerTypes } from 'wa-sticker-formatter';
+import { cmd } from '../command.js';
+// Import specific functions directly
+import { videoToWebp, gifToSticker, fetchGif } from '../lib/converter.js'; 
 
-const __filename = fileURLToPath(import.meta.url);
+cmd(
+    {
+        pattern: 'sticker',
+        alias: ['s', 'take', 'rename', 'stake', 'vsticker', 'gsticker', 'g2s', 'gs', 'v2s', 'vs'],
+        desc: 'Create stickers from images, videos, GIFs with custom pack names',
+        category: 'tools',
+        react: "⚡",
+        use: '<reply media> | <pack name>',
+        filename: fileURLToPath(import.meta.url),
+    },
+    async (conn, mek, m, { quoted, args, q, reply, from, userConfig }) => {
+        if (!mek.quoted) return reply(`*Reply to any Image, Video, GIF, or Sticker*`);
+        
+        let mime = mek.quoted.mtype;
+        
+        // Determine pack name
+        const defaultPackName = userConfig?.STICKER_NAME || global.config?.STICKER_NAME || "DR KAMRAN";
+        let pack = q ? q : defaultPackName;
+        
+        try {
+            let media, stickerBuffer;
+            
+            if (mime === "imageMessage" || mime === "stickerMessage") {
+                media = await mek.quoted.download();
+                
+                let sticker = new Sticker(media, {
+                    pack: pack, 
+                    type: StickerTypes.FULL,
+                    categories: ["🤩", "🎉"],
+                    id: crypto.randomBytes(4).toString('hex'),
+                    quality: 75,
+                    background: 'transparent',
+                });
+                stickerBuffer = await sticker.toBuffer();
+                
+            } else if (mime === "videoMessage") {
+                // For videos - convert to WebP first
+                media = await mek.quoted.download();
+                
+                // Use the imported function directly
+                const webpBuffer = await videoToWebp(media);
+                
+                let sticker = new Sticker(webpBuffer, {
+                    pack: pack,
+                    type: StickerTypes.FULL,
+                    categories: ["🤩", "🎉"],
+                    id: crypto.randomBytes(4).toString('hex'),
+                    quality: 75,
+                    background: 'transparent',
+                });
+                stickerBuffer = await sticker.toBuffer();
+                
+            } else {
+                return reply("*Please reply to an image, video, GIF, or sticker*");
+            }
+            
+            return conn.sendMessage(mek.chat, { sticker: stickerBuffer }, { quoted: mek });
+            
+        } catch (error) {
+            console.error("Sticker creation error:", error);
+            return reply(`*Error creating sticker: ${error.message}*`);
+        }
+    }
+);
 
-// Convert sticker to image
+// attp command
 cmd({
-    pattern: 'convert',
-    alias: ['sticker2img', 'stoimg', 'stickertoimage', 's2i'],
-    desc: 'Convert stickers to images',
-    category: 'utility',
-    react: '🖼️',
-    filename: __filename
-}, async (client, match, message, { from }) => {
-    if (!message.quoted) {
-        return await client.sendMessage(from, {
-            text: "✨ *Sticker Converter*\n\nPlease reply to a sticker message\n\nExample: `.convert` (reply to sticker)"
-        }, { quoted: message });
-    }
-
-    if (message.quoted.mtype !== 'stickerMessage') {
-        return await client.sendMessage(from, {
-            text: "❌ Only sticker messages can be converted"
-        }, { quoted: message });
-    }
-
-    await client.sendMessage(from, { react: { text: '⏳', key: message.key } });
-
+    pattern: "attp",
+    desc: "Convert text to a GIF sticker.",
+    react: "✨",
+    category: "tools", 
+    use: ".attp HI",
+    filename: fileURLToPath(import.meta.url),
+}, async (conn, mek, m, { args, reply, userConfig }) => {
     try {
-        const stickerBuffer = await message.quoted.download();
-        // Ensure converter.stickerToImage exists in your lib
-        const imageBuffer = await converter.stickerToImage(stickerBuffer);
+        if (!args[0]) return reply("*Please provide text!*");
 
-        await client.sendMessage(from, {
-            image: imageBuffer,
-            mimetype: 'image/png'
-        }, { quoted: message });
+        // Use imported functions directly
+        const gifBuffer = await fetchGif(`https://api-fix.onrender.com/api/maker/attp?text=${encodeURIComponent(args[0])}`);
+        const stickerBuffer = await gifToSticker(gifBuffer);
 
-        await client.sendMessage(from, { react: { text: '✅', key: message.key } });
-
+        await conn.sendMessage(m.chat, { sticker: stickerBuffer }, { quoted: mek });
     } catch (error) {
-        console.error('Conversion error:', error);
-        await client.sendMessage(from, {
-            text: "❌ Please try with a different sticker."
-        }, { quoted: message });
-        await client.sendMessage(from, { react: { text: '❌', key: message.key } });
-    }
-});
-
-// Convert to MP3
-cmd({
-    pattern: 'tomp3',
-    alias: ['mp3', 'audio'],
-    desc: 'Convert media to audio (max 15 minutes)',
-    category: 'audio',
-    react: '🎵',
-    filename: __filename
-}, async (client, match, message, { from }) => {
-    try {
-        if (!match.quoted) {
-            return await client.sendMessage(from, {
-                text: "*🔊 Please reply to a video/audio message*"
-            }, { quoted: message });
-        }
-
-        if (!['videoMessage', 'audioMessage'].includes(match.quoted.mtype)) {
-            return await client.sendMessage(from, {
-                text: "❌ Only video/audio messages can be converted"
-            }, { quoted: message });
-        }
-
-        if (match.quoted.seconds > 900) {
-            return await client.sendMessage(from, {
-                text: "⏱️ Media too long (max 15 minutes)"
-            }, { quoted: message });
-        }
-
-        await client.sendMessage(from, { react: { text: '⏳', key: message.key } });
-
-        const buffer = await match.quoted.download();
-        const ext = match.quoted.mtype === 'videoMessage' ? 'mp4' : 'm4a';
-        
-        // Now this should work if converter is imported correctly
-        const audio = await converter.toAudio(buffer, ext);
-
-        await client.sendMessage(from, {
-            audio: audio,
-            mimetype: 'audio/mpeg'
-        }, { quoted: message });
-        
-        await client.sendMessage(from, { react: { text: '✅', key: message.key } });
-
-    } catch (e) {
-        console.error('Conversion error:', e.message);
-        await client.sendMessage(from, {
-            text: "❌ Failed to process audio"
-        }, { quoted: message });
-        await client.sendMessage(from, { react: { text: '❌', key: message.key } });
-    }
-});
-
-// Convert to PTT
-cmd({
-    pattern: 'toptt',
-    alias: ['voice', 'tovoice'],
-    desc: 'Convert media to voice message (max 15 minutes)',
-    category: 'audio',
-    react: '🎙️',
-    filename: __filename
-}, async (client, match, message, { from }) => {
-    if (!match.quoted) {
-        return await client.sendMessage(from, {
-            text: "*🗣️ Please reply to a video/audio message*"
-        }, { quoted: message });
-    }
-
-    if (!['videoMessage', 'audioMessage'].includes(match.quoted.mtype)) {
-        return await client.sendMessage(from, {
-            text: "❌ Only video/audio messages can be converted"
-        }, { quoted: message });
-    }
-
-    if (match.quoted.seconds > 900) {
-        return await client.sendMessage(from, {
-            text: "⏱️ Media too long for voice (max 15 minutes)"
-        }, { quoted: message });
-    }
-
-    await client.sendMessage(from, { react: { text: '⏳', key: message.key } });
-
-    try {
-        const buffer = await match.quoted.download();
-        const ext = match.quoted.mtype === 'videoMessage' ? 'mp4' : 'm4a';
-        const ptt = await converter.toPTT(buffer, ext);
-
-        await client.sendMessage(from, {
-            audio: ptt,
-            mimetype: 'audio/ogg; codecs=opus',
-            ptt: true
-        }, { quoted: message });
-
-        await client.sendMessage(from, { react: { text: '✅', key: message.key } });
-
-    } catch (e) {
-        console.error('PTT conversion error:', e.message);
-        await client.sendMessage(from, {
-            text: "❌ Failed to create voice message"
-        }, { quoted: message });
-        await client.sendMessage(from, { react: { text: '❌', key: message.key } });
+        console.error("ATTP error:", error);
+        reply(`❌ ${error.message}`);
     }
 });
