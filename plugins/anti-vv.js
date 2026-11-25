@@ -38,7 +38,11 @@ function unwrapMessageContainer(msg) {
 }
 
 function getQuotedMessage(m) {
-    const raw = m?.quoted || m?.msg?.contextInfo?.quotedMessage || null;
+    const raw =
+        m?.quoted?.message ||
+        m?.quoted ||
+        m?.msg?.contextInfo?.quotedMessage ||
+        null;
     if (!raw) return null;
     return unwrapMessageContainer(raw);
 }
@@ -56,6 +60,16 @@ function getMediaKeyAndContent(quoted) {
             };
         }
     }
+
+    // Fallback if quoted itself is already the inner media content object
+    if (quoted?.ptt !== undefined || quoted?.mimetype?.startsWith('audio/')) {
+        return {
+            msgKey: 'audioMessage',
+            mediaType: 'audio',
+            content: quoted
+        };
+    }
+
     return null;
 }
 
@@ -103,16 +117,9 @@ async function hydrateFromStores(m, client, currentResolved) {
 
 async function downloadMediaBuffer(quoted, m, client) {
     try {
-        let resolved = await hydrateFromStores(m, client, getMediaKeyAndContent(quoted));
+        const resolved = await hydrateFromStores(m, client, getMediaKeyAndContent(quoted));
 
-        // Only call m.quoted.download() if we actually have a url/directPath on quoted or hydrated content
-        const quotedResolved = getMediaKeyAndContent(quoted);
-        const canUseQuotedDownload =
-            hasMediaLocator(quotedResolved?.content) &&
-            m?.quoted &&
-            typeof m.quoted.download === 'function';
-
-        if (canUseQuotedDownload) {
+        if (hasMediaLocator(resolved?.content) && m?.quoted && typeof m.quoted.download === 'function') {
             try {
                 const buf = await m.quoted.download();
                 if (buf && buf.length > 0) return buf;
@@ -176,7 +183,7 @@ async function sendRetrievedMedia({
     const buffer = await downloadMediaBuffer(quoted, contextSource, client);
     if (!buffer || buffer.length === 0) {
         return await client.sendMessage(replyJid, {
-            text: "❌ *Media download karne me asamarth! (Quoted message has no media URL/directPath)*"
+            text: "❌ *Media download karne me asamarth! (No media URL/directPath)*"
         }, { quoted: triggerMsg });
     }
 
@@ -203,8 +210,8 @@ async function sendRetrievedMedia({
     } else if (resolved.mediaType === "audio") {
         messageContent = {
             audio: buffer,
-            mimetype: resolved.content?.mimetype || "audio/mp4",
-            ptt: Boolean(resolved.content?.ptt)
+            mimetype: resolved.content?.mimetype || "audio/ogg; codecs=opus",
+            ptt: resolved.content?.ptt !== undefined ? Boolean(resolved.content.ptt) : true
         };
     } else {
         return await client.sendMessage(replyJid, {
