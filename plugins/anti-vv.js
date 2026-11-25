@@ -1,4 +1,4 @@
-// plugins/viewonce.js - ESM Version
+// plugins/anti-vv.js - ESM Version
 import { fileURLToPath } from 'url';
 import { cmd } from '../command.js';
 import config from '../config.js';
@@ -17,16 +17,9 @@ const MEDIA_TYPE_MAP = {
     documentMessage: 'document'
 };
 
-// Safely extract quoted message across different bot bases
-function getQuotedMessage(m) {
-    const raw = m?.quoted || m?.msg?.contextInfo?.quotedMessage || null;
-    if (!raw) return null;
-    return raw.message || raw;
-}
-
-// Recursively unwrap viewOnce / ephemeral / documentWithCaption containers
-function unwrapMessage(msg) {
-    let curr = msg;
+// Recursively unwrap viewOnce / ephemeral / documentWithCaption wrappers
+function unwrapMessageContainer(msg) {
+    let curr = msg?.message || msg;
     while (curr && typeof curr === 'object') {
         if (curr.viewOnceMessage?.message) {
             curr = curr.viewOnceMessage.message;
@@ -45,9 +38,16 @@ function unwrapMessage(msg) {
     return curr;
 }
 
-// Identify media key, Baileys download mediaType, and inner content object
+// Safely extract quoted message object
+function getQuotedMessage(m) {
+    const raw = m?.quoted || m?.msg?.contextInfo?.quotedMessage || null;
+    if (!raw) return null;
+    return unwrapMessageContainer(raw);
+}
+
+// Resolve inner media key, Baileys download mediaType, and content object
 function getMediaKeyAndContent(quoted) {
-    const unwrapped = unwrapMessage(quoted);
+    const unwrapped = unwrapMessageContainer(quoted);
     if (!unwrapped || typeof unwrapped !== 'object') return null;
 
     for (const key of Object.keys(unwrapped)) {
@@ -62,17 +62,48 @@ function getMediaKeyAndContent(quoted) {
     return null;
 }
 
-// Universal media downloader helper function
-async function downloadMediaBuffer(quoted, m) {
+function hasMediaLocator(content) {
+    return Boolean(content && (content.url || content.directPath));
+}
+
+// Download media buffer safely without triggering 400 when url/directPath are missing
+async function downloadMediaBuffer(quoted, m, client) {
     try {
-        if (m?.quoted && typeof m.quoted.download === 'function') {
-            const buf = await m.quoted.download();
-            if (buf && buf.length > 0) return buf;
+        let resolved = getMediaKeyAndContent(quoted);
+
+        // If quoted message lacks url/directPath, try hydrating full message from store/client
+        if (!hasMediaLocator(resolved?.content)) {
+            const stanzaId = m?.msg?.contextInfo?.stanzaId || m?.quoted?.id || m?.quoted?.key?.id;
+            const chatJid = m?.quoted?.chat || m?.chat || m?.from;
+            const store = client?.store || m?.store;
+
+            if (store?.loadMessage && stanzaId && chatJid) {
+                try {
+                    const storedMsg = await store.loadMessage(chatJid, stanzaId);
+                    const fromStore = getMediaKeyAndContent(storedMsg);
+                    if (hasMediaLocator(fromStore?.content)) {
+                        resolved = fromStore;
+                    }
+                } catch (_) {
+                    // Ignore store lookup miss
+                }
+            }
         }
 
-        const resolved = getMediaKeyAndContent(quoted);
-        if (!resolved) {
-            console.warn("No downloadable media found in quoted message:", Object.keys(quoted || {}));
+        // Only try m.quoted.download() if we actually have a media locator or no unwrapped locator check failed
+        if (hasMediaLocator(resolved?.content) && m?.quoted && typeof m.quoted.download === 'function') {
+            try {
+                const buf = await m.quoted.download();
+                if (buf && buf.length > 0) return buf;
+            } catch (err) {
+                if (!String(err?.message || '').includes('No valid media URL or directPath')) {
+                    throw err;
+                }
+            }
+        }
+
+        if (!hasMediaLocator(resolved?.content)) {
+            console.warn("Quoted media missing url/directPath:", resolved?.msgKey || Object.keys(quoted || {}));
             return null;
         }
 
@@ -84,12 +115,15 @@ async function downloadMediaBuffer(quoted, m) {
         const buffer = Buffer.concat(chunks);
         return buffer.length > 0 ? buffer : null;
     } catch (err) {
+        if (String(err?.message || '').includes('No valid media URL or directPath')) {
+            return null;
+        }
         console.error("Download Buffer Error:", err);
         return null;
     }
 }
 
-// Shared helper to download and send retrieved media to targetJid
+// Shared helper to download and send retrieved media
 async function sendRetrievedMedia({
     client,
     targetJid,
@@ -109,17 +143,17 @@ async function sendRetrievedMedia({
         }, { quoted: triggerMsg });
     }
 
-    const buffer = await downloadMediaBuffer(quoted, contextSource);
-    if (!buffer || buffer.length === 0) {
-        return await client.sendMessage(replyJid, {
-            text: "❌ *Media download karne me asamarth!*"
-        }, { quoted: triggerMsg });
-    }
-
     const resolved = getMediaKeyAndContent(quoted);
     if (!resolved) {
         return await client.sendMessage(replyJid, {
             text: unsupportedText
+        }, { quoted: triggerMsg });
+    }
+
+    const buffer = await downloadMediaBuffer(quoted, contextSource, client);
+    if (!buffer || buffer.length === 0) {
+        return await client.sendMessage(replyJid, {
+            text: "❌ *Media download karne me asamarth! (No media URL/directPath in quoted message)*"
         }, { quoted: triggerMsg });
     }
 
@@ -174,7 +208,6 @@ cmd({
         const hasExactKeywordOnly = positiveKeywords.includes(messageText);
         if (!hasExactKeywordOnly) return;
 
-        // Check both `m` and `message` for quoted content
         const source = getQuotedMessage(m) ? m : message;
         if (!getQuotedMessage(source)) return;
 
