@@ -23,24 +23,41 @@ const toStylistUpper = (text) => {
     return text.split('').map(char => uppercaseMap[char] || char).join('');
 };
 
-function pickUnlockedMp4(medias = []) {
-    if (!Array.isArray(medias) || medias.length === 0) return null;
+function extractDownloadInfo(payload, fallbackTitle) {
+    const root = payload?.data?.data || payload?.result?.data || payload?.result || payload?.data || payload || {};
+    const dlObj = root?.download || payload?.download || {};
 
-    const validMp4 = medias.filter(item =>
-        item &&
-        !item.locked &&
-        typeof item.url === 'string' &&
-        item.url.startsWith('http') &&
-        (String(item.format || '').toLowerCase().includes('.mp4') || String(item.url).includes('mime=video%2Fmp4'))
-    );
+    const downloadUrl =
+        dlObj?.url ||
+        dlObj?.downloadUrl ||
+        root?.url ||
+        root?.downloadUrl ||
+        root?.download_url ||
+        root?.mp4 ||
+        payload?.url ||
+        payload?.downloadUrl ||
+        payload?.download_url ||
+        null;
 
-    const preferredQualities = ['360p', '480p', '720p', '240p', '144p'];
-    for (const q of preferredQualities) {
-        const match = validMp4.find(v => String(v.quality || '').toLowerCase() === q);
-        if (match) return match;
-    }
+    const title =
+        root?.title ||
+        dlObj?.title ||
+        payload?.title ||
+        fallbackTitle;
 
-    return validMp4[0] || medias.find(v => !v.locked && typeof v.url === 'string' && v.url.startsWith('http')) || null;
+    const fileName =
+        dlObj?.filename ||
+        dlObj?.fileName ||
+        root?.filename ||
+        root?.fileName ||
+        `${title}.mp4`;
+
+    const quality =
+        dlObj?.quality ||
+        root?.quality ||
+        null;
+
+    return { downloadUrl, title, fileName, quality };
 }
 
 // ==================== HELPER FUNCTION FOR DETAILS & MEDIA ====================
@@ -74,7 +91,7 @@ async function sendMediaWithDetails(conn, mek, from, selectedMedia, typeName, is
         }, { quoted: mek });
     }
 
-    const api = `https://apiii-xrina.my.id/download/youtube-dl?url=${encodeURIComponent(videoUrl)}`;
+    const api = `https://jerrycoder.oggyapi.workers.dev/down/ytmp4?url=${encodeURIComponent(videoUrl)}`;
     const { data } = await axios.get(api, {
         timeout: 90000,
         headers: {
@@ -83,29 +100,25 @@ async function sendMediaWithDetails(conn, mek, from, selectedMedia, typeName, is
         }
     });
 
-    const resData = data?.data?.data || data?.data || data?.result || {};
-    const selectedStream = pickUnlockedMp4(resData?.medias || []);
-    const downloadUrl = selectedStream?.url;
-    const finalTitle = resData?.title || mediaTitle;
-    const safeFileName = `${finalTitle.replace(/[/\\?%*:|"<>]/g, '').trim() || 'media'}.mp4`;
+    const { downloadUrl, title: finalTitle, fileName: rawFileName, quality } = extractDownloadInfo(data, mediaTitle);
 
-    if (!downloadUrl) {
+    if (!downloadUrl || typeof downloadUrl !== 'string' || !downloadUrl.startsWith('http')) {
         return conn.sendMessage(from, { text: `❌ *${toStylistUpper('Download link not found')}:* ${finalTitle}` }, { quoted: mek });
     }
+
+    const safeFileName = String(rawFileName || `${finalTitle}.mp4`).replace(/[/\\?%*:|"<>]/g, '').trim() || 'video.mp4';
 
     let finalCaption = `❖ ── ✦ *${toStylistUpper(typeName)}* ✦ ── ❖\n\n`;
     finalCaption += `╔═════ ⌈ *⚡ ${toStylistUpper('File Info')}* ⌋ ═════✧\n`;
     finalCaption += `║ 📌 *${toStylistUpper('Title')}:* ${finalTitle}\n`;
-    if (selectedStream?.quality) finalCaption += `║ 🎞️ *${toStylistUpper('Quality')}:* ${selectedStream.quality}\n`;
-    if (selectedStream?.sizeStr) finalCaption += `║ 📦 *${toStylistUpper('Size')}:* ${selectedStream.sizeStr}\n`;
+    if (quality) finalCaption += `║ 🎞️ *${toStylistUpper('Quality')}:* ${quality}\n`;
     finalCaption += `╚══════════════════════✧\n\n`;
     finalCaption += `> 💫 _${toStylistUpper('Powered by Kamran-Md')}_`;
 
     let thumbBase64 = "";
-    const thumbSource = resData?.imageUrl || thumbnail;
-    if (isDocument && thumbSource) {
+    if (isDocument && thumbnail) {
         try {
-            const thumbBuffer = await axios.get(thumbSource, { responseType: 'arraybuffer', timeout: 20000 }).then(res => res.data);
+            const thumbBuffer = await axios.get(thumbnail, { responseType: 'arraybuffer', timeout: 20000 }).then(res => res.data);
             if (thumbBuffer) {
                 thumbBase64 = Buffer.from(thumbBuffer).toString('base64');
             }
@@ -119,8 +132,7 @@ async function sendMediaWithDetails(conn, mek, from, selectedMedia, typeName, is
             responseType: 'arraybuffer',
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-                'Referer': 'https://www.youtube.com/',
-                'Origin': 'https://www.youtube.com'
+                'Referer': 'https://jerrycoder.oggyapi.workers.dev/'
             },
             timeout: 120000,
             maxContentLength: Infinity,
