@@ -23,8 +23,28 @@ const toStylistUpper = (text) => {
     return text.split('').map(char => uppercaseMap[char] || char).join('');
 };
 
+function pickUnlockedMp4(medias = []) {
+    if (!Array.isArray(medias) || medias.length === 0) return null;
+
+    const validMp4 = medias.filter(item =>
+        item &&
+        !item.locked &&
+        typeof item.url === 'string' &&
+        item.url.startsWith('http') &&
+        (String(item.format || '').toLowerCase().includes('.mp4') || String(item.url).includes('mime=video%2Fmp4'))
+    );
+
+    const preferredQualities = ['360p', '480p', '720p', '240p', '144p'];
+    for (const q of preferredQualities) {
+        const match = validMp4.find(v => String(v.quality || '').toLowerCase() === q);
+        if (match) return match;
+    }
+
+    return validMp4[0] || medias.find(v => !v.locked && typeof v.url === 'string' && v.url.startsWith('http')) || null;
+}
+
 // ==================== HELPER FUNCTION FOR DETAILS & MEDIA ====================
-async function sendMediaWithDetails(conn, mek, from, selectedMedia, typeName, isDocument = true, quality = '360') {
+async function sendMediaWithDetails(conn, mek, from, selectedMedia, typeName, isDocument = true) {
     const videoUrl = selectedMedia.url || `https://youtube.com/watch?v=${selectedMedia.videoId}`;
     const mediaTitle = selectedMedia.title || typeName;
     const thumbnail = selectedMedia.thumbnail || selectedMedia.image || (selectedMedia.videoId ? `https://i.ytimg.com/vi/${selectedMedia.videoId}/hqdefault.jpg` : "");
@@ -32,7 +52,6 @@ async function sendMediaWithDetails(conn, mek, from, selectedMedia, typeName, is
     const views = selectedMedia.views ? selectedMedia.views.toLocaleString() : "N/A";
     const authorName = selectedMedia.author?.name || "Unknown Channel";
 
-    // Styled Info Card
     let infoText = `❖ ── ✦ *${toStylistUpper(typeName)} Details* ✦ ── ❖\n\n`;
     infoText += `╔═════ ⌈ *⚡ ${toStylistUpper('Media Info')}* ⌋ ═════✧\n`;
     infoText += `║ 📌 *${toStylistUpper('Title')}:* ${mediaTitle}\n`;
@@ -55,35 +74,38 @@ async function sendMediaWithDetails(conn, mek, from, selectedMedia, typeName, is
         }, { quoted: mek });
     }
 
-    // VajiraOfc API Call
-    const api = `https://vajiraofc-apis.vercel.app/api/ytmp4?url=${encodeURIComponent(videoUrl)}&quality=${encodeURIComponent(quality)}&apikey=VajiraOfc`;
+    const api = `https://apiii-xrina.my.id/download/youtube-dl?url=${encodeURIComponent(videoUrl)}`;
     const { data } = await axios.get(api, {
         timeout: 90000,
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*'
+        }
     });
 
-    const dlInfo = data?.data?.download || {};
-    const downloadUrl = dlInfo?.url || data?.data?.url || data?.url;
+    const resData = data?.data?.data || data?.data || data?.result || {};
+    const selectedStream = pickUnlockedMp4(resData?.medias || []);
+    const downloadUrl = selectedStream?.url;
+    const finalTitle = resData?.title || mediaTitle;
+    const safeFileName = `${finalTitle.replace(/[/\\?%*:|"<>]/g, '').trim() || 'media'}.mp4`;
 
-    if (!data?.success || !downloadUrl) {
-        return conn.sendMessage(from, { text: `❌ *${toStylistUpper('Download link not found')}:* ${mediaTitle}` }, { quoted: mek });
+    if (!downloadUrl) {
+        return conn.sendMessage(from, { text: `❌ *${toStylistUpper('Download link not found')}:* ${finalTitle}` }, { quoted: mek });
     }
-
-    const finalTitle = data?.data?.title || mediaTitle;
-    const rawFileName = dlInfo?.filename || `${finalTitle}.mp4`;
-    const safeFileName = rawFileName.replace(/[/\\?%*:|"<>]/g, '').trim() || 'video.mp4';
 
     let finalCaption = `❖ ── ✦ *${toStylistUpper(typeName)}* ✦ ── ❖\n\n`;
     finalCaption += `╔═════ ⌈ *⚡ ${toStylistUpper('File Info')}* ⌋ ═════✧\n`;
     finalCaption += `║ 📌 *${toStylistUpper('Title')}:* ${finalTitle}\n`;
-    if (dlInfo?.quality) finalCaption += `║ 🎞️ *${toStylistUpper('Quality')}:* ${dlInfo.quality}\n`;
+    if (selectedStream?.quality) finalCaption += `║ 🎞️ *${toStylistUpper('Quality')}:* ${selectedStream.quality}\n`;
+    if (selectedStream?.sizeStr) finalCaption += `║ 📦 *${toStylistUpper('Size')}:* ${selectedStream.sizeStr}\n`;
     finalCaption += `╚══════════════════════✧\n\n`;
     finalCaption += `> 💫 _${toStylistUpper('Powered by Kamran-Md')}_`;
 
     let thumbBase64 = "";
-    if (isDocument && thumbnail) {
+    const thumbSource = resData?.imageUrl || thumbnail;
+    if (isDocument && thumbSource) {
         try {
-            const thumbBuffer = await axios.get(thumbnail, { responseType: 'arraybuffer', timeout: 20000 }).then(res => res.data);
+            const thumbBuffer = await axios.get(thumbSource, { responseType: 'arraybuffer', timeout: 20000 }).then(res => res.data);
             if (thumbBuffer) {
                 thumbBase64 = Buffer.from(thumbBuffer).toString('base64');
             }
@@ -96,8 +118,9 @@ async function sendMediaWithDetails(conn, mek, from, selectedMedia, typeName, is
         const videoBuffer = await axios.get(downloadUrl, {
             responseType: 'arraybuffer',
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Referer': 'https://vajiraofc-apis.vercel.app/'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                'Referer': 'https://www.youtube.com/',
+                'Origin': 'https://www.youtube.com'
             },
             timeout: 120000,
             maxContentLength: Infinity,
@@ -170,7 +193,7 @@ async (conn, mek, m, { from, text, reply }) => {
         const validEpisodes = rawResults.filter(item => (item.seconds || 0) >= 1200);
         const selected = validEpisodes.length > 0 ? validEpisodes[0] : rawResults[0];
 
-        await sendMediaWithDetails(conn, mek, from, selected, "Drama", true, "360");
+        await sendMediaWithDetails(conn, mek, from, selected, "Drama", true);
     } catch (e) {
         reply(`❌ Error: ${e.message}`);
     }
@@ -199,7 +222,7 @@ async (conn, mek, m, { from, text, reply }) => {
         const validEpisodes = rawResults.filter(item => (item.seconds || 0) >= 600);
         const selected = validEpisodes.length > 0 ? validEpisodes[0] : rawResults[0];
 
-        await sendMediaWithDetails(conn, mek, from, selected, "Cartoon", true, "360");
+        await sendMediaWithDetails(conn, mek, from, selected, "Cartoon", true);
     } catch (e) {
         reply(`❌ Error: ${e.message}`);
     }
@@ -226,7 +249,7 @@ async (conn, mek, m, { from, text, reply }) => {
         if (!rawResults.length) return reply(`❌ *${toStylistUpper('No video found.')}*`);
 
         const selected = rawResults[0];
-        await sendMediaWithDetails(conn, mek, from, selected, "Video", false, "360");
+        await sendMediaWithDetails(conn, mek, from, selected, "Video", false);
     } catch (e) {
         reply(`❌ Error: ${e.message}`);
     }
