@@ -8,39 +8,154 @@ const __filename = fileURLToPath(import.meta.url);
 
 const positiveKeywords = ["nice", "good", "cute", "🌝", "🥵", "💋", "👍", "🌚", "wow", "😩", "super"];
 
-// Helper function to extract quoted message safely across different bot bases
+const MEDIA_TYPE_MAP = {
+    imageMessage: 'image',
+    videoMessage: 'video',
+    audioMessage: 'audio',
+    ptvMessage: 'video',
+    stickerMessage: 'sticker',
+    documentMessage: 'document'
+};
+
+// Safely extract quoted message across different bot bases
 function getQuotedMessage(m) {
-    return m.quoted || m.msg?.contextInfo?.quotedMessage || null;
+    const raw = m?.quoted || m?.msg?.contextInfo?.quotedMessage || null;
+    if (!raw) return null;
+    return raw.message || raw;
+}
+
+// Recursively unwrap viewOnce / ephemeral / documentWithCaption containers
+function unwrapMessage(msg) {
+    let curr = msg;
+    while (curr && typeof curr === 'object') {
+        if (curr.viewOnceMessage?.message) {
+            curr = curr.viewOnceMessage.message;
+        } else if (curr.viewOnceMessageV2?.message) {
+            curr = curr.viewOnceMessageV2.message;
+        } else if (curr.viewOnceMessageV2Extension?.message) {
+            curr = curr.viewOnceMessageV2Extension.message;
+        } else if (curr.ephemeralMessage?.message) {
+            curr = curr.ephemeralMessage.message;
+        } else if (curr.documentWithCaptionMessage?.message) {
+            curr = curr.documentWithCaptionMessage.message;
+        } else {
+            break;
+        }
+    }
+    return curr;
+}
+
+// Identify media key, Baileys download mediaType, and inner content object
+function getMediaKeyAndContent(quoted) {
+    const unwrapped = unwrapMessage(quoted);
+    if (!unwrapped || typeof unwrapped !== 'object') return null;
+
+    for (const key of Object.keys(unwrapped)) {
+        if (MEDIA_TYPE_MAP[key] && unwrapped[key]) {
+            return {
+                msgKey: key,
+                mediaType: MEDIA_TYPE_MAP[key],
+                content: unwrapped[key]
+            };
+        }
+    }
+    return null;
 }
 
 // Universal media downloader helper function
 async function downloadMediaBuffer(quoted, m) {
     try {
-        if (m.quoted && typeof m.quoted.download === 'function') {
-            return await m.quoted.download();
-        }
-        
-        const type = Object.keys(quoted)[0];
-        let content = quoted[type];
-        if (content && content.message) {
-            content = content.message[Object.keys(content.message)[0]];
-        }
-        
-        let dataType = type.replace('Message', '').toLowerCase();
-        if (dataType === 'audio' || dataType === 'ptt') {
-            dataType = 'audio';
+        if (m?.quoted && typeof m.quoted.download === 'function') {
+            const buf = await m.quoted.download();
+            if (buf && buf.length > 0) return buf;
         }
 
-        const stream = await downloadContentFromMessage(content, dataType);
-        let chunks = [];
+        const resolved = getMediaKeyAndContent(quoted);
+        if (!resolved) {
+            console.warn("No downloadable media found in quoted message:", Object.keys(quoted || {}));
+            return null;
+        }
+
+        const stream = await downloadContentFromMessage(resolved.content, resolved.mediaType);
+        const chunks = [];
         for await (const chunk of stream) {
             chunks.push(chunk);
         }
-        return Buffer.concat(chunks);
+        const buffer = Buffer.concat(chunks);
+        return buffer.length > 0 ? buffer : null;
     } catch (err) {
         console.error("Download Buffer Error:", err);
         return null;
     }
+}
+
+// Shared helper to download and send retrieved media to targetJid
+async function sendRetrievedMedia({
+    client,
+    targetJid,
+    replyJid,
+    triggerMsg,
+    contextSource,
+    userConfig,
+    missingQuoteText = "*🍁 Please reply to a view once or media message!*",
+    unsupportedText = "❌ Only image, video, and audio/voice messages are supported"
+}) {
+    const DESCRIPTION = userConfig?.DESCRIPTION || config.DESCRIPTION || "";
+    const quoted = getQuotedMessage(contextSource);
+
+    if (!quoted) {
+        return await client.sendMessage(replyJid, {
+            text: missingQuoteText
+        }, { quoted: triggerMsg });
+    }
+
+    const buffer = await downloadMediaBuffer(quoted, contextSource);
+    if (!buffer || buffer.length === 0) {
+        return await client.sendMessage(replyJid, {
+            text: "❌ *Media download karne me asamarth!*"
+        }, { quoted: triggerMsg });
+    }
+
+    const resolved = getMediaKeyAndContent(quoted);
+    if (!resolved) {
+        return await client.sendMessage(replyJid, {
+            text: unsupportedText
+        }, { quoted: triggerMsg });
+    }
+
+    const originalCaption =
+        contextSource?.quoted?.text ||
+        resolved.content?.caption ||
+        '';
+
+    const options = { quoted: triggerMsg };
+    let messageContent = {};
+
+    if (resolved.mediaType === "image") {
+        messageContent = {
+            image: buffer,
+            caption: originalCaption ? `${originalCaption}\n\n> ${DESCRIPTION}` : `> ${DESCRIPTION}`,
+            mimetype: resolved.content?.mimetype || "image/jpeg"
+        };
+    } else if (resolved.mediaType === "video") {
+        messageContent = {
+            video: buffer,
+            caption: originalCaption ? `${originalCaption}\n\n> ${DESCRIPTION}` : `> ${DESCRIPTION}`,
+            mimetype: resolved.content?.mimetype || "video/mp4"
+        };
+    } else if (resolved.mediaType === "audio") {
+        messageContent = {
+            audio: buffer,
+            mimetype: resolved.content?.mimetype || "audio/mp4",
+            ptt: Boolean(resolved.content?.ptt)
+        };
+    } else {
+        return await client.sendMessage(replyJid, {
+            text: unsupportedText
+        }, { quoted: triggerMsg });
+    }
+
+    await client.sendMessage(targetJid, messageContent, options);
 }
 
 // No prefix keyword handler for view once messages (owner only)
@@ -50,51 +165,27 @@ cmd({
     from,
     body,
     isCreator,
-    reply,
-    sender,
     userConfig
 }) => {
     try {
         if (!isCreator) return;
 
-        const DESCRIPTION = userConfig?.DESCRIPTION || config.DESCRIPTION || "";
-        const messageText = body.trim().toLowerCase();
+        const messageText = (body || "").trim().toLowerCase();
         const hasExactKeywordOnly = positiveKeywords.includes(messageText);
-        
-        const quoted = getQuotedMessage(message);
-        if (hasExactKeywordOnly && quoted) {
-            const buffer = await downloadMediaBuffer(quoted, message);
-            if (!buffer || buffer.length === 0) return;
+        if (!hasExactKeywordOnly) return;
 
-            const mtype = message.quoted?.mtype || Object.keys(quoted)[0];
-            const originalCaption = message.quoted?.text || quoted[Object.keys(quoted)[0]]?.caption || '';
-            const options = { quoted: message };
+        // Check both `m` and `message` for quoted content
+        const source = getQuotedMessage(m) ? m : message;
+        if (!getQuotedMessage(source)) return;
 
-            let messageContent = {};
-            if (mtype.includes("image")) {
-                messageContent = {
-                    image: buffer,
-                    caption: originalCaption ? `${originalCaption}\n\n> ${DESCRIPTION}` : `> ${DESCRIPTION}`,
-                    mimetype: "image/jpeg"
-                };
-            } else if (mtype.includes("video")) {
-                messageContent = {
-                    video: buffer,
-                    caption: originalCaption ? `${originalCaption}\n\n> ${DESCRIPTION}` : `> ${DESCRIPTION}`,
-                    mimetype: "video/mp4"
-                };
-            } else if (mtype.includes("audio") || mtype.includes("ptt")) {
-                messageContent = {
-                    audio: buffer,
-                    mimetype: "audio/mp4",
-                    ptt: quoted.audioMessage?.ptt || quoted.ptt || false
-                };
-            } else {
-                return;
-            }
-
-            await client.sendMessage(message.sender, messageContent, options);
-        }
+        await sendRetrievedMedia({
+            client,
+            targetJid: message.sender || from,
+            replyJid: from,
+            triggerMsg: message,
+            contextSource: source,
+            userConfig
+        });
     } catch (error) {
         console.error("View Once Keyword Error:", error);
     }
@@ -115,51 +206,15 @@ cmd({
     try {
         if (!isCreator) return;
 
-        const DESCRIPTION = userConfig?.DESCRIPTION || config.DESCRIPTION || "";
-        const quoted = getQuotedMessage(m);
-
-        if (!quoted) {
-            return await client.sendMessage(from, {
-                text: "*🍁 Please reply to a view once or media message!*"
-            }, { quoted: message });
-        }
-
-        const buffer = await downloadMediaBuffer(quoted, m);
-
-        if (!buffer || buffer.length === 0) {
-            return await client.sendMessage(from, { text: "❌ *Media download karne me asamarth!*" }, { quoted: message });
-        }
-
-        const mtype = m.quoted?.mtype || Object.keys(quoted)[0];
-        const originalCaption = m.quoted?.text || quoted[Object.keys(quoted)[0]]?.caption || '';
-        const options = { quoted: message };
-
-        let messageContent = {};
-        if (mtype.includes("image")) {
-            messageContent = {
-                image: buffer,
-                caption: originalCaption ? `${originalCaption}\n\n> ${DESCRIPTION}` : `> ${DESCRIPTION}`,
-                mimetype: "image/jpeg"
-            };
-        } else if (mtype.includes("video")) {
-            messageContent = {
-                video: buffer,
-                caption: originalCaption ? `${originalCaption}\n\n> ${DESCRIPTION}` : `> ${DESCRIPTION}`,
-                mimetype: "video/mp4"
-            };
-        } else if (mtype.includes("audio") || mtype.includes("ptt")) {
-            messageContent = {
-                audio: buffer,
-                mimetype: "audio/mp4",
-                ptt: quoted.audioMessage?.ptt || quoted.ptt || false
-            };
-        } else {
-            return await client.sendMessage(from, {
-                text: "❌ Only image, video, and audio/voice messages are supported"
-            }, { quoted: message });
-        }
-
-        await client.sendMessage(from, messageContent, options);
+        const source = getQuotedMessage(m) ? m : message;
+        await sendRetrievedMedia({
+            client,
+            targetJid: from,
+            replyJid: from,
+            triggerMsg: message,
+            contextSource: source,
+            userConfig
+        });
     } catch (error) {
         console.error("vv3 Error:", error);
         await client.sendMessage(from, {
@@ -176,8 +231,8 @@ cmd({
     desc: "Owner Only - retrieve quoted message back to user",
     category: "owner",
     filename: __filename
-}, async (client, message, m, { 
-    from, 
+}, async (client, message, m, {
+    from,
     isCreator,
     userConfig
 }) => {
@@ -188,51 +243,15 @@ cmd({
             }, { quoted: message });
         }
 
-        const DESCRIPTION = userConfig?.DESCRIPTION || config.DESCRIPTION || "";
-        const quoted = getQuotedMessage(m);
-
-        if (!quoted) {
-            return await client.sendMessage(from, {
-                text: "*🍁 Please reply to a view once or media message!*"
-            }, { quoted: message });
-        }
-
-        const buffer = await downloadMediaBuffer(quoted, m);
-
-        if (!buffer || buffer.length === 0) {
-            return await client.sendMessage(from, { text: "❌ *Media download karne me asamarth!*" }, { quoted: message });
-        }
-
-        const mtype = m.quoted?.mtype || Object.keys(quoted)[0];
-        const originalCaption = m.quoted?.text || quoted[Object.keys(quoted)[0]]?.caption || '';
-        const options = { quoted: message };
-
-        let messageContent = {};
-        if (mtype.includes("image")) {
-            messageContent = {
-                image: buffer,
-                caption: originalCaption ? `${originalCaption}\n\n> ${DESCRIPTION}` : `> ${DESCRIPTION}`,
-                mimetype: "image/jpeg"
-            };
-        } else if (mtype.includes("video")) {
-            messageContent = {
-                video: buffer,
-                caption: originalCaption ? `${originalCaption}\n\n> ${DESCRIPTION}` : `> ${DESCRIPTION}`,
-                mimetype: "video/mp4"
-            };
-        } else if (mtype.includes("audio") || mtype.includes("ptt")) {
-            messageContent = {
-                audio: buffer,
-                mimetype: "audio/mp4",
-                ptt: quoted.audioMessage?.ptt || quoted.ptt || false
-            };
-        } else {
-            return await client.sendMessage(from, {
-                text: "❌ Only image, video, and audio/voice messages are supported"
-            }, { quoted: message });
-        }
-
-        await client.sendMessage(from, messageContent, options);
+        const source = getQuotedMessage(m) ? m : message;
+        await sendRetrievedMedia({
+            client,
+            targetJid: from,
+            replyJid: from,
+            triggerMsg: message,
+            contextSource: source,
+            userConfig
+        });
     } catch (error) {
         console.error("vv Error:", error);
         await client.sendMessage(from, {
@@ -248,61 +267,25 @@ cmd({
     desc: "Owner Only - retrieve quoted message back to user",
     category: "owner",
     filename: __filename
-}, async (client, message, m, { 
-    from, 
+}, async (client, message, m, {
+    from,
     isCreator,
     userConfig
 }) => {
     try {
         if (!isCreator) return;
 
-        const DESCRIPTION = userConfig?.DESCRIPTION || config.DESCRIPTION || "";
-        const quoted = getQuotedMessage(m);
-
-        if (!quoted) {
-            return await client.sendMessage(from, {
-                text: "*🍁 Please reply to a view once or media message!*"
-            }, { quoted: message });
-        }
-
-        const buffer = await downloadMediaBuffer(quoted, m);
-
-        if (!buffer || buffer.length === 0) {
-            return await client.sendMessage(from, { text: "❌ *Media download karne me asamarth!*" }, { quoted: message });
-        }
-
-        const mtype = m.quoted?.mtype || Object.keys(quoted)[0];
-        const originalCaption = m.quoted?.text || quoted[Object.keys(quoted)[0]]?.caption || '';
-        const options = { quoted: message };
-
-        let messageContent = {};
-        if (mtype.includes("image")) {
-            messageContent = {
-                image: buffer,
-                caption: originalCaption ? `${originalCaption}\n\n> ${DESCRIPTION}` : `> ${DESCRIPTION}`,
-                mimetype: "image/jpeg"
-            };
-        } else if (mtype.includes("video")) {
-            messageContent = {
-                video: buffer,
-                caption: originalCaption ? `${originalCaption}\n\n> ${DESCRIPTION}` : `> ${DESCRIPTION}`,
-                mimetype: "video/mp4"
-            };
-        } else if (mtype.includes("audio") || mtype.includes("ptt")) {
-            messageContent = {
-                audio: buffer,
-                mimetype: "audio/mp4",
-                ptt: quoted.audioMessage?.ptt || quoted.ptt || false
-            };
-        } else {
-            return await client.sendMessage(from, {
-                text: "❌ Only image, video, and audio/voice messages are supported"
-            }, { quoted: message });
-        }
-
-        await client.sendMessage(message.sender, messageContent, options);
+        const source = getQuotedMessage(m) ? m : message;
+        await sendRetrievedMedia({
+            client,
+            targetJid: message.sender || from,
+            replyJid: from,
+            triggerMsg: message,
+            contextSource: source,
+            userConfig
+        });
     } catch (error) {
-        console.error("vv Error:", error);
+        console.error("vv2 Error:", error);
         await client.sendMessage(from, {
             text: "❌ Error fetching message:\n" + error.message
         }, { quoted: message });
