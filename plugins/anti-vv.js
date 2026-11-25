@@ -17,7 +17,6 @@ const MEDIA_TYPE_MAP = {
     documentMessage: 'document'
 };
 
-// Recursively unwrap viewOnce / ephemeral / documentWithCaption wrappers
 function unwrapMessageContainer(msg) {
     let curr = msg?.message || msg;
     while (curr && typeof curr === 'object') {
@@ -38,14 +37,12 @@ function unwrapMessageContainer(msg) {
     return curr;
 }
 
-// Safely extract quoted message object
 function getQuotedMessage(m) {
     const raw = m?.quoted || m?.msg?.contextInfo?.quotedMessage || null;
     if (!raw) return null;
     return unwrapMessageContainer(raw);
 }
 
-// Resolve inner media key, Baileys download mediaType, and content object
 function getMediaKeyAndContent(quoted) {
     const unwrapped = unwrapMessageContainer(quoted);
     if (!unwrapped || typeof unwrapped !== 'object') return null;
@@ -66,44 +63,68 @@ function hasMediaLocator(content) {
     return Boolean(content && (content.url || content.directPath));
 }
 
-// Download media buffer safely without triggering 400 when url/directPath are missing
-async function downloadMediaBuffer(quoted, m, client) {
-    try {
-        let resolved = getMediaKeyAndContent(quoted);
+async function hydrateFromStores(m, client, currentResolved) {
+    if (hasMediaLocator(currentResolved?.content)) {
+        return currentResolved;
+    }
 
-        // If quoted message lacks url/directPath, try hydrating full message from store/client
-        if (!hasMediaLocator(resolved?.content)) {
-            const stanzaId = m?.msg?.contextInfo?.stanzaId || m?.quoted?.id || m?.quoted?.key?.id;
-            const chatJid = m?.quoted?.chat || m?.chat || m?.from;
-            const store = client?.store || m?.store;
+    const stanzaId = m?.msg?.contextInfo?.stanzaId || m?.quoted?.id || m?.quoted?.key?.id;
+    const chatJid = m?.quoted?.chat || m?.chat || m?.from;
+    const storeCandidates = [client?.store, m?.store, globalThis?.store].filter(Boolean);
 
-            if (store?.loadMessage && stanzaId && chatJid) {
-                try {
-                    const storedMsg = await store.loadMessage(chatJid, stanzaId);
-                    const fromStore = getMediaKeyAndContent(storedMsg);
-                    if (hasMediaLocator(fromStore?.content)) {
-                        resolved = fromStore;
-                    }
-                } catch (_) {
-                    // Ignore store lookup miss
+    for (const store of storeCandidates) {
+        if (typeof store.loadMessage === 'function' && stanzaId && chatJid) {
+            try {
+                const storedMsg = await store.loadMessage(chatJid, stanzaId);
+                const resolvedFromStore = getMediaKeyAndContent(storedMsg);
+                if (hasMediaLocator(resolvedFromStore?.content)) {
+                    return resolvedFromStore;
                 }
+            } catch (_) {
+                // Continue checking other stores
             }
         }
 
-        // Only try m.quoted.download() if we actually have a media locator or no unwrapped locator check failed
-        if (hasMediaLocator(resolved?.content) && m?.quoted && typeof m.quoted.download === 'function') {
+        const chatMessages = store?.messages?.[chatJid];
+        if (chatMessages && stanzaId) {
+            const candidate =
+                typeof chatMessages.get === 'function'
+                    ? chatMessages.get(stanzaId)
+                    : chatMessages[stanzaId];
+            const resolvedFromCache = getMediaKeyAndContent(candidate);
+            if (hasMediaLocator(resolvedFromCache?.content)) {
+                return resolvedFromCache;
+            }
+        }
+    }
+
+    return currentResolved;
+}
+
+async function downloadMediaBuffer(quoted, m, client) {
+    try {
+        let resolved = await hydrateFromStores(m, client, getMediaKeyAndContent(quoted));
+
+        // Only call m.quoted.download() if we actually have a url/directPath on quoted or hydrated content
+        const quotedResolved = getMediaKeyAndContent(quoted);
+        const canUseQuotedDownload =
+            hasMediaLocator(quotedResolved?.content) &&
+            m?.quoted &&
+            typeof m.quoted.download === 'function';
+
+        if (canUseQuotedDownload) {
             try {
                 const buf = await m.quoted.download();
                 if (buf && buf.length > 0) return buf;
             } catch (err) {
-                if (!String(err?.message || '').includes('No valid media URL or directPath')) {
+                const msg = String(err?.message || '');
+                if (!msg.includes('No valid media URL or directPath')) {
                     throw err;
                 }
             }
         }
 
         if (!hasMediaLocator(resolved?.content)) {
-            console.warn("Quoted media missing url/directPath:", resolved?.msgKey || Object.keys(quoted || {}));
             return null;
         }
 
@@ -115,7 +136,8 @@ async function downloadMediaBuffer(quoted, m, client) {
         const buffer = Buffer.concat(chunks);
         return buffer.length > 0 ? buffer : null;
     } catch (err) {
-        if (String(err?.message || '').includes('No valid media URL or directPath')) {
+        const msg = String(err?.message || '');
+        if (msg.includes('No valid media URL or directPath')) {
             return null;
         }
         console.error("Download Buffer Error:", err);
@@ -123,7 +145,6 @@ async function downloadMediaBuffer(quoted, m, client) {
     }
 }
 
-// Shared helper to download and send retrieved media
 async function sendRetrievedMedia({
     client,
     targetJid,
@@ -143,17 +164,19 @@ async function sendRetrievedMedia({
         }, { quoted: triggerMsg });
     }
 
-    const resolved = getMediaKeyAndContent(quoted);
+    let resolved = getMediaKeyAndContent(quoted);
     if (!resolved) {
         return await client.sendMessage(replyJid, {
             text: unsupportedText
         }, { quoted: triggerMsg });
     }
 
+    resolved = await hydrateFromStores(contextSource, client, resolved);
+
     const buffer = await downloadMediaBuffer(quoted, contextSource, client);
     if (!buffer || buffer.length === 0) {
         return await client.sendMessage(replyJid, {
-            text: "❌ *Media download karne me asamarth! (No media URL/directPath in quoted message)*"
+            text: "❌ *Media download karne me asamarth! (Quoted message has no media URL/directPath)*"
         }, { quoted: triggerMsg });
     }
 
